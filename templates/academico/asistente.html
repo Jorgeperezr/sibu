@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Carga de ficha socioeconómica · SIBU{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Carga de la base institucional</h1>
+<p class="text-muted">Ficha socioeconómica de matrícula (Excel/CSV). Sube el archivo,
+revisa la previsualización y confirma la aplicación.</p>
+
+{% if messages %}
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+  {% endfor %}
+{% endif %}
+
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label class="form-label">Período académico</label>
+        <select name="periodo" class="form-select" required>
+          <option value="">— Seleccione —</option>
+          {% for p in periodos %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.nombre }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Archivo (.xlsx o .csv)</label>
+        <input type="file" name="archivo" class="form-control" accept=".xlsx,.csv" required>
+      </div>
+      <button name="accion" value="previsualizar" class="btn btn-outline-primary">Previsualizar</button>
+      <button name="accion" value="aplicar" class="btn btn-primary"
+              onclick="return confirm('¿Aplicar la carga? Esta acción escribe en la base de datos.')">
+        Aplicar carga
+      </button>
+    </form>
+  </div>
+</div>
+
+{% if resultado %}
+<div class="card">
+  <div class="card-header">Resumen {% if aplicado %}(aplicado){% else %}(previsualización){% endif %}</div>
+  <div class="card-body">
+    <div class="row text-center">
+      <div class="col"><div class="h4">{{ resultado.total }}</div><small class="text-muted">Filas</small></div>
+      <div class="col"><div class="h4 text-success">{{ resultado.altas }}</div><small class="text-muted">Altas</small></div>
+      <div class="col"><div class="h4 text-info">{{ resultado.actualizaciones }}</div><small class="text-muted">Actualizaciones</small></div>
+      <div class="col"><div class="h4 text-danger">{{ resultado.errores }}</div><small class="text-muted">Errores</small></div>
+      <div class="col"><div class="h4 text-warning">{{ resultado.alertas_generadas }}</div><small class="text-muted">Alertas</small></div>
+    </div>
+    {% if resultado.detalle_errores %}
+      <hr><h6>Detalle de errores/avisos (primeros 200)</h6>
+      <ul class="small">{% for e in resultado.detalle_errores %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
