@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Buscar expediente · SIBU{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Buscar por cédula</h1>
+
+<form method="get" class="row g-2 mb-4">
+  <div class="col-auto">
+    <input type="text" name="cedula" value="{{ cedula|default:'' }}"
+           class="form-control" placeholder="Número de cédula" maxlength="13" autofocus>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary">Buscar</button>
+  </div>
+</form>
+
+{% if messages %}{% for m in messages %}
+  <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+{% endfor %}{% endif %}
+
+{% if persona %}
+<div class="card border-{{ semaforo }}">
+  <div class="card-header bg-{{ semaforo }} text-white d-flex justify-content-between">
+    <span>{{ persona.nombre_completo }}</span>
+    <span class="badge bg-light text-dark">{{ persona.get_tipo_vinculo_display }}</span>
+  </div>
+  <div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-3">Cédula</dt><dd class="col-sm-3">{{ persona.cedula }}</dd>
+      <dt class="col-sm-3">Correo</dt><dd class="col-sm-3">{{ persona.correo_institucional|default:"—" }}</dd>
+      {% if institucional %}
+      <dt class="col-sm-3">Facultad</dt><dd class="col-sm-3">{{ institucional.facultad|default:"—" }}</dd>
+      <dt class="col-sm-3">Carrera</dt><dd class="col-sm-3">{{ institucional.carrera|default:"—" }}</dd>
+      <dt class="col-sm-3">Ciclo</dt><dd class="col-sm-3">{{ institucional.ciclo|default:"—" }}</dd>
+      <dt class="col-sm-3">Estado</dt><dd class="col-sm-3">{{ institucional.estado|default:"—" }}</dd>
+      {% endif %}
+    </dl>
+  </div>
+  <div class="card-footer">
+    {% if expediente %}
+      <a href="{% url 'expediente:detalle' expediente.id %}" class="btn btn-outline-primary">
+        Abrir expediente {{ expediente.numero_expediente }}
+      </a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

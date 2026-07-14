@@ -9,11 +9,13 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from apps.academico.api import CargaInstitucionalViewSet, consultar_persona
+from apps.expediente.api import ExpedienteViewSet, PersonaViewSet
 
 router = DefaultRouter()
 router.register("academico/cargas", CargaInstitucionalViewSet, basename="carga")
+router.register("personas", PersonaViewSet, basename="persona")
+router.register("expedientes", ExpedienteViewSet, basename="expediente")
 # Próximos sprints:
-# router.register("personas", PersonaViewSet)          # apps.expediente
 # router.register("citas", CitaViewSet)                # apps.citas
 # router.register("becas/beneficiarios", BeneficiarioViewSet)  # apps.becas
 # router.register("talleres", TallerViewSet)           # apps.talleres
