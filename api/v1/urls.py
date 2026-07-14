@@ -1,8 +1,5 @@
 """
 Router principal de la API v1.
-
-Sprint 1: módulo académico (carga institucional + consulta por cédula).
-Los siguientes módulos se registran aquí a medida que se implementan.
 """
 from django.http import JsonResponse
 from django.urls import path
@@ -10,15 +7,15 @@ from rest_framework.routers import DefaultRouter
 
 from apps.academico.api import CargaInstitucionalViewSet, consultar_persona
 from apps.expediente.api import ExpedienteViewSet, PersonaViewSet
+from apps.citas.api import AgendaViewSet, BloqueoAgendaViewSet, CitaViewSet
 
 router = DefaultRouter()
 router.register("academico/cargas", CargaInstitucionalViewSet, basename="carga")
 router.register("personas", PersonaViewSet, basename="persona")
 router.register("expedientes", ExpedienteViewSet, basename="expediente")
-# Próximos sprints:
-# router.register("citas", CitaViewSet)                # apps.citas
-# router.register("becas/beneficiarios", BeneficiarioViewSet)  # apps.becas
-# router.register("talleres", TallerViewSet)           # apps.talleres
+router.register("citas", CitaViewSet, basename="cita")
+router.register("agendas", AgendaViewSet, basename="agenda")
+router.register("bloqueos-agenda", BloqueoAgendaViewSet, basename="bloqueo")
 
 
 def salud(_request):
