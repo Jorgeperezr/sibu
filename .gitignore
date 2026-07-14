@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Django
+*.log
+db.sqlite3
+/media/
+/staticfiles/
+.env
+
+# Cobertura / pruebas
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+
+# Secretos / credenciales
+*.p12
+client_secret*.json
+credentials.json
+token.json
