@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Expediente {{ expediente.numero_expediente }} · SIBU{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="h4 mb-0">{{ persona.nombre_completo }}</h1>
+    <small class="text-muted">Expediente {{ expediente.numero_expediente }} ·
+      {{ persona.cedula }} · {{ persona.get_tipo_vinculo_display }}</small>
+  </div>
+  <a href="{% url 'expediente:buscar' %}" class="btn btn-sm btn-outline-secondary">Nueva búsqueda</a>
+</div>
+
+{% if alertas %}
+<div class="mb-3">
+  {% for a in alertas %}
+    <span class="badge bg-danger me-1" title="{{ a.get_tipo_display }}">⚠ {{ a.descripcion }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between">
+    <span>Línea de tiempo ({{ total_atenciones }} atenciones visibles)</span>
+  </div>
+  <ul class="list-group list-group-flush">
+    {% for at in atenciones %}
+      <li class="list-group-item">
+        <div class="d-flex justify-content-between">
+          <strong>{{ at.servicio.nombre }}</strong>
+          <small class="text-muted">{{ at.fecha_hora|date:"d/m/Y H:i" }}</small>
+        </div>
+        <div class="small text-muted">
+          {{ at.get_tipo_display }} · {{ at.profesional.usuario.get_full_name|default:"—" }}
+          · <span class="badge bg-secondary">{{ at.get_estado_display }}</span>
+        </div>
+        {% if at.motivo_consulta %}<div class="small">{{ at.motivo_consulta|truncatechars:120 }}</div>{% endif %}
+      </li>
+    {% empty %}
+      <li class="list-group-item text-muted">No hay atenciones visibles para su rol en este expediente.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

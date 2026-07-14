@@ -10,7 +10,8 @@ ignore = ["DJ001"]
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
 python_files = ["test_*.py", "tests.py"]
-addopts = "-ra"
+addopts = "-ra --import-mode=importlib"
+pythonpath = ["."]
 
 [tool.coverage.run]
 omit = ["*/migrations/*", "*/tests/*", "config/*", "manage.py"]

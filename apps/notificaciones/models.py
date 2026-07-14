@@ -17,7 +17,11 @@ class Notificacion(ModeloBase):
         LEIDA = "leida", "Leída"
         FALLIDA = "fallida", "Fallida"
 
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name="notificaciones")
+    usuario = models.ForeignKey(
+        Usuario, on_delete=models.CASCADE, related_name="notificaciones",
+        null=True, blank=True,
+        help_text="Destinatario interno; null para notificaciones a personas sin cuenta.",
+    )
     tipo = models.CharField(max_length=60)
     titulo = models.CharField(max_length=150)
     mensaje = models.TextField()
@@ -25,6 +29,8 @@ class Notificacion(ModeloBase):
     estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
     referencia_tipo = models.CharField(max_length=40, blank=True)
     referencia_id = models.PositiveBigIntegerField(null=True, blank=True)
+    destinatario_correo = models.EmailField(blank=True)
+    destinatario_nombre = models.CharField(max_length=200, blank=True)
     programada_para = models.DateTimeField(null=True, blank=True)
     enviada_en = models.DateTimeField(null=True, blank=True)
 
