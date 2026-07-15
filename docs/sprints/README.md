@@ -9,7 +9,7 @@ y desplegable.
 | **S1** | `academico` — carga de la ficha socioeconómica (Excel/CSV) | ✅ Entregado |
 | S2 | `expediente` + `usuarios` — expediente único, RBAC, consulta por cédula en UI | ✅ Entregado |
 | S3 | `citas` — agenda y ciclo de vida de la cita | ✅ Entregado |
-| S4 | `enfermeria` + `medicina` — triaje, HC médica, recetas y órdenes | Pendiente |
+| S4 | `enfermeria` + `medicina` — triaje, HC médica, recetas y órdenes | ✅ Entregado |
 | S5 | `laboratorio` — órdenes, resultados y envío al correo institucional | Pendiente |
 | S6 | `odontologia` + `farmacia` — odontograma, despacho e inventario | Pendiente |
 | S7 | `psicologia` + `psicopedagogia` + `trabajo_social` + `derivaciones` | Pendiente |

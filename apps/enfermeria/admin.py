@@ -1,8 +1,17 @@
-from django.apps import apps as django_apps
 from django.contrib import admin
 
-for _model in django_apps.get_app_config("enfermeria").get_models():
-    try:
-        admin.site.register(_model)
-    except admin.sites.AlreadyRegistered:
-        pass
+from .models import AtencionEnfermeria, SignosVitales
+
+
+@admin.register(SignosVitales)
+class SignosVitalesAdmin(admin.ModelAdmin):
+    list_display = ("expediente", "fecha_hora", "temperatura", "fc",
+                    "pa_sistolica", "pa_diastolica", "sat_o2", "imc",
+                    "responsable")
+    list_filter = ("responsable",)
+    date_hierarchy = "fecha_hora"
+
+
+@admin.register(AtencionEnfermeria)
+class AtencionEnfermeriaAdmin(admin.ModelAdmin):
+    list_display = ("atencion", "charla_educativa")
