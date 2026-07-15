@@ -1,8 +1,23 @@
-from django.apps import apps as django_apps
 from django.contrib import admin
 
-for _model in django_apps.get_app_config("medicina").get_models():
-    try:
-        admin.site.register(_model)
-    except admin.sites.AlreadyRegistered:
-        pass
+from .models import AtencionMedicina, Diagnostico
+
+
+class DiagnosticoInline(admin.TabularInline):
+    model = Diagnostico
+    extra = 0
+    autocomplete_fields = ["cie10"]
+
+
+@admin.register(AtencionMedicina)
+class AtencionMedicinaAdmin(admin.ModelAdmin):
+    list_display = ("atencion", "dias_reposo", "proxima_cita_sugerida")
+    search_fields = ("atencion__expediente__persona__cedula",
+                     "atencion__expediente__persona__apellidos")
+
+
+@admin.register(Diagnostico)
+class DiagnosticoAdmin(admin.ModelAdmin):
+    list_display = ("atencion", "cie10", "tipo", "condicion", "principal")
+    list_filter = ("tipo", "condicion", "principal")
+    autocomplete_fields = ["cie10"]

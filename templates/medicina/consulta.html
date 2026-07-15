@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Consulta médica · SIBU{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="h4 mb-0">Consulta médica</h1>
+    <small class="text-muted">
+      {{ persona.nombre_completo }} · {{ persona.cedula }} ·
+      {{ atencion.fecha_hora|date:"d/m/Y H:i" }}
+      <span class="badge bg-secondary">{{ atencion.get_estado_display }}</span>
+    </small>
+  </div>
+  <a href="{% url 'expediente:detalle' atencion.expediente_id %}"
+     class="btn btn-sm btn-outline-secondary">Expediente</a>
+</div>
+
+{% if messages %}{% for m in messages %}
+  <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+{% endfor %}{% endif %}
+
+{% if triaje %}
+<div class="alert alert-info py-2">
+  <strong>Triaje ({{ triaje.fecha_hora|date:"H:i" }}):</strong>
+  T° {{ triaje.temperatura|default:"—" }} ·
+  FC {{ triaje.fc|default:"—" }} ·
+  FR {{ triaje.fr|default:"—" }} ·
+  PA {% if triaje.pa_sistolica %}{{ triaje.pa_sistolica }}/{{ triaje.pa_diastolica }}{% else %}—{% endif %} ·
+  SatO₂ {{ triaje.sat_o2|default:"—" }} ·
+  IMC {{ triaje.imc|default:"—" }}
+</div>
+{% else %}
+<div class="alert alert-warning py-2">
+  Sin triaje reciente.
+  <a href="{% url 'enfermeria:triaje' atencion.expediente_id %}">Registrar signos vitales</a>.
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">Anamnesis y plan</div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="guardar">
+          <div class="mb-3">
+            <label class="form-label">Motivo de consulta</label>
+            <input class="form-control" value="{{ atencion.motivo_consulta }}" disabled>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Enfermedad actual</label>
+            <textarea name="enfermedad_actual" rows="4" class="form-control"
+              {% if atencion.inmutable %}disabled{% endif %}>{{ hc.enfermedad_actual }}</textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Plan de tratamiento</label>
+            <textarea name="plan_tratamiento" rows="3" class="form-control"
+              {% if atencion.inmutable %}disabled{% endif %}>{{ hc.plan_tratamiento }}</textarea>
+          </div>
+          <div class="row">
+            <div class="col-md-8 mb-3">
+              <label class="form-label">Indicaciones</label>
+              <textarea name="indicaciones" rows="2" class="form-control"
+                {% if atencion.inmutable %}disabled{% endif %}>{{ hc.indicaciones }}</textarea>
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Días de reposo</label>
+              <input type="number" name="dias_reposo" class="form-control"
+                     value="{{ hc.dias_reposo|default:'' }}"
+                     {% if atencion.inmutable %}disabled{% endif %}>
+            </div>
+          </div>
+          {% if not atencion.inmutable %}
+            <button class="btn btn-primary">Guardar</button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header">Diagnósticos (CIE-10)</div>
+      <ul class="list-group list-group-flush">
+        {% for d in diagnosticos %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>
+            <strong>{{ d.cie10.codigo }}</strong> {{ d.cie10.descripcion|truncatechars:40 }}
+            <br><small class="text-muted">{{ d.get_tipo_display }}</small>
+          </span>
+          {% if d.principal %}<span class="badge bg-primary">Principal</span>{% endif %}
+        </li>
+        {% empty %}
+          <li class="list-group-item text-muted">Sin diagnósticos.</li>
+        {% endfor %}
+      </ul>
+      {% if not atencion.inmutable %}
+      <div class="card-body border-top">
+        <form method="post" class="row g-2">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="diagnostico">
+          <div class="col-5">
+            <input name="cie10" class="form-control form-control-sm"
+                   placeholder="Código CIE-10" required>
+          </div>
+          <div class="col-4">
+            <select name="tipo" class="form-select form-select-sm">
+              <option value="presuntivo">Presuntivo</option>
+              <option value="definitivo">Definitivo</option>
+            </select>
+          </div>
+          <div class="col-3">
+            <button class="btn btn-sm btn-outline-primary w-100">Agregar</button>
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="principal" id="principal">
+              <label class="form-check-label small" for="principal">Diagnóstico principal</label>
+            </div>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">Recetas y órdenes</div>
+      <div class="card-body">
+        <p class="mb-1"><strong>{{ recetas.count }}</strong> receta(s) emitida(s)</p>
+        {% for r in recetas %}
+          <div class="small text-muted">{{ r.numero }} — {{ r.get_estado_display }}</div>
+        {% endfor %}
+        <p class="mb-1 mt-2"><strong>{{ ordenes.count }}</strong> orden(es) de laboratorio</p>
+        {% for o in ordenes %}
+          <div class="small text-muted">#{{ o.id }} — {{ o.get_estado_display }}</div>
+        {% endfor %}
+        <div class="form-text mt-2">
+          La emisión de recetas y órdenes se realiza vía API
+          (<code>/api/v1/atenciones/medicina/{{ hc.pk }}/receta/</code>).
+        </div>
+      </div>
+    </div>
+
+    {% if not atencion.inmutable %}
+    <form method="post"
+          onsubmit="return confirm('¿Cerrar la atención? Requiere un diagnóstico principal.')">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="cerrar">
+      <button class="btn btn-success w-100">Cerrar atención</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

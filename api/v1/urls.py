@@ -8,6 +8,7 @@ from rest_framework.routers import DefaultRouter
 from apps.academico.api import CargaInstitucionalViewSet, consultar_persona
 from apps.expediente.api import ExpedienteViewSet, PersonaViewSet
 from apps.citas.api import AgendaViewSet, BloqueoAgendaViewSet, CitaViewSet
+from apps.medicina.api import AtencionMedicinaViewSet
 
 router = DefaultRouter()
 router.register("academico/cargas", CargaInstitucionalViewSet, basename="carga")
@@ -16,6 +17,7 @@ router.register("expedientes", ExpedienteViewSet, basename="expediente")
 router.register("citas", CitaViewSet, basename="cita")
 router.register("agendas", AgendaViewSet, basename="agenda")
 router.register("bloqueos-agenda", BloqueoAgendaViewSet, basename="bloqueo")
+router.register("atenciones/medicina", AtencionMedicinaViewSet, basename="atencion-medicina")
 
 
 def salud(_request):
