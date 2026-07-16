@@ -1,13 +1,15 @@
 """
 Router principal de la API v1.
 """
+
 from django.http import JsonResponse
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from apps.academico.api import CargaInstitucionalViewSet, consultar_persona
-from apps.expediente.api import ExpedienteViewSet, PersonaViewSet
 from apps.citas.api import AgendaViewSet, BloqueoAgendaViewSet, CitaViewSet
+from apps.expediente.api import ExpedienteViewSet, PersonaViewSet
+from apps.laboratorio.api import ExamenViewSet, OrdenLaboratorioViewSet
 from apps.medicina.api import AtencionMedicinaViewSet
 
 router = DefaultRouter()
@@ -18,6 +20,8 @@ router.register("citas", CitaViewSet, basename="cita")
 router.register("agendas", AgendaViewSet, basename="agenda")
 router.register("bloqueos-agenda", BloqueoAgendaViewSet, basename="bloqueo")
 router.register("atenciones/medicina", AtencionMedicinaViewSet, basename="atencion-medicina")
+router.register("laboratorio/ordenes", OrdenLaboratorioViewSet, basename="orden-lab")
+router.register("laboratorio/examenes", ExamenViewSet, basename="examen")
 
 
 def salud(_request):
