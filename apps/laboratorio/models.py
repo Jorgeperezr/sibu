@@ -3,6 +3,7 @@
 órdenes (regla de negocio, informe 5.2). El resultado validado se envía al
 correo institucional del paciente (informe 5.2, 12.4).
 """
+
 from django.db import models
 
 from apps.core.models import ModeloBase
@@ -57,6 +58,9 @@ class OrdenExamen(models.Model):
     orden = models.ForeignKey(OrdenLaboratorio, on_delete=models.CASCADE, related_name="examenes")
     examen = models.ForeignKey(Examen, on_delete=models.PROTECT)
 
+    def __str__(self):
+        return f"{self.examen} (orden #{self.orden_id})"
+
 
 class ResultadoParametro(models.Model):
     class Marcador(models.TextChoices):
@@ -65,7 +69,9 @@ class ResultadoParametro(models.Model):
         BAJO = "bajo", "Bajo"
         CRITICO = "critico", "Crítico"
 
-    orden_examen = models.ForeignKey(OrdenExamen, on_delete=models.CASCADE, related_name="resultados")
+    orden_examen = models.ForeignKey(
+        OrdenExamen, on_delete=models.CASCADE, related_name="resultados"
+    )
     parametro = models.CharField(max_length=120)
     valor = models.CharField(max_length=60)
     unidad = models.CharField(max_length=30, blank=True)
@@ -80,3 +86,6 @@ class ResultadoParametro(models.Model):
     class Meta:
         verbose_name = "resultado de parámetro"
         verbose_name_plural = "resultados de parámetros"
+
+    def __str__(self):
+        return f"{self.parametro}: {self.valor} {self.unidad}".strip()

@@ -11,6 +11,7 @@ Cada fila válida hace upsert de Persona + DatoAcademico, pre-puebla la
 FichaSocioeconomica (origen=matrícula) y genera alertas hacia las bandejas de
 Trabajo Social / Psicopedagogía / Psicología / Medicina (sección 12.7).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -81,8 +82,10 @@ class ResultadoCarga:
 
     def as_dict(self):
         return {
-            "total": self.total, "altas": self.altas,
-            "actualizaciones": self.actualizaciones, "errores": self.errores,
+            "total": self.total,
+            "altas": self.altas,
+            "actualizaciones": self.actualizaciones,
+            "errores": self.errores,
             "alertas_generadas": self.alertas_generadas,
             "detalle_errores": self.detalle_errores[:200],  # cota para la bitácora
         }
@@ -125,8 +128,11 @@ class ProcesadorCarga:
         apellidos = self._get(fila, "apellidos")
 
         # Validaciones mínimas
-        faltantes = [c for c in mapping.COLUMNAS_OBLIGATORIAS
-                     if not (self._get(fila, c) or (c == "cedula" and cedula))]
+        faltantes = [
+            c
+            for c in mapping.COLUMNAS_OBLIGATORIAS
+            if not (self._get(fila, c) or (c == "cedula" and cedula))
+        ]
         if faltantes:
             raise ValueError(f"Columnas obligatorias vacías: {', '.join(faltantes)}")
         if not validators.validar_cedula_ecuatoriana(cedula):
@@ -170,17 +176,16 @@ class ProcesadorCarga:
             "fecha_nacimiento": validators.a_fecha(self._get(fila, "fecha_nacimiento")),
             "procedencia": self._subdict(fila, mapping.PERSONA_JSONB["procedencia"]),
             "residencia_actual": self._subdict(fila, mapping.PERSONA_JSONB["residencia_actual"]),
-            "contacto_referencia": self._subdict(fila, mapping.PERSONA_JSONB["contacto_referencia"]),
+            "contacto_referencia": self._subdict(
+                fila, mapping.PERSONA_JSONB["contacto_referencia"]
+            ),
         }
         return Persona.objects.update_or_create(cedula=cedula, defaults=defaults)
 
     def _upsert_dato_academico(self, fila, persona):
         from .models import DatoAcademico
 
-        defaults = {
-            campo: (self._get(fila, col) or "")
-            for col, campo in mapping.ACADEMICO.items()
-        }
+        defaults = {campo: (self._get(fila, col) or "") for col, campo in mapping.ACADEMICO.items()}
         defaults["carga"] = self.carga
         defaults["ficha_raw"] = {k: v for k, v in fila.items() if v is not None}
         DatoAcademico.objects.update_or_create(
@@ -230,7 +235,9 @@ class ProcesadorCarga:
                 continue
             descripcion = plantilla.format(valor=valor)
             _, creada = AlertaClinica.objects.get_or_create(
-                expediente=expediente, tipo=tipo, descripcion=descripcion,
+                expediente=expediente,
+                tipo=tipo,
+                descripcion=descripcion,
                 defaults={"activa": True},
             )
             generadas += 1 if creada else 0

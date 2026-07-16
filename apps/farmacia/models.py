@@ -1,6 +1,7 @@
 """
 Recetas, dispensación e inventario con control por lote (FEFO) — informe 5.2, 6.5.
 """
+
 from django.db import models
 
 from apps.core.models import ModeloBase
@@ -41,6 +42,9 @@ class Lote(models.Model):
         verbose_name_plural = "lotes"
         indexes = [models.Index(fields=["medicamento", "fecha_caducidad"])]  # soporte FEFO
 
+    def __str__(self):
+        return f"{self.medicamento} · lote {self.numero_lote} (cad. {self.fecha_caducidad})"
+
 
 class MovimientoInventario(models.Model):
     class Tipo(models.TextChoices):
@@ -62,6 +66,9 @@ class MovimientoInventario(models.Model):
     class Meta:
         verbose_name = "movimiento de inventario"
         verbose_name_plural = "movimientos de inventario"
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} {self.cantidad} — {self.lote}"
 
 
 class Receta(ModeloBase):
@@ -92,9 +99,14 @@ class RecetaDetalle(models.Model):
     duracion = models.CharField(max_length=60, blank=True)
     indicaciones = models.CharField(max_length=255, blank=True)
 
+    def __str__(self):
+        return f"{self.medicamento} x{self.cantidad_prescrita}"
+
 
 class Dispensacion(models.Model):
-    receta_detalle = models.ForeignKey(RecetaDetalle, on_delete=models.PROTECT, related_name="dispensaciones")
+    receta_detalle = models.ForeignKey(
+        RecetaDetalle, on_delete=models.PROTECT, related_name="dispensaciones"
+    )
     lote = models.ForeignKey(Lote, on_delete=models.PROTECT)
     cantidad_despachada = models.PositiveIntegerField()
     despachado_por = models.ForeignKey(PerfilProfesional, on_delete=models.PROTECT)
@@ -103,3 +115,6 @@ class Dispensacion(models.Model):
     class Meta:
         verbose_name = "dispensación"
         verbose_name_plural = "dispensaciones"
+
+    def __str__(self):
+        return f"Despacho {self.cantidad_despachada} — {self.receta_detalle}"

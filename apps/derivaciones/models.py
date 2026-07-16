@@ -1,4 +1,5 @@
 """Derivación interna y referencia/contrarreferencia externa (informe 5.2, 12.2, 12.3)."""
+
 from django.db import models
 
 from apps.core.models import ModeloBase, Servicio
@@ -17,7 +18,9 @@ class Derivacion(ModeloBase):
     atencion_origen = models.ForeignKey(
         Atencion, on_delete=models.PROTECT, related_name="derivaciones_emitidas"
     )
-    servicio_destino = models.ForeignKey(Servicio, on_delete=models.PROTECT, related_name="derivaciones_recibidas")
+    servicio_destino = models.ForeignKey(
+        Servicio, on_delete=models.PROTECT, related_name="derivaciones_recibidas"
+    )
     motivo = models.CharField(max_length=255)
     resumen = models.TextField(blank=True)
     prioridad = models.CharField(
@@ -25,7 +28,11 @@ class Derivacion(ModeloBase):
     )
     estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.ENVIADA)
     atencion_destino = models.ForeignKey(
-        Atencion, null=True, blank=True, on_delete=models.SET_NULL, related_name="derivaciones_atendidas"
+        Atencion,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="derivaciones_atendidas",
     )
     retorno_texto = models.TextField(blank=True)
 
@@ -53,3 +60,6 @@ class Contrarreferencia(models.Model):
     fecha_recepcion = models.DateField()
     hallazgos = models.TextField(blank=True)
     tratamiento_instaurado = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"Contrarreferencia de {self.referencia}"

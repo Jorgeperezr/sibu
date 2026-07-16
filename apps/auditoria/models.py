@@ -3,6 +3,7 @@ Bitácora inmutable (append-only). Registra CRUD, lecturas de historia clínica,
 exportaciones, break-the-glass y eventos del sistema (informe 5.2 M19, 14.5).
 El rol de aplicación no tiene permiso UPDATE/DELETE sobre esta tabla en la BD.
 """
+
 from django.db import models
 
 from apps.usuarios.models import Usuario
@@ -37,6 +38,9 @@ class LogAuditoria(models.Model):
         verbose_name = "registro de auditoría"
         verbose_name_plural = "registros de auditoría"
         ordering = ["-fecha_hora"]
+
+    def __str__(self):
+        return f"{self.fecha_hora:%Y-%m-%d %H:%M} · {self.get_accion_display()} · {self.entidad}"
 
     def save(self, *args, **kwargs):
         if self.pk is not None:

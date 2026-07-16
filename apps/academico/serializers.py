@@ -1,4 +1,5 @@
 """Serializers DRF del módulo académico."""
+
 from rest_framework import serializers
 
 from .models import CargaInstitucional, DatoAcademico
@@ -10,13 +11,29 @@ class CargaInstitucionalSerializer(serializers.ModelSerializer):
     class Meta:
         model = CargaInstitucional
         fields = [
-            "id", "periodo", "periodo_codigo", "nombre_archivo", "formato",
-            "estado", "total_filas", "altas", "actualizaciones", "errores",
-            "bitacora", "creado_en",
+            "id",
+            "periodo",
+            "periodo_codigo",
+            "nombre_archivo",
+            "formato",
+            "estado",
+            "total_filas",
+            "altas",
+            "actualizaciones",
+            "errores",
+            "bitacora",
+            "creado_en",
         ]
         read_only_fields = [
-            "estado", "total_filas", "altas", "actualizaciones", "errores",
-            "bitacora", "creado_en", "nombre_archivo", "formato",
+            "estado",
+            "total_filas",
+            "altas",
+            "actualizaciones",
+            "errores",
+            "bitacora",
+            "creado_en",
+            "nombre_archivo",
+            "formato",
         ]
 
 
@@ -27,8 +44,18 @@ class DatoAcademicoSerializer(serializers.ModelSerializer):
     class Meta:
         model = DatoAcademico
         fields = [
-            "id", "cedula", "nombre_completo", "periodo", "facultad", "carrera",
-            "nivel", "modalidad", "ciclo", "jornada", "paralelo", "estado",
+            "id",
+            "cedula",
+            "nombre_completo",
+            "periodo",
+            "facultad",
+            "carrera",
+            "nivel",
+            "modalidad",
+            "ciclo",
+            "jornada",
+            "paralelo",
+            "estado",
             "email_institucional",
         ]
 

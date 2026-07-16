@@ -4,6 +4,7 @@ según la estructura organizacional del informe (secciones 3 y 10).
 
 Uso:  python manage.py seed_inicial
 """
+
 from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
@@ -52,7 +53,7 @@ class Command(BaseCommand):
                 )
         self.stdout.write(self.style.SUCCESS("Secciones y servicios creados."))
 
-        for value, label in Rol.choices:
+        for _value, label in Rol.choices:
             Group.objects.get_or_create(name=label)
         self.stdout.write(self.style.SUCCESS("Grupos de rol creados."))
         self.stdout.write(self.style.SUCCESS("Seed inicial completado."))

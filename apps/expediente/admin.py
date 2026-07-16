@@ -1,7 +1,6 @@
 from django.contrib import admin
 
-from .models import (AlertaClinica, Atencion, Consentimiento, Expediente,
-                     Persona)
+from .models import AlertaClinica, Atencion, Consentimiento, Expediente, Persona
 
 
 @admin.register(Persona)

@@ -5,6 +5,7 @@ Sprint 4 implementa la SOLICITUD de exámenes desde Medicina y Odontología.
 El registro/validación de resultados y el envío al correo institucional
 corresponden al Sprint 5.
 """
+
 from __future__ import annotations
 
 from django.core.exceptions import ValidationError
@@ -19,9 +20,14 @@ SERVICIOS_AUTORIZADOS = {"medicina", "odontologia"}
 
 
 @transaction.atomic
-def crear_orden(atencion: Atencion, examenes_ids: list[int], *,
-                 prioridad: str = "rutina", diagnostico_presuntivo: str = "",
-                 usuario=None) -> OrdenLaboratorio:
+def crear_orden(
+    atencion: Atencion,
+    examenes_ids: list[int],
+    *,
+    prioridad: str = "rutina",
+    diagnostico_presuntivo: str = "",
+    usuario=None,
+) -> OrdenLaboratorio:
     """
     Crea una orden de laboratorio desde una atención de Medicina/Odontología.
 
@@ -41,8 +47,10 @@ def crear_orden(atencion: Atencion, examenes_ids: list[int], *,
         raise ValidationError("Debe solicitar al menos un examen.")
 
     orden = OrdenLaboratorio.objects.create(
-        atencion=atencion, prioridad=prioridad,
-        diagnostico_presuntivo=diagnostico_presuntivo, creado_por=usuario,
+        atencion=atencion,
+        prioridad=prioridad,
+        diagnostico_presuntivo=diagnostico_presuntivo,
+        creado_por=usuario,
     )
     for examen_id in examenes_ids:
         OrdenExamen.objects.create(orden=orden, examen=Examen.objects.get(pk=examen_id))
@@ -51,9 +59,14 @@ def crear_orden(atencion: Atencion, examenes_ids: list[int], *,
 
 def ordenes_pendientes():
     """Cola de órdenes por procesar en Laboratorio (Sprint 5)."""
-    return (OrdenLaboratorio.objects.filter(
-        estado__in=[OrdenLaboratorio.Estado.CREADA,
-                    OrdenLaboratorio.Estado.MUESTRA_TOMADA,
-                    OrdenLaboratorio.Estado.EN_PROCESO],
-    ).select_related("atencion__expediente__persona", "atencion__servicio")
-      .order_by("-prioridad", "creado_en"))
+    return (
+        OrdenLaboratorio.objects.filter(
+            estado__in=[
+                OrdenLaboratorio.Estado.CREADA,
+                OrdenLaboratorio.Estado.MUESTRA_TOMADA,
+                OrdenLaboratorio.Estado.EN_PROCESO,
+            ],
+        )
+        .select_related("atencion__expediente__persona", "atencion__servicio")
+        .order_by("-prioridad", "creado_en")
+    )

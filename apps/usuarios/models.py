@@ -6,6 +6,7 @@ permisos por objeto (guardian) filtrados por `servicio`. Los roles canónicos
 se definen como grupos cargados por fixture; aquí solo se modela la cuenta y
 su relación con servicios y sección.
 """
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 

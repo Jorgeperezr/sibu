@@ -1,4 +1,5 @@
 """Reportes generados y su programación (informe 5.2 M20, sección 15)."""
+
 from django.db import models
 
 from apps.core.models import ModeloBase

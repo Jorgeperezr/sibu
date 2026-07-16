@@ -1,4 +1,5 @@
 """Interfaz web de Medicina: escritorio de consulta."""
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -22,8 +23,10 @@ def iniciar_consulta(request, expediente_id):
         return redirect("expediente:detalle", pk=expediente.id)
     try:
         hc = services.crear_atencion_medicina(
-            expediente=expediente, profesional=perfil,
-            motivo=request.POST.get("motivo", ""), usuario=request.user,
+            expediente=expediente,
+            profesional=perfil,
+            motivo=request.POST.get("motivo", ""),
+            usuario=request.user,
         )
     except ValidationError as exc:
         messages.error(request, "; ".join(exc.messages))
@@ -38,7 +41,8 @@ def consulta(request, pk):
     Muestra automáticamente el triaje de Enfermería si existe.
     """
     hc = get_object_or_404(
-        AtencionMedicina.objects.select_related("atencion__expediente__persona"), pk=pk)
+        AtencionMedicina.objects.select_related("atencion__expediente__persona"), pk=pk
+    )
 
     if request.method == "POST":
         accion = request.POST.get("accion")
@@ -55,14 +59,18 @@ def consulta(request, pk):
         elif accion == "diagnostico":
             try:
                 services.agregar_diagnostico(
-                    hc.atencion, request.POST["cie10"],
+                    hc.atencion,
+                    request.POST["cie10"],
                     tipo=request.POST.get("tipo", "presuntivo"),
                     principal=request.POST.get("principal") == "on",
                 )
                 messages.success(request, "Diagnóstico agregado.")
             except (ValidationError, CIE10.DoesNotExist) as exc:
-                msg = "; ".join(exc.messages) if hasattr(exc, "messages") \
+                msg = (
+                    "; ".join(exc.messages)
+                    if hasattr(exc, "messages")
                     else "Código CIE-10 no encontrado."
+                )
                 messages.error(request, msg)
 
         elif accion == "cerrar":
@@ -75,12 +83,16 @@ def consulta(request, pk):
 
         return redirect("medicina:consulta", pk=hc.pk)
 
-    return render(request, "medicina/consulta.html", {
-        "hc": hc,
-        "atencion": hc.atencion,
-        "persona": hc.atencion.expediente.persona,
-        "triaje": ultimo_triaje(hc.atencion.expediente),
-        "diagnosticos": hc.atencion.diagnosticos.select_related("cie10"),
-        "recetas": hc.atencion.recetas.all(),
-        "ordenes": hc.atencion.ordenes_lab.all(),
-    })
+    return render(
+        request,
+        "medicina/consulta.html",
+        {
+            "hc": hc,
+            "atencion": hc.atencion,
+            "persona": hc.atencion.expediente.persona,
+            "triaje": ultimo_triaje(hc.atencion.expediente),
+            "diagnosticos": hc.atencion.diagnosticos.select_related("cie10"),
+            "recetas": hc.atencion.recetas.all(),
+            "ordenes": hc.atencion.ordenes_lab.all(),
+        },
+    )

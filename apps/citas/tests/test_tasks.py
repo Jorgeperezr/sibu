@@ -1,4 +1,5 @@
 """Prueba del task de recordatorios."""
+
 import pytest
 from freezegun import freeze_time
 
@@ -19,13 +20,13 @@ def test_enviar_recordatorios_evita_duplicados():
         e = escenario_basico()
         e["exp"].persona.correo_institucional = "test@unl.edu.ec"
         e["exp"].persona.save()
-        turnos = services.turnos_disponibles(
-            e["medico"], e["est"]["medicina"], e["lunes"]
-        )
+        turnos = services.turnos_disponibles(e["medico"], e["est"]["medicina"], e["lunes"])
         assert turnos
         services.reservar_cita(
-            expediente=e["exp"], servicio=e["est"]["medicina"],
-            profesional=e["medico"], fecha_hora=turnos[0],
+            expediente=e["exp"],
+            servicio=e["est"]["medicina"],
+            profesional=e["medico"],
+            fecha_hora=turnos[0],
         )
         assert enviar_recordatorios(24) == 1
         assert enviar_recordatorios(24) == 0  # idempotencia

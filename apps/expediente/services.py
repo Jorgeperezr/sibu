@@ -5,6 +5,7 @@ Punto central para: vincular/crear el expediente de una persona por cédula,
 construir el snapshot institucional que se congela en cada atención y consolidar
 la línea de tiempo respetando el RBAC.
 """
+
 from __future__ import annotations
 
 from apps.academico.providers import get_provider

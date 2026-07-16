@@ -5,12 +5,13 @@ Vista simple basada en plantillas Bootstrap: sube el archivo, muestra la
 previsualización (altas/actualizaciones/errores) y confirma la aplicación.
 Reservada al Administrador General (RBAC, informe 10).
 """
+
 import os
 import tempfile
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.shortcuts import redirect, render
+from django.shortcuts import render
 
 from apps.core.models import PeriodoAcademico
 from apps.usuarios.models import Rol
@@ -20,9 +21,7 @@ from .services import LectorFicha, ProcesadorCarga, hash_archivo
 
 
 def _es_admin(user):
-    return user.is_authenticated and (
-        user.is_superuser or user.rol_principal == Rol.ADMIN_GENERAL
-    )
+    return user.is_authenticated and (user.is_superuser or user.rol_principal == Rol.ADMIN_GENERAL)
 
 
 @login_required
@@ -43,16 +42,17 @@ def asistente(request):
         periodo = PeriodoAcademico.objects.get(pk=periodo_id)
         formato = "csv" if archivo.name.lower().endswith(".csv") else "xlsx"
 
-        tmp = tempfile.NamedTemporaryFile(delete=False,
-                                          suffix=os.path.splitext(archivo.name)[1])
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(archivo.name)[1])
         for chunk in archivo.chunks():
             tmp.write(chunk)
         tmp.close()
 
         try:
             carga = CargaInstitucional.objects.create(
-                periodo=periodo, nombre_archivo=archivo.name,
-                hash_archivo=hash_archivo(tmp.name), formato=formato,
+                periodo=periodo,
+                nombre_archivo=archivo.name,
+                hash_archivo=hash_archivo(tmp.name),
+                formato=formato,
                 creado_por=request.user if request.user.is_authenticated else None,
             )
             lector = LectorFicha(tmp.name, formato)
@@ -64,8 +64,11 @@ def asistente(request):
             carga.altas = resultado.altas
             carga.actualizaciones = resultado.actualizaciones
             carga.errores = resultado.errores
-            carga.estado = (CargaInstitucional.Estado.APLICADA if aplicar
-                            else CargaInstitucional.Estado.VALIDADA)
+            carga.estado = (
+                CargaInstitucional.Estado.APLICADA
+                if aplicar
+                else CargaInstitucional.Estado.VALIDADA
+            )
             carga.bitacora = resultado.as_dict()
             carga.save()
 

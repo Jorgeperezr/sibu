@@ -1,4 +1,5 @@
 """Firma electrónica/digital de documentos clínicos (informe 5.2 M18, 14.4)."""
+
 from django.db import models
 
 from apps.usuarios.models import Usuario
@@ -9,7 +10,9 @@ class FirmaDocumento(models.Model):
         ELECTRONICA = "electronica", "Electrónica simple"
         DIGITAL = "digital_certificado", "Digital con certificado"
 
-    documento_ref_tipo = models.CharField(max_length=40, help_text="Modelo firmado (p. ej. atencion, receta).")
+    documento_ref_tipo = models.CharField(
+        max_length=40, help_text="Modelo firmado (p. ej. atencion, receta)."
+    )
     documento_ref_id = models.PositiveBigIntegerField()
     usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="firmas")
     tipo_firma = models.CharField(max_length=20, choices=TipoFirma.choices)
@@ -22,3 +25,9 @@ class FirmaDocumento(models.Model):
         verbose_name = "firma de documento"
         verbose_name_plural = "firmas de documentos"
         indexes = [models.Index(fields=["documento_ref_tipo", "documento_ref_id"])]
+
+    def __str__(self):
+        return (
+            f"Firma {self.get_tipo_firma_display()} de "
+            f"{self.documento_ref_tipo}#{self.documento_ref_id}"
+        )

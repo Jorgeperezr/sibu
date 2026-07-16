@@ -1,4 +1,5 @@
 """Tareas asíncronas del módulo académico (cargas grandes sin bloquear la UI)."""
+
 from celery import shared_task
 
 from .models import CargaInstitucional

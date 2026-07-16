@@ -7,6 +7,7 @@ Reglas clave:
 - Al agregar un diagnóstico marcado como principal, cualquier otro anterior
   pierde la bandera (una sola verdad).
 """
+
 from __future__ import annotations
 
 from django.core.exceptions import ValidationError
@@ -22,8 +23,14 @@ from .models import AtencionMedicina, Diagnostico
 
 
 @transaction.atomic
-def crear_atencion_medicina(*, expediente: Expediente, profesional: PerfilProfesional,
-                              motivo: str = "", cita=None, usuario=None) -> AtencionMedicina:
+def crear_atencion_medicina(
+    *,
+    expediente: Expediente,
+    profesional: PerfilProfesional,
+    motivo: str = "",
+    cita=None,
+    usuario=None,
+) -> AtencionMedicina:
     """
     Crea una Atencion + AtencionMedicina en una transacción.
     Toma automáticamente el servicio de Medicina y congela el snapshot.
@@ -37,8 +44,11 @@ def crear_atencion_medicina(*, expediente: Expediente, profesional: PerfilProfes
         pass  # placeholder: la validación de servicio-profesional es de RBAC
 
     atencion = Atencion.objects.create(
-        expediente=expediente, servicio=servicio, profesional=profesional,
-        fecha_hora=timezone.now(), motivo_consulta=motivo,
+        expediente=expediente,
+        servicio=servicio,
+        profesional=profesional,
+        fecha_hora=timezone.now(),
+        motivo_consulta=motivo,
         origen=Atencion.Origen.CITA if cita else Atencion.Origen.ESPONTANEA,
         snapshot_academico=construir_snapshot(expediente.persona),
         creado_por=usuario,
@@ -46,11 +56,15 @@ def crear_atencion_medicina(*, expediente: Expediente, profesional: PerfilProfes
     return AtencionMedicina.objects.create(atencion=atencion)
 
 
-def agregar_diagnostico(atencion: Atencion, cie10_codigo: str, *,
-                         tipo: str = Diagnostico.TipoDx.PRESUNTIVO,
-                         condicion: str = Diagnostico.Condicion.PRIMERA,
-                         principal: bool = False,
-                         observacion: str = "") -> Diagnostico:
+def agregar_diagnostico(
+    atencion: Atencion,
+    cie10_codigo: str,
+    *,
+    tipo: str = Diagnostico.TipoDx.PRESUNTIVO,
+    condicion: str = Diagnostico.Condicion.PRIMERA,
+    principal: bool = False,
+    observacion: str = "",
+) -> Diagnostico:
     """
     Agrega un diagnóstico a la atención. Si se marca `principal=True`, quita
     la bandera de cualquier diagnóstico previo. Rechaza si la atención ya
@@ -68,8 +82,12 @@ def agregar_diagnostico(atencion: Atencion, cie10_codigo: str, *,
         Diagnostico.objects.filter(atencion=atencion, principal=True).update(principal=False)
 
     return Diagnostico.objects.create(
-        atencion=atencion, cie10=cie10, tipo=tipo, condicion=condicion,
-        principal=principal, observacion=observacion,
+        atencion=atencion,
+        cie10=cie10,
+        tipo=tipo,
+        condicion=condicion,
+        principal=principal,
+        observacion=observacion,
     )
 
 
@@ -79,7 +97,9 @@ def cerrar_atencion(atencion: Atencion, usuario=None):
     y que exista un diagnóstico principal.
     """
     if atencion.estado != Atencion.Estado.BORRADOR:
-        raise ValidationError(f"Solo se cierran atenciones en borrador (actual: {atencion.estado}).")
+        raise ValidationError(
+            f"Solo se cierran atenciones en borrador (actual: {atencion.estado})."
+        )
 
     diags = list(Diagnostico.objects.filter(atencion=atencion))
     if not diags:

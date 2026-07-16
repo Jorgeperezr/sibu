@@ -1,8 +1,8 @@
 """Pruebas de resolución de expediente y break-the-glass."""
+
 import pytest
 
 from apps.auditoria.models import LogAuditoria
-from apps.expediente.models import Persona
 from apps.expediente.services import resolver_por_cedula
 from apps.expediente.tests.factories import crear_expediente
 from apps.usuarios.models import Rol, Usuario

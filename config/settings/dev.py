@@ -1,4 +1,5 @@
 """Ajustes de desarrollo (Codespaces / macOS Intel). Nunca usar en producción."""
+
 from .base import *  # noqa
 
 DEBUG = True

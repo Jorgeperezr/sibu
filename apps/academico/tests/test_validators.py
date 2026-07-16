@@ -1,4 +1,5 @@
 """Pruebas de los validadores (cédula ecuatoriana, correo, conversiones)."""
+
 from apps.academico import validators
 from apps.academico.tests.factories import generar_cedula
 

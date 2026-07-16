@@ -1,4 +1,5 @@
 """Permisos DRF reutilizables para el RBAC de SIBU."""
+
 from rest_framework.permissions import BasePermission
 
 from .models import Rol

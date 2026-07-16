@@ -4,6 +4,7 @@ Ficha de enfermería y signos vitales (informe 6.2).
 Los signos vitales registrados aquí son reutilizables por Medicina dentro del
 mismo día (la HC médica los muestra automáticamente cuando existen).
 """
+
 from decimal import Decimal
 
 from django.db import models
@@ -24,44 +25,59 @@ class SignosVitales(models.Model):
     """
 
     expediente = models.ForeignKey(
-        Expediente, on_delete=models.PROTECT, related_name="signos_vitales",
-        null=True, blank=True,
+        Expediente,
+        on_delete=models.PROTECT,
+        related_name="signos_vitales",
+        null=True,
+        blank=True,
         help_text="Se puede rellenar por FK directa aunque no exista atención.",
     )
     atencion = models.ForeignKey(
-        Atencion, on_delete=models.CASCADE, related_name="signos_vitales",
-        null=True, blank=True,
+        Atencion,
+        on_delete=models.CASCADE,
+        related_name="signos_vitales",
+        null=True,
+        blank=True,
     )
     fecha_hora = models.DateTimeField(auto_now_add=True, db_index=True)
 
-    temperatura = models.DecimalField(max_digits=4, decimal_places=1, null=True,
-                                       blank=True, help_text="°C")
-    fc = models.PositiveSmallIntegerField(null=True, blank=True,
-                                          verbose_name="frecuencia cardíaca")
-    fr = models.PositiveSmallIntegerField(null=True, blank=True,
-                                          verbose_name="frecuencia respiratoria")
+    temperatura = models.DecimalField(
+        max_digits=4, decimal_places=1, null=True, blank=True, help_text="°C"
+    )
+    fc = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="frecuencia cardíaca")
+    fr = models.PositiveSmallIntegerField(
+        null=True, blank=True, verbose_name="frecuencia respiratoria"
+    )
     pa_sistolica = models.PositiveSmallIntegerField(null=True, blank=True)
     pa_diastolica = models.PositiveSmallIntegerField(null=True, blank=True)
-    sat_o2 = models.PositiveSmallIntegerField(null=True, blank=True,
-                                              help_text="Saturación O2 (%)")
-    peso = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True,
-                               help_text="kg")
-    talla = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True,
-                                help_text="metros")
-    imc = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True,
-                              help_text="Calculado automáticamente si hay peso y talla.")
-    perimetro_abdominal = models.PositiveSmallIntegerField(null=True, blank=True,
-                                                            help_text="cm")
-    glicemia_capilar = models.PositiveSmallIntegerField(null=True, blank=True,
-                                                         help_text="mg/dL")
-    responsable = models.ForeignKey(PerfilProfesional, on_delete=models.PROTECT,
-                                     related_name="signos_tomados")
+    sat_o2 = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Saturación O2 (%)")
+    peso = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True, help_text="kg"
+    )
+    talla = models.DecimalField(
+        max_digits=4, decimal_places=2, null=True, blank=True, help_text="metros"
+    )
+    imc = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Calculado automáticamente si hay peso y talla.",
+    )
+    perimetro_abdominal = models.PositiveSmallIntegerField(null=True, blank=True, help_text="cm")
+    glicemia_capilar = models.PositiveSmallIntegerField(null=True, blank=True, help_text="mg/dL")
+    responsable = models.ForeignKey(
+        PerfilProfesional, on_delete=models.PROTECT, related_name="signos_tomados"
+    )
 
     class Meta:
         verbose_name = "signos vitales"
         verbose_name_plural = "signos vitales"
         ordering = ["-fecha_hora"]
         indexes = [models.Index(fields=["expediente", "fecha_hora"])]
+
+    def __str__(self):
+        return f"Signos vitales {self.fecha_hora:%d/%m/%Y %H:%M} — {self.expediente}"
 
     def save(self, *args, **kwargs):
         if self.peso and self.talla and self.talla > 0:
@@ -79,22 +95,26 @@ class AtencionEnfermeria(models.Model):
     """
 
     atencion = models.OneToOneField(
-        Atencion, on_delete=models.CASCADE, primary_key=True,
+        Atencion,
+        on_delete=models.CASCADE,
+        primary_key=True,
         related_name="enfermeria",
     )
     procedimientos = models.JSONField(
-        default=list, blank=True,
-        help_text="Lista de procedimientos: [{tipo, detalle, observaciones}]"
+        default=list,
+        blank=True,
+        help_text="Lista de procedimientos: [{tipo, detalle, observaciones}]",
     )
     inmunizaciones = models.JSONField(
-        default=list, blank=True,
-        help_text="[{vacuna, dosis, lote, laboratorio, proxima_dosis}]"
+        default=list, blank=True, help_text="[{vacuna, dosis, lote, laboratorio, proxima_dosis}]"
     )
-    charla_educativa = models.CharField(max_length=200, blank=True,
-                                         help_text="Tema si aplica.")
+    charla_educativa = models.CharField(max_length=200, blank=True, help_text="Tema si aplica.")
     n_asistentes = models.PositiveSmallIntegerField(null=True, blank=True)
     notas = models.TextField(blank=True)
 
     class Meta:
         verbose_name = "atención de enfermería"
         verbose_name_plural = "atenciones de enfermería"
+
+    def __str__(self):
+        return f"Ficha de enfermería: {self.atencion}"

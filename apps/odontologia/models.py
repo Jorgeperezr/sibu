@@ -1,4 +1,5 @@
 """Historia clínica odontológica con odontograma FDI (informe 6.3)."""
+
 from django.db import models
 
 from apps.expediente.models import Atencion
@@ -16,6 +17,9 @@ class AtencionOdontologia(models.Model):
         verbose_name = "atención de odontología"
         verbose_name_plural = "atenciones de odontología"
 
+    def __str__(self):
+        return f"HC odontológica: {self.atencion}"
+
 
 class OdontogramaDetalle(models.Model):
     class TipoRegistro(models.TextChoices):
@@ -26,9 +30,14 @@ class OdontogramaDetalle(models.Model):
     pieza_fdi = models.CharField(max_length=2, help_text="Notación FDI de dos dígitos")
     superficie = models.CharField(max_length=2, blank=True)
     estado_codigo = models.CharField(max_length=20)
-    tipo = models.CharField(max_length=10, choices=TipoRegistro.choices, default=TipoRegistro.INICIAL)
+    tipo = models.CharField(
+        max_length=10, choices=TipoRegistro.choices, default=TipoRegistro.INICIAL
+    )
     observacion = models.CharField(max_length=255, blank=True)
 
     class Meta:
         verbose_name = "detalle de odontograma"
         verbose_name_plural = "detalles de odontograma"
+
+    def __str__(self):
+        return f"Pieza {self.pieza_fdi}{self.superficie} — {self.estado_codigo}"

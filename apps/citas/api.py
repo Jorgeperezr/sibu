@@ -8,7 +8,6 @@ Endpoints principales:
 - POST /api/v1/citas/{id}/cambiar_estado/
 - GET  /api/v1/citas/disponibilidad/?profesional=&servicio=&fecha=
 """
-from datetime import datetime
 
 from django.core.exceptions import ValidationError
 from rest_framework import status, viewsets
@@ -23,10 +22,16 @@ from apps.usuarios.models import PerfilProfesional
 from . import services
 from .models import Agenda, BloqueoAgenda, Cita
 from .selectors import proximas_del_expediente
-from .serializers import (AgendaSerializer, BloqueoAgendaSerializer,
-                          CambioEstadoSerializer, CancelacionSerializer,
-                          CitaSerializer, DisponibilidadQuerySerializer,
-                          ReprogramacionSerializer, ReservaCitaSerializer)
+from .serializers import (
+    AgendaSerializer,
+    BloqueoAgendaSerializer,
+    CambioEstadoSerializer,
+    CancelacionSerializer,
+    CitaSerializer,
+    DisponibilidadQuerySerializer,
+    ReprogramacionSerializer,
+    ReservaCitaSerializer,
+)
 
 
 class AgendaViewSet(viewsets.ModelViewSet):
@@ -77,7 +82,8 @@ class CitaViewSet(viewsets.ModelViewSet):
         s.is_valid(raise_exception=True)
         try:
             nueva = services.reprogramar(
-                cita, s.validated_data["fecha_hora"],
+                cita,
+                s.validated_data["fecha_hora"],
                 motivo_reprogramacion=s.validated_data.get("motivo", ""),
                 usuario=request.user,
             )
@@ -122,7 +128,8 @@ class CitaViewSet(viewsets.ModelViewSet):
     def proximas(self, request):
         exp_id = request.query_params.get("expediente")
         if not exp_id:
-            return Response({"detalle": "Parámetro 'expediente' requerido."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detalle": "Parámetro 'expediente' requerido."}, status=status.HTTP_400_BAD_REQUEST
+            )
         citas = proximas_del_expediente(Expediente.objects.get(pk=exp_id))
         return Response(CitaSerializer(citas, many=True).data)

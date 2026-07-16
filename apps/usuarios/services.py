@@ -1,4 +1,5 @@
 """Servicios de usuarios: acceso de emergencia (break the glass) y auditoría RBAC."""
+
 from __future__ import annotations
 
 from apps.auditoria.models import LogAuditoria

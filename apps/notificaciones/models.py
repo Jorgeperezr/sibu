@@ -1,4 +1,5 @@
 """Recordatorios y avisos multicanal (informe 5.2)."""
+
 from django.db import models
 
 from apps.core.models import ModeloBase
@@ -18,8 +19,11 @@ class Notificacion(ModeloBase):
         FALLIDA = "fallida", "Fallida"
 
     usuario = models.ForeignKey(
-        Usuario, on_delete=models.CASCADE, related_name="notificaciones",
-        null=True, blank=True,
+        Usuario,
+        on_delete=models.CASCADE,
+        related_name="notificaciones",
+        null=True,
+        blank=True,
         help_text="Destinatario interno; null para notificaciones a personas sin cuenta.",
     )
     tipo = models.CharField(max_length=60)

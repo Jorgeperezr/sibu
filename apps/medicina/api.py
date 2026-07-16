@@ -10,6 +10,7 @@ Endpoints:
 - POST /api/v1/atenciones/medicina/{id}/ordenes-laboratorio/
 - POST /api/v1/atenciones/medicina/{id}/cerrar/
 """
+
 from django.core.exceptions import ValidationError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -23,11 +24,14 @@ from apps.usuarios import rbac
 
 from . import services
 from .models import AtencionMedicina
-from .serializers import (AgregarDiagnosticoSerializer,
-                          AtencionMedicinaSerializer,
-                          CrearAtencionMedicinaSerializer,
-                          DiagnosticoSerializer, EmitirRecetaSerializer,
-                          SolicitarExamenesSerializer)
+from .serializers import (
+    AgregarDiagnosticoSerializer,
+    AtencionMedicinaSerializer,
+    CrearAtencionMedicinaSerializer,
+    DiagnosticoSerializer,
+    EmitirRecetaSerializer,
+    SolicitarExamenesSerializer,
+)
 
 
 class AtencionMedicinaViewSet(viewsets.ModelViewSet):
@@ -40,6 +44,7 @@ class AtencionMedicinaViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Filtrado RBAC: solo atenciones que el rol del usuario puede ver."""
         from apps.expediente.models import Atencion
+
         visibles = rbac.atenciones_visibles(self.request.user, Atencion.objects.all())
         return super().get_queryset().filter(atencion__in=visibles)
 
@@ -48,8 +53,10 @@ class AtencionMedicinaViewSet(viewsets.ModelViewSet):
         s.is_valid(raise_exception=True)
         perfil = getattr(request.user, "perfil", None)
         if perfil is None:
-            return Response({"detalle": "El usuario no tiene perfil profesional."},
-                            status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detalle": "El usuario no tiene perfil profesional."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         try:
             hc = services.crear_atencion_medicina(
                 expediente=Expediente.objects.get(pk=s.validated_data["expediente"]),
@@ -59,8 +66,7 @@ class AtencionMedicinaViewSet(viewsets.ModelViewSet):
             )
         except ValidationError as exc:
             return Response({"detalle": exc.messages}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(AtencionMedicinaSerializer(hc).data,
-                        status=status.HTTP_201_CREATED)
+        return Response(AtencionMedicinaSerializer(hc).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
     def diagnosticos(self, request, pk=None):
@@ -69,8 +75,10 @@ class AtencionMedicinaViewSet(viewsets.ModelViewSet):
         s.is_valid(raise_exception=True)
         try:
             dx = services.agregar_diagnostico(
-                hc.atencion, s.validated_data["cie10"],
-                tipo=s.validated_data["tipo"], condicion=s.validated_data["condicion"],
+                hc.atencion,
+                s.validated_data["cie10"],
+                tipo=s.validated_data["tipo"],
+                condicion=s.validated_data["condicion"],
                 principal=s.validated_data["principal"],
                 observacion=s.validated_data.get("observacion", ""),
             )
@@ -85,12 +93,18 @@ class AtencionMedicinaViewSet(viewsets.ModelViewSet):
         s.is_valid(raise_exception=True)
         try:
             receta = farmacia_services.emitir_receta(
-                hc.atencion, s.validated_data["items"], usuario=request.user)
+                hc.atencion, s.validated_data["items"], usuario=request.user
+            )
         except ValidationError as exc:
             return Response({"detalle": exc.messages}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"numero": receta.numero, "valida_hasta": receta.valida_hasta,
-                         "items": receta.detalles.count()},
-                        status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                "numero": receta.numero,
+                "valida_hasta": receta.valida_hasta,
+                "items": receta.detalles.count(),
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=["post"], url_path="ordenes-laboratorio")
     def ordenes_laboratorio(self, request, pk=None):
@@ -99,16 +113,18 @@ class AtencionMedicinaViewSet(viewsets.ModelViewSet):
         s.is_valid(raise_exception=True)
         try:
             orden = lab_services.crear_orden(
-                hc.atencion, s.validated_data["examenes"],
+                hc.atencion,
+                s.validated_data["examenes"],
                 prioridad=s.validated_data["prioridad"],
                 diagnostico_presuntivo=s.validated_data.get("diagnostico_presuntivo", ""),
                 usuario=request.user,
             )
         except ValidationError as exc:
             return Response({"detalle": exc.messages}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"id": orden.id, "estado": orden.estado,
-                         "examenes": orden.examenes.count()},
-                        status=status.HTTP_201_CREATED)
+        return Response(
+            {"id": orden.id, "estado": orden.estado, "examenes": orden.examenes.count()},
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=["post"])
     def cerrar(self, request, pk=None):

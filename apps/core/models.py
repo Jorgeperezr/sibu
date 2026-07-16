@@ -6,6 +6,7 @@ todos los modelos de negocio del sistema heredan de aquí para garantizar que
 ningún registro se borre físicamente (requisito de integridad clínica y
 auditoría del informe técnico, secciones 4.2 y 14.9).
 """
+
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -33,13 +34,19 @@ class ModeloBase(models.Model):
     creado_en = models.DateTimeField(auto_now_add=True, db_index=True)
     actualizado_en = models.DateTimeField(auto_now=True)
     creado_por = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True,
-        on_delete=models.SET_NULL, related_name="+",
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
     )
     eliminado_en = models.DateTimeField(null=True, blank=True)
     eliminado_por = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True,
-        on_delete=models.SET_NULL, related_name="+",
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
     )
 
     objects = ModeloBaseManager()

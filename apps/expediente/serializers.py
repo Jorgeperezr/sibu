@@ -1,4 +1,5 @@
 """Serializers del expediente único."""
+
 from rest_framework import serializers
 
 from .models import AlertaClinica, Atencion, Expediente, Persona
@@ -10,9 +11,18 @@ class PersonaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Persona
         fields = [
-            "id", "cedula", "nombres", "apellidos", "nombre_completo", "sexo",
-            "genero", "fecha_nacimiento", "tipo_vinculo", "correo_institucional",
-            "celular", "telefono",
+            "id",
+            "cedula",
+            "nombres",
+            "apellidos",
+            "nombre_completo",
+            "sexo",
+            "genero",
+            "fecha_nacimiento",
+            "tipo_vinculo",
+            "correo_institucional",
+            "celular",
+            "telefono",
         ]
 
 
@@ -30,8 +40,15 @@ class AtencionResumenSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Atencion
-        fields = ["id", "servicio", "profesional", "fecha_hora", "tipo",
-                  "estado", "motivo_consulta"]
+        fields = [
+            "id",
+            "servicio",
+            "profesional",
+            "fecha_hora",
+            "tipo",
+            "estado",
+            "motivo_consulta",
+        ]
 
 
 class ExpedienteSerializer(serializers.ModelSerializer):
@@ -40,9 +57,16 @@ class ExpedienteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Expediente
-        fields = ["id", "numero_expediente", "persona", "grupo_sanguineo",
-                  "discapacidad_tipo", "discapacidad_porcentaje", "fecha_apertura",
-                  "alertas"]
+        fields = [
+            "id",
+            "numero_expediente",
+            "persona",
+            "grupo_sanguineo",
+            "discapacidad_tipo",
+            "discapacidad_porcentaje",
+            "fecha_apertura",
+            "alertas",
+        ]
 
     def get_alertas(self, obj):
         activas = obj.alertas.filter(activa=True)

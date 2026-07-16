@@ -3,6 +3,7 @@ Ficha psicológica con confidencialidad reforzada (informe 6.6, 10.2).
 El contenido de sesión es visible solo para el profesional tratante; el resto
 del sistema ve únicamente la existencia de la atención.
 """
+
 from django.db import models
 
 from apps.expediente.models import Atencion
@@ -29,6 +30,9 @@ class FichaPsicologica(models.Model):
         verbose_name = "ficha psicológica"
         verbose_name_plural = "fichas psicológicas"
 
+    def __str__(self):
+        return f"Ficha psicológica: {self.atencion}"
+
 
 class SesionPsicologica(models.Model):
     ficha = models.ForeignKey(FichaPsicologica, on_delete=models.CASCADE, related_name="sesiones")
@@ -44,6 +48,9 @@ class SesionPsicologica(models.Model):
         verbose_name_plural = "sesiones psicológicas"
         ordering = ["numero"]
 
+    def __str__(self):
+        return f"Sesión {self.numero} — {self.fecha:%d/%m/%Y}"
+
 
 class AplicacionEscala(models.Model):
     ficha = models.ForeignKey(FichaPsicologica, on_delete=models.CASCADE, related_name="escalas")
@@ -51,3 +58,6 @@ class AplicacionEscala(models.Model):
     puntaje = models.CharField(max_length=40, blank=True)
     interpretacion = models.CharField(max_length=255, blank=True)
     fecha = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.escala}: {self.puntaje}"

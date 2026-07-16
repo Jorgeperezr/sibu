@@ -1,7 +1,10 @@
 """Ajustes de producción. Endurecimiento de seguridad activo."""
+
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
-from .base import *  # noqa
+
+from .base import *  # noqa: F403
+from .base import env  # import explícito: evita ambigüedad del star-import
 
 DEBUG = False
 
@@ -44,6 +47,10 @@ EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")  # noqa
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="bienestar@unl.edu.ec")  # noqa
 
 # --- Observabilidad ---
-if env("SENTRY_DSN", default=""):  # noqa
-    sentry_sdk.init(dsn=env("SENTRY_DSN"), integrations=[DjangoIntegration()],  # noqa
-                    traces_sample_rate=0.1, send_default_pii=False)
+if env("SENTRY_DSN", default=""):
+    sentry_sdk.init(
+        dsn=env("SENTRY_DSN"),
+        integrations=[DjangoIntegration()],  # noqa
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )

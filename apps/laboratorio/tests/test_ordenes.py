@@ -1,12 +1,12 @@
 """Pruebas de solicitud de exámenes de laboratorio."""
+
 import pytest
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from apps.core.models import CIE10, Servicio
+from apps.core.models import CIE10
 from apps.expediente.models import Atencion
-from apps.expediente.tests.factories import (crear_estructura, crear_expediente,
-                                              crear_profesional)
+from apps.expediente.tests.factories import crear_estructura, crear_expediente, crear_profesional
 from apps.laboratorio import services
 from apps.laboratorio.models import Examen, OrdenLaboratorio
 from apps.medicina import services as med_services
@@ -19,14 +19,24 @@ def escenario(db):
     exp = crear_expediente(cedula="1104567890")
     CIE10.objects.get_or_create(codigo="J00", defaults={"descripcion": "Resfriado"})
     hemograma = Examen.objects.create(
-        codigo="LAB-001", nombre="Biometría hemática", perfil="Hematología")
-    glucosa = Examen.objects.create(
-        codigo="LAB-002", nombre="Glucosa basal", perfil="Química sanguínea")
-    hc = med_services.crear_atencion_medicina(
-        expediente=exp, profesional=medico, motivo="Control",
+        codigo="LAB-001", nombre="Biometría hemática", perfil="Hematología"
     )
-    return {"est": est, "medico": medico, "exp": exp,
-            "hemograma": hemograma, "glucosa": glucosa, "hc": hc}
+    glucosa = Examen.objects.create(
+        codigo="LAB-002", nombre="Glucosa basal", perfil="Química sanguínea"
+    )
+    hc = med_services.crear_atencion_medicina(
+        expediente=exp,
+        profesional=medico,
+        motivo="Control",
+    )
+    return {
+        "est": est,
+        "medico": medico,
+        "exp": exp,
+        "hemograma": hemograma,
+        "glucosa": glucosa,
+        "hc": hc,
+    }
 
 
 @pytest.mark.django_db
@@ -44,11 +54,14 @@ def test_crear_orden_desde_medicina(escenario):
 @pytest.mark.django_db
 def test_servicio_no_autorizado_rechazado(escenario):
     """Psicología no puede solicitar exámenes (regla del informe 5.2)."""
-    _, psicologo = crear_profesional("psi", escenario["est"]["psicologia"],
-                                      escenario["est"]["psico"])
+    _, psicologo = crear_profesional(
+        "psi", escenario["est"]["psicologia"], escenario["est"]["psico"]
+    )
     atencion = Atencion.objects.create(
-        expediente=escenario["exp"], servicio=escenario["est"]["psicologia"],
-        profesional=psicologo, fecha_hora=timezone.now(),
+        expediente=escenario["exp"],
+        servicio=escenario["est"]["psicologia"],
+        profesional=psicologo,
+        fecha_hora=timezone.now(),
     )
     with pytest.raises(ValidationError, match="no puede solicitar exámenes"):
         services.crear_orden(atencion, [escenario["hemograma"].id])

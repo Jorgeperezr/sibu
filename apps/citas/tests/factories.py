@@ -1,12 +1,11 @@
 """Factories para pruebas de citas."""
+
 from datetime import date, time, timedelta
 
 from django.utils import timezone
 
 from apps.citas.models import Agenda
-from apps.expediente.tests.factories import (crear_estructura,
-                                              crear_expediente,
-                                              crear_profesional)
+from apps.expediente.tests.factories import crear_estructura, crear_expediente, crear_profesional
 
 
 def escenario_basico():
@@ -16,12 +15,15 @@ def escenario_basico():
     exp = crear_expediente(cedula="1104567890")
     lunes_proximo = _proximo_lunes()
     agenda = Agenda.objects.create(
-        profesional=medico, servicio=est["medicina"],
-        dia_semana=0, hora_inicio=time(8, 0), hora_fin=time(12, 0),
-        duracion_turno_min=20, vigente_desde=lunes_proximo - timedelta(days=1),
+        profesional=medico,
+        servicio=est["medicina"],
+        dia_semana=0,
+        hora_inicio=time(8, 0),
+        hora_fin=time(12, 0),
+        duracion_turno_min=20,
+        vigente_desde=lunes_proximo - timedelta(days=1),
     )
-    return {"est": est, "medico": medico, "exp": exp, "agenda": agenda,
-            "lunes": lunes_proximo}
+    return {"est": est, "medico": medico, "exp": exp, "agenda": agenda, "lunes": lunes_proximo}
 
 
 def _proximo_lunes() -> date:

@@ -3,6 +3,7 @@ Ficha socioeconómica y gestión de casos (informe 6.8). La ficha se pre-puebla
 automáticamente desde la ficha de matrícula (informe 7.3) y el profesional la
 verifica y complementa.
 """
+
 from django.db import models
 
 from apps.core.models import ModeloBase
@@ -14,7 +15,9 @@ class FichaSocioeconomica(ModeloBase):
         MATRICULA = "matricula", "Pre-poblada desde matrícula"
         VERIFICADA = "verificada_ts", "Verificada por Trabajo Social"
 
-    expediente = models.ForeignKey(Expediente, on_delete=models.PROTECT, related_name="fichas_socio")
+    expediente = models.ForeignKey(
+        Expediente, on_delete=models.PROTECT, related_name="fichas_socio"
+    )
     version = models.PositiveSmallIntegerField(default=1)
     vigente = models.BooleanField(default=True)
     origen = models.CharField(max_length=14, choices=Origen.choices, default=Origen.MATRICULA)
@@ -46,3 +49,6 @@ class VisitaDomiciliaria(models.Model):
     class Meta:
         verbose_name = "visita domiciliaria"
         verbose_name_plural = "visitas domiciliarias"
+
+    def __str__(self):
+        return f"Visita {self.fecha:%d/%m/%Y} — {self.atencion}"

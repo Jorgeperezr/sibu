@@ -4,6 +4,7 @@ Expediente único de la persona y modelo base de atención.
 Toda ficha de servicio (Medicina, Enfermería, …) extiende `Atencion` mediante
 una relación OneToOne (patrón "clase base + extensión", informe 4.2 y 11.3).
 """
+
 from django.db import models
 
 from apps.core.models import ModeloBase, Servicio
