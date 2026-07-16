@@ -1,5 +1,6 @@
 """Pruebas de la lógica de negocio de citas."""
-from datetime import datetime, time, timedelta
+
+from datetime import datetime, time
 
 import pytest
 from django.core.exceptions import ValidationError
@@ -7,8 +8,7 @@ from django.utils import timezone
 
 from apps.citas import services
 from apps.citas.models import BloqueoAgenda, Cita
-from apps.citas.selectors import (citas_del_dia, citas_para_recordatorio,
-                                   proximas_del_expediente)
+from apps.citas.selectors import citas_del_dia, citas_para_recordatorio, proximas_del_expediente
 from apps.citas.tests.factories import escenario_basico
 
 
@@ -32,8 +32,11 @@ def test_reservar_cita_ocupa_turno():
     e = escenario_basico()
     inicio = _hora(e["lunes"], 9, 0)
     services.reservar_cita(
-        expediente=e["exp"], servicio=e["est"]["medicina"],
-        profesional=e["medico"], fecha_hora=inicio, duracion_min=20,
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=inicio,
+        duracion_min=20,
     )
     turnos = services.turnos_disponibles(e["medico"], e["est"]["medicina"], e["lunes"])
     assert inicio not in turnos
@@ -45,13 +48,17 @@ def test_reservar_conflicto_lanza_error():
     e = escenario_basico()
     inicio = _hora(e["lunes"], 9, 0)
     services.reservar_cita(
-        expediente=e["exp"], servicio=e["est"]["medicina"],
-        profesional=e["medico"], fecha_hora=inicio,
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=inicio,
     )
     with pytest.raises(ValidationError):
         services.reservar_cita(
-            expediente=e["exp"], servicio=e["est"]["medicina"],
-            profesional=e["medico"], fecha_hora=inicio,
+            expediente=e["exp"],
+            servicio=e["est"]["medicina"],
+            profesional=e["medico"],
+            fecha_hora=inicio,
         )
 
 
@@ -60,8 +67,10 @@ def test_reservar_fuera_de_agenda():
     e = escenario_basico()
     with pytest.raises(ValidationError):
         services.reservar_cita(
-            expediente=e["exp"], servicio=e["est"]["medicina"],
-            profesional=e["medico"], fecha_hora=_hora(e["lunes"], 15, 0),  # tarde
+            expediente=e["exp"],
+            servicio=e["est"]["medicina"],
+            profesional=e["medico"],
+            fecha_hora=_hora(e["lunes"], 15, 0),  # tarde
         )
 
 
@@ -76,8 +85,10 @@ def test_reservar_en_bloqueo():
     )
     with pytest.raises(ValidationError):
         services.reservar_cita(
-            expediente=e["exp"], servicio=e["est"]["medicina"],
-            profesional=e["medico"], fecha_hora=_hora(e["lunes"], 9, 20),
+            expediente=e["exp"],
+            servicio=e["est"]["medicina"],
+            profesional=e["medico"],
+            fecha_hora=_hora(e["lunes"], 9, 20),
         )
 
 
@@ -85,8 +96,10 @@ def test_reservar_en_bloqueo():
 def test_maquina_de_estados_transicion_valida():
     e = escenario_basico()
     cita = services.reservar_cita(
-        expediente=e["exp"], servicio=e["est"]["medicina"],
-        profesional=e["medico"], fecha_hora=_hora(e["lunes"], 9, 0),
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=_hora(e["lunes"], 9, 0),
     )
     services.cambiar_estado(cita, Cita.Estado.CONFIRMADA)
     services.cambiar_estado(cita, Cita.Estado.EN_ESPERA)
@@ -100,8 +113,10 @@ def test_maquina_de_estados_transicion_valida():
 def test_transicion_invalida_lanza_error():
     e = escenario_basico()
     cita = services.reservar_cita(
-        expediente=e["exp"], servicio=e["est"]["medicina"],
-        profesional=e["medico"], fecha_hora=_hora(e["lunes"], 9, 0),
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=_hora(e["lunes"], 9, 0),
     )
     with pytest.raises(ValidationError):
         services.cambiar_estado(cita, Cita.Estado.ATENDIDA)  # sin pasar por atención
@@ -111,11 +126,14 @@ def test_transicion_invalida_lanza_error():
 def test_reprogramar_enlaza_nueva_con_anterior():
     e = escenario_basico()
     cita = services.reservar_cita(
-        expediente=e["exp"], servicio=e["est"]["medicina"],
-        profesional=e["medico"], fecha_hora=_hora(e["lunes"], 9, 0),
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=_hora(e["lunes"], 9, 0),
     )
-    nueva = services.reprogramar(cita, _hora(e["lunes"], 10, 0),
-                                  motivo_reprogramacion="Cambio pedido por el paciente")
+    nueva = services.reprogramar(
+        cita, _hora(e["lunes"], 10, 0), motivo_reprogramacion="Cambio pedido por el paciente"
+    )
     cita.refresh_from_db()
     assert cita.estado == Cita.Estado.REPROGRAMADA
     assert nueva.cita_origen_id == cita.id
@@ -126,8 +144,10 @@ def test_reprogramar_enlaza_nueva_con_anterior():
 def test_cancelar_solo_permitido_en_estados_previos():
     e = escenario_basico()
     cita = services.reservar_cita(
-        expediente=e["exp"], servicio=e["est"]["medicina"],
-        profesional=e["medico"], fecha_hora=_hora(e["lunes"], 9, 0),
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=_hora(e["lunes"], 9, 0),
     )
     services.cambiar_estado(cita, Cita.Estado.CONFIRMADA)
     services.cambiar_estado(cita, Cita.Estado.EN_ESPERA)
@@ -140,12 +160,16 @@ def test_cancelar_solo_permitido_en_estados_previos():
 def test_selectors_del_dia_y_proximas():
     e = escenario_basico()
     services.reservar_cita(
-        expediente=e["exp"], servicio=e["est"]["medicina"],
-        profesional=e["medico"], fecha_hora=_hora(e["lunes"], 9, 0),
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=_hora(e["lunes"], 9, 0),
     )
     services.reservar_cita(
-        expediente=e["exp"], servicio=e["est"]["medicina"],
-        profesional=e["medico"], fecha_hora=_hora(e["lunes"], 10, 0),
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=_hora(e["lunes"], 10, 0),
     )
     assert citas_del_dia(e["medico"], e["lunes"]).count() == 2
     assert proximas_del_expediente(e["exp"]).count() == 2
@@ -167,33 +191,33 @@ def test_recordatorio_ventana_temporal():
     # 2026-01-04 13:00 UTC == 2026-01-04 08:00 America/Guayaquil (domingo)
     with freeze_time("2026-01-04 13:00:00"):
         e = escenario_basico()
-        turnos = services.turnos_disponibles(
-            e["medico"], e["est"]["medicina"], e["lunes"]
-        )
+        turnos = services.turnos_disponibles(e["medico"], e["est"]["medicina"], e["lunes"])
         assert turnos, "El escenario debe generar turnos el próximo lunes"
         turno = turnos[0]  # lunes 08:00 = T+24h exacto
         services.reservar_cita(
-            expediente=e["exp"], servicio=e["est"]["medicina"],
-            profesional=e["medico"], fecha_hora=turno,
+            expediente=e["exp"],
+            servicio=e["est"]["medicina"],
+            profesional=e["medico"],
+            fecha_hora=turno,
         )
         encontradas = citas_para_recordatorio(horas_anticipacion=24)
         assert encontradas.count() == 1
-
 
 
 @pytest.mark.django_db
 def test_recordatorio_con_tolerancia_ampliada():
     """La tolerancia configurable permite ventanas más amplias en ejecuciones manuales."""
     from freezegun import freeze_time
+
     with freeze_time("2026-01-04 13:00:00"):
         e = escenario_basico()
-        turnos = services.turnos_disponibles(
-            e["medico"], e["est"]["medicina"], e["lunes"]
-        )
+        turnos = services.turnos_disponibles(e["medico"], e["est"]["medicina"], e["lunes"])
         turno = turnos[3]  # lunes 09:00 = T+25h → fuera de ventana ±15min
         services.reservar_cita(
-            expediente=e["exp"], servicio=e["est"]["medicina"],
-            profesional=e["medico"], fecha_hora=turno,
+            expediente=e["exp"],
+            servicio=e["est"]["medicina"],
+            profesional=e["medico"],
+            fecha_hora=turno,
         )
         # Ventana por defecto (±15 min): no la encuentra
         assert citas_para_recordatorio(24).count() == 0

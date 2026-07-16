@@ -1,4 +1,5 @@
 """Ajustes de pruebas: base de datos rápida y sin migraciones costosas."""
+
 from .base import *  # noqa
 
 DEBUG = False

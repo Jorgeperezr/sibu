@@ -10,6 +10,7 @@ El acceso al detalle clínico de OTRO servicio/sección requiere "break the glas
 (acceso de emergencia justificado y auditado). El contenido de Psicología queda
 excluido incluso de ese mecanismo salvo riesgo vital documentado.
 """
+
 from __future__ import annotations
 
 from apps.usuarios.models import Rol
@@ -69,15 +70,21 @@ def puede_ver_atencion(user, atencion, break_glass: bool = False) -> bool:
         return True
     # Acceso de emergencia justificado para el resto de servicios.
     return bool(break_glass) and user.rol_principal in {
-        Rol.PROFESIONAL, Rol.COORDINADOR, Rol.DIRECTOR,
+        Rol.PROFESIONAL,
+        Rol.COORDINADOR,
+        Rol.DIRECTOR,
     }
 
 
 def puede_ver_expediente(user, break_glass: bool = False) -> bool:
     """¿Puede el usuario abrir un expediente (encabezado demográfico)?"""
     return user.rol_principal in {
-        Rol.PROFESIONAL, Rol.COORDINADOR, Rol.DIRECTOR,
-        Rol.ADMINISTRATIVO, Rol.LABORATORIO, Rol.FARMACIA,
+        Rol.PROFESIONAL,
+        Rol.COORDINADOR,
+        Rol.DIRECTOR,
+        Rol.ADMINISTRATIVO,
+        Rol.LABORATORIO,
+        Rol.FARMACIA,
     } or es_admin(user)
 
 
@@ -103,9 +110,7 @@ def atenciones_visibles(user, queryset, break_glass: bool = False):
         seccion = seccion_del_usuario(user)
         base = queryset.filter(servicio__seccion_id=seccion)
         # Nunca Psicología salvo que sea el tratante.
-        return base.exclude(
-            servicio__codigo__in=SERVICIOS_CONFIDENCIALES
-        )
+        return base.exclude(servicio__codigo__in=SERVICIOS_CONFIDENCIALES)
 
     if break_glass and user.rol_principal in {_Rol.DIRECTOR, _Rol.COORDINADOR, _Rol.PROFESIONAL}:
         return queryset.exclude(servicio__codigo__in=SERVICIOS_CONFIDENCIALES)

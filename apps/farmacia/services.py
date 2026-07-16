@@ -4,6 +4,7 @@ Lógica de negocio de Farmacia.
 En el Sprint 4 se implementa la EMISIÓN de recetas desde Medicina. El
 despacho con descuento de inventario (FEFO) corresponde al Sprint 6.
 """
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -22,8 +23,7 @@ def _siguiente_numero() -> str:
     """Numeración correlativa anual: RX-2026-000001."""
     anio = timezone.now().year
     prefijo = f"RX-{anio}-"
-    ultima = (Receta.objects.filter(numero__startswith=prefijo)
-              .order_by("-numero").first())
+    ultima = Receta.objects.filter(numero__startswith=prefijo).order_by("-numero").first()
     consecutivo = int(ultima.numero.split("-")[-1]) + 1 if ultima else 1
     return f"{prefijo}{consecutivo:06d}"
 
@@ -58,14 +58,15 @@ def emitir_receta(atencion: Atencion, items: list[dict], usuario=None) -> Receta
         medicamento = Medicamento.objects.get(pk=item["medicamento_id"])
         cantidad = int(item.get("cantidad_prescrita", 0))
         if cantidad <= 0:
-            raise ValidationError(
-                f"La cantidad prescrita de {medicamento} debe ser mayor a cero."
-            )
+            raise ValidationError(f"La cantidad prescrita de {medicamento} debe ser mayor a cero.")
         RecetaDetalle.objects.create(
-            receta=receta, medicamento=medicamento,
+            receta=receta,
+            medicamento=medicamento,
             cantidad_prescrita=cantidad,
-            dosis=item.get("dosis", ""), via=item.get("via", ""),
-            frecuencia=item.get("frecuencia", ""), duracion=item.get("duracion", ""),
+            dosis=item.get("dosis", ""),
+            via=item.get("via", ""),
+            frecuencia=item.get("frecuencia", ""),
+            duracion=item.get("duracion", ""),
             indicaciones=item.get("indicaciones", ""),
         )
     return receta
@@ -73,10 +74,14 @@ def emitir_receta(atencion: Atencion, items: list[dict], usuario=None) -> Receta
 
 def recetas_pendientes():
     """Cola de recetas vigentes por despachar (usada por Farmacia, Sprint 6)."""
-    return (Receta.objects.filter(
-        estado__in=[Receta.Estado.EMITIDA, Receta.Estado.PARCIAL],
-        valida_hasta__gte=timezone.now(),
-    ).select_related("atencion__expediente__persona").order_by("creado_en"))
+    return (
+        Receta.objects.filter(
+            estado__in=[Receta.Estado.EMITIDA, Receta.Estado.PARCIAL],
+            valida_hasta__gte=timezone.now(),
+        )
+        .select_related("atencion__expediente__persona")
+        .order_by("creado_en")
+    )
 
 
 def caducar_recetas_vencidas() -> int:

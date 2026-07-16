@@ -5,6 +5,7 @@ La búsqueda por cédula (informe 7.5) es el punto de entrada de todo el trabajo
 clínico: resuelve la persona contra la base institucional, muestra la tarjeta de
 verificación con semáforo de matrícula y enlaza al expediente único.
 """
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
@@ -39,12 +40,14 @@ def buscar(request):
                 semaforo = "warning"
             else:
                 semaforo = "danger"
-            contexto.update({
-                "persona": resultado["persona"],
-                "expediente": resultado["expediente"],
-                "institucional": inst,
-                "semaforo": semaforo,
-            })
+            contexto.update(
+                {
+                    "persona": resultado["persona"],
+                    "expediente": resultado["expediente"],
+                    "institucional": inst,
+                    "semaforo": semaforo,
+                }
+            )
         contexto["cedula"] = cedula
     return render(request, "expediente/buscar.html", contexto)
 

@@ -3,6 +3,7 @@ Middleware de auditoría: adjunta el usuario e IP de la petición a un contexto
 por hilo para que las señales de los modelos registren autoría. El registro
 efectivo de cada evento se implementa vía señales por modelo (signals.py).
 """
+
 import threading
 
 _local = threading.local()

@@ -5,6 +5,7 @@ Formato tipo 002/003/005 del MSP adaptado a la UNL. La atención hereda del
 modelo base Atencion (informe 11.3) y extiende con anamnesis, examen físico
 y plan. Los diagnósticos se registran en múltiples filas con CIE-10.
 """
+
 from django.db import models
 
 from apps.core.models import CIE10
@@ -23,7 +24,9 @@ class AtencionMedicina(models.Model):
     """
 
     atencion = models.OneToOneField(
-        Atencion, on_delete=models.CASCADE, primary_key=True,
+        Atencion,
+        on_delete=models.CASCADE,
+        primary_key=True,
         related_name="medicina",
     )
 
@@ -32,14 +35,14 @@ class AtencionMedicina(models.Model):
         blank=True, help_text="Cronología del padecimiento actual."
     )
     revision_sistemas = models.JSONField(
-        default=dict, blank=True,
-        help_text="{sistema: hallazgos}, ej: {'cardio': 'palpitaciones ocasionales'}"
+        default=dict,
+        blank=True,
+        help_text="{sistema: hallazgos}, ej: {'cardio': 'palpitaciones ocasionales'}",
     )
 
     # Examen físico
     examen_fisico = models.JSONField(
-        default=dict, blank=True,
-        help_text="{region/sistema: hallazgos}"
+        default=dict, blank=True, help_text="{region/sistema: hallazgos}"
     )
 
     # Plan
@@ -71,14 +74,12 @@ class Diagnostico(models.Model):
         PRIMERA = "primera", "Primera vez"
         SUBSECUENTE = "subsecuente", "Subsecuente"
 
-    atencion = models.ForeignKey(
-        Atencion, on_delete=models.CASCADE, related_name="diagnosticos"
-    )
+    atencion = models.ForeignKey(Atencion, on_delete=models.CASCADE, related_name="diagnosticos")
     cie10 = models.ForeignKey(CIE10, on_delete=models.PROTECT)
-    tipo = models.CharField(max_length=12, choices=TipoDx.choices,
-                            default=TipoDx.PRESUNTIVO)
-    condicion = models.CharField(max_length=12, choices=Condicion.choices,
-                                  default=Condicion.PRIMERA)
+    tipo = models.CharField(max_length=12, choices=TipoDx.choices, default=TipoDx.PRESUNTIVO)
+    condicion = models.CharField(
+        max_length=12, choices=Condicion.choices, default=Condicion.PRIMERA
+    )
     principal = models.BooleanField(default=False)
     observacion = models.CharField(max_length=255, blank=True)
 

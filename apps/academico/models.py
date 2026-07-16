@@ -3,10 +3,10 @@ Réplica institucional de solo lectura, alimentada por la carga de la ficha
 socioeconómica de matrícula (informe, sección 7). En fase 2 esta app se
 alimentará del SGA vía `ApiSgaProvider` sin cambios en el resto del sistema.
 """
+
 from django.db import models
 
 from apps.core.models import ModeloBase, PeriodoAcademico
-from apps.usuarios.models import Usuario
 
 
 class CargaInstitucional(ModeloBase):

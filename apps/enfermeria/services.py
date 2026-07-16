@@ -1,4 +1,5 @@
 """Lógica de negocio de Enfermería."""
+
 from datetime import date, timedelta
 
 from django.utils import timezone
@@ -16,9 +17,9 @@ def signos_del_dia(expediente: Expediente, fecha: date | None = None):
     triaje si existe.
     """
     fecha = fecha or timezone.localdate()
-    return SignosVitales.objects.filter(
-        expediente=expediente, fecha_hora__date=fecha
-    ).order_by("-fecha_hora")
+    return SignosVitales.objects.filter(expediente=expediente, fecha_hora__date=fecha).order_by(
+        "-fecha_hora"
+    )
 
 
 def ultimo_triaje(expediente: Expediente, horas_maximo: int = 12):
@@ -28,6 +29,8 @@ def ultimo_triaje(expediente: Expediente, horas_maximo: int = 12):
     heredar los signos del triaje.
     """
     corte = timezone.now() - timedelta(hours=horas_maximo)
-    return (SignosVitales.objects.filter(
-        expediente=expediente, fecha_hora__gte=corte
-    ).order_by("-fecha_hora").first())
+    return (
+        SignosVitales.objects.filter(expediente=expediente, fecha_hora__gte=corte)
+        .order_by("-fecha_hora")
+        .first()
+    )

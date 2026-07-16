@@ -1,4 +1,5 @@
 """Interfaz web de Enfermería: registro de triaje / signos vitales."""
+
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -55,8 +56,12 @@ def triaje(request, expediente_id):
         messages.success(request, "Signos vitales registrados. Disponibles para Medicina.")
         return redirect("enfermeria:triaje", expediente_id=expediente.id)
 
-    return render(request, "enfermeria/triaje.html", {
-        "expediente": expediente,
-        "persona": expediente.persona,
-        "signos_hoy": signos_del_dia(expediente),
-    })
+    return render(
+        request,
+        "enfermeria/triaje.html",
+        {
+            "expediente": expediente,
+            "persona": expediente.persona,
+            "signos_hoy": signos_del_dia(expediente),
+        },
+    )

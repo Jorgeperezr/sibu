@@ -1,5 +1,7 @@
 """Configuración de Celery para tareas asíncronas (cargas, notificaciones, reportes)."""
+
 import os
+
 from celery import Celery
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")

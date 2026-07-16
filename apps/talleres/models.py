@@ -6,6 +6,7 @@ parámetro del Administrador (`Servicio.permite_talleres`). Las evidencias
 (fotografías y registro escaneado PDF) se archivan en el Google Drive
 institucional del responsable; en la BD se guarda file_id + enlace + hash.
 """
+
 from django.db import models
 
 from apps.core.models import ModeloBase, Seccion, Servicio
@@ -31,13 +32,16 @@ class Taller(ModeloBase):
     tema = models.CharField(max_length=200)
     objetivo = models.TextField(blank=True)
     tipo = models.CharField(max_length=12, choices=Tipo.choices, default=Tipo.PREVENTIVO)
-    responsable = models.ForeignKey(PerfilProfesional, on_delete=models.PROTECT, related_name="talleres")
+    responsable = models.ForeignKey(
+        PerfilProfesional, on_delete=models.PROTECT, related_name="talleres"
+    )
     cofacilitadores = models.JSONField(default=list, blank=True)
     fecha = models.DateField()
     hora_inicio = models.TimeField(null=True, blank=True)
     duracion_min = models.PositiveSmallIntegerField(null=True, blank=True)
     modalidad = models.CharField(
-        max_length=12, choices=[("presencial", "Presencial"), ("virtual", "Virtual")],
+        max_length=12,
+        choices=[("presencial", "Presencial"), ("virtual", "Virtual")],
         default="presencial",
     )
     lugar = models.CharField(max_length=200, blank=True)
@@ -84,3 +88,6 @@ class TallerParticipante(models.Model):
                 condition=models.Q(cedula_digitada__gt=""),
             )
         ]
+
+    def __str__(self):
+        return f"{self.cedula_digitada or self.expediente} @ {self.taller}"

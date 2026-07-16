@@ -3,6 +3,7 @@ Becas — alcance fase 1 (informe 6.9): registro/visualización de beneficiarios
 y seguimiento por período. El ciclo convocatoria→adjudicación se integrará con
 el sistema institucional existente en fase 2 (campo `id_externo`).
 """
+
 from django.db import models
 
 from apps.core.models import ModeloBase, PeriodoAcademico
@@ -41,7 +42,11 @@ class BecaBeneficiario(ModeloBase):
         PeriodoAcademico, on_delete=models.PROTECT, related_name="becas_desde"
     )
     periodo_hasta = models.ForeignKey(
-        PeriodoAcademico, on_delete=models.PROTECT, null=True, blank=True, related_name="becas_hasta"
+        PeriodoAcademico,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="becas_hasta",
     )
     monto_o_porcentaje = models.CharField(max_length=60, blank=True)
     resolucion = models.CharField(max_length=120, blank=True)
@@ -83,3 +88,6 @@ class SeguimientoBeca(models.Model):
         verbose_name = "seguimiento de beca"
         verbose_name_plural = "seguimientos de becas"
         ordering = ["-fecha"]
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} — {self.beneficiario} ({self.periodo})"

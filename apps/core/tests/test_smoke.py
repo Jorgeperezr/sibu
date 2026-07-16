@@ -1,4 +1,5 @@
 """Prueba de humo: la estructura del seed se crea correctamente."""
+
 import pytest
 from django.core.management import call_command
 

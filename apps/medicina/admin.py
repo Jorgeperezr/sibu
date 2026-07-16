@@ -12,8 +12,10 @@ class DiagnosticoInline(admin.TabularInline):
 @admin.register(AtencionMedicina)
 class AtencionMedicinaAdmin(admin.ModelAdmin):
     list_display = ("atencion", "dias_reposo", "proxima_cita_sugerida")
-    search_fields = ("atencion__expediente__persona__cedula",
-                     "atencion__expediente__persona__apellidos")
+    search_fields = (
+        "atencion__expediente__persona__cedula",
+        "atencion__expediente__persona__apellidos",
+    )
 
 
 @admin.register(Diagnostico)

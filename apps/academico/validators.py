@@ -1,4 +1,5 @@
 """Validaciones de datos institucionales (cédula ecuatoriana, correo, números)."""
+
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -27,7 +28,7 @@ def validar_cedula_ecuatoriana(cedula: str) -> bool:
 
     coeficientes = [2, 1, 2, 1, 2, 1, 2, 1, 2]
     total = 0
-    for coef, digito in zip(coeficientes, cedula[:9]):
+    for coef, digito in zip(coeficientes, cedula[:9], strict=False):
         producto = coef * int(digito)
         total += producto - 9 if producto > 9 else producto
     verificador = (10 - (total % 10)) % 10
@@ -35,7 +36,10 @@ def validar_cedula_ecuatoriana(cedula: str) -> bool:
 
 
 def normalizar_cedula(cedula) -> str:
-    """Limpia una cédula: elimina espacios y rellena con ceros a la izquierda si perdió el 0 inicial."""
+    """
+    Limpia una cédula: elimina espacios y rellena con ceros a la izquierda
+    si perdió el 0 inicial (Excel suele convertirla a número).
+    """
     if cedula is None:
         return ""
     texto = str(cedula).strip().replace("-", "").replace(" ", "")
@@ -69,7 +73,7 @@ def a_fecha(valor):
     """Normaliza fechas de nacimiento en varios formatos comunes; None si falla."""
     if valor in (None, ""):
         return None
-    if isinstance(valor, (date, datetime)):
+    if isinstance(valor, date | datetime):
         return valor.date() if isinstance(valor, datetime) else valor
     texto = str(valor).strip()
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%m/%d/%Y"):

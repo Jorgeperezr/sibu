@@ -5,7 +5,8 @@ Estados canónicos (Anexo A):
     reservada → confirmada → en_espera → en_atencion → atendida
     (con transiciones a no_asistio | cancelada | reprogramada)
 """
-from datetime import datetime, time, timedelta
+
+from datetime import datetime, timedelta
 
 from django.db import models
 from django.utils import timezone
@@ -51,8 +52,10 @@ class Agenda(ModeloBase):
         ordering = ["profesional", "dia_semana", "hora_inicio"]
 
     def __str__(self):
-        return (f"{self.profesional} · {self.get_dia_semana_display()} "
-                f"{self.hora_inicio:%H:%M}-{self.hora_fin:%H:%M}")
+        return (
+            f"{self.profesional} · {self.get_dia_semana_display()} "
+            f"{self.hora_inicio:%H:%M}-{self.hora_fin:%H:%M}"
+        )
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -124,7 +127,10 @@ class Cita(ModeloBase):
     origen = models.CharField(max_length=12, choices=Origen.choices, default=Origen.VENTANILLA)
     motivo = models.CharField(max_length=255, blank=True)
     cita_origen = models.ForeignKey(
-        "self", null=True, blank=True, on_delete=models.SET_NULL,
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
         related_name="reprogramaciones",
         help_text="Si esta cita reemplaza a otra reprogramada.",
     )
@@ -145,8 +151,9 @@ class Cita(ModeloBase):
             # No dos citas activas al mismo profesional a la misma hora
             models.UniqueConstraint(
                 fields=["profesional", "fecha_hora"],
-                condition=models.Q(estado__in=["reservada", "confirmada",
-                                               "en_espera", "en_atencion"]),
+                condition=models.Q(
+                    estado__in=["reservada", "confirmada", "en_espera", "en_atencion"]
+                ),
                 name="uniq_cita_activa_profesional_hora",
             ),
         ]

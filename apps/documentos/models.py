@@ -2,6 +2,7 @@
 Gestión documental. Los anexos clínicos se guardan en almacén local cifrado;
 las evidencias de talleres en Google Drive institucional (informe 5.2, 14.10).
 """
+
 from django.db import models
 
 from apps.core.models import ModeloBase
@@ -20,7 +21,11 @@ class DocumentoAnexo(ModeloBase):
         Atencion, null=True, blank=True, on_delete=models.CASCADE, related_name="documentos"
     )
     taller = models.ForeignKey(
-        "talleres.Taller", null=True, blank=True, on_delete=models.CASCADE, related_name="evidencias"
+        "talleres.Taller",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="evidencias",
     )
     modulo = models.CharField(max_length=40)
     tipo_documento = models.CharField(max_length=60)

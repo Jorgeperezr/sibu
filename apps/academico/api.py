@@ -4,6 +4,7 @@ API del módulo académico.
 - CargaInstitucionalViewSet: subir archivo, previsualizar y aplicar la carga.
 - consultar_persona: autocompletado por cédula usado por todos los formularios.
 """
+
 import os
 import tempfile
 
@@ -17,8 +18,7 @@ from apps.usuarios.permissions import EsAdministrador
 
 from .models import CargaInstitucional
 from .providers import get_provider
-from .serializers import (CargaInstitucionalSerializer,
-                          ConsultaPersonaSerializer)
+from .serializers import CargaInstitucionalSerializer, ConsultaPersonaSerializer
 from .services import LectorFicha, ProcesadorCarga, hash_archivo
 
 
@@ -42,8 +42,10 @@ class CargaInstitucionalViewSet(viewsets.ModelViewSet):
         carga = self.get_object()
         archivo = request.FILES.get("archivo")
         if not archivo:
-            return Response({"detalle": "Adjunte el archivo en el campo 'archivo'."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detalle": "Adjunte el archivo en el campo 'archivo'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         ruta = self._guardar_temporal(archivo)
         try:
             lector = LectorFicha(ruta, carga.formato)
@@ -62,8 +64,10 @@ class CargaInstitucionalViewSet(viewsets.ModelViewSet):
         carga = self.get_object()
         archivo = request.FILES.get("archivo")
         if not archivo:
-            return Response({"detalle": "Adjunte el archivo en el campo 'archivo'."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detalle": "Adjunte el archivo en el campo 'archivo'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         ruta = self._guardar_temporal(archivo)
         try:
             carga.hash_archivo = hash_archivo(ruta)
@@ -88,6 +92,8 @@ def consultar_persona(request, cedula: str):
     """Autocompletado por cédula. Devuelve datos institucionales o 404."""
     datos = get_provider().consultar_persona(cedula)
     if datos is None:
-        return Response({"detalle": "Persona no encontrada en la base institucional."},
-                        status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {"detalle": "Persona no encontrada en la base institucional."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
     return Response(ConsultaPersonaSerializer(datos).data)

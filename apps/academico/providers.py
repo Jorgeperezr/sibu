@@ -5,6 +5,7 @@ Fase 1: `CargaArchivoProvider` (lee de la réplica alimentada por Excel/CSV).
 Fase 2: `ApiSgaProvider` (consulta el SGA por API/vistas). El resto del
 sistema solo depende de `AcademicoProvider.consultar_persona`.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -23,11 +24,7 @@ class CargaArchivoProvider(AcademicoProvider):
     def consultar_persona(self, cedula: str) -> dict | None:
         from apps.expediente.models import Persona
 
-        persona = (
-            Persona.objects.filter(cedula=cedula)
-            .prefetch_related("datos_academicos")
-            .first()
-        )
+        persona = Persona.objects.filter(cedula=cedula).prefetch_related("datos_academicos").first()
         if persona is None:
             return None
         dato = persona.datos_academicos.order_by("-periodo__fecha_inicio").first()

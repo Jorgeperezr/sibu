@@ -1,4 +1,5 @@
 """Consultas de lectura del expediente (con filtrado RBAC)."""
+
 from __future__ import annotations
 
 from apps.usuarios.rbac import atenciones_visibles

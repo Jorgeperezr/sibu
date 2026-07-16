@@ -1,5 +1,4 @@
 """Interfaz web del módulo de citas."""
-from datetime import date, datetime
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -31,10 +30,16 @@ def mi_agenda(request):
         perfil = PerfilProfesional.objects.filter(pk=profesional_id).first()
 
     citas = citas_del_dia(perfil, fecha) if perfil else []
-    return render(request, "citas/agenda_dia.html", {
-        "citas": citas, "fecha": fecha, "perfil": perfil,
-        "estados": Cita.Estado.choices,
-    })
+    return render(
+        request,
+        "citas/agenda_dia.html",
+        {
+            "citas": citas,
+            "fecha": fecha,
+            "perfil": perfil,
+            "estados": Cita.Estado.choices,
+        },
+    )
 
 
 @login_required
@@ -55,7 +60,9 @@ def reservar(request):
             if fecha_hora is not None and timezone.is_naive(fecha_hora):
                 fecha_hora = timezone.make_aware(fecha_hora, timezone.get_current_timezone())
             cita = services.reservar_cita(
-                expediente=expediente, servicio=servicio, profesional=profesional,
+                expediente=expediente,
+                servicio=servicio,
+                profesional=profesional,
                 fecha_hora=fecha_hora,
                 motivo=request.POST.get("motivo", ""),
                 usuario=request.user,
@@ -64,8 +71,7 @@ def reservar(request):
             return redirect("citas:mi_agenda")
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))
-        except (Expediente.DoesNotExist, Servicio.DoesNotExist,
-                PerfilProfesional.DoesNotExist):
+        except (Expediente.DoesNotExist, Servicio.DoesNotExist, PerfilProfesional.DoesNotExist):
             messages.error(request, "Datos incompletos o inválidos.")
     return render(request, "citas/reservar.html", contexto)
 
@@ -81,12 +87,14 @@ def buscar_persona_json(request):
         return JsonResponse({"encontrado": False})
     persona = resultado["persona"]
     exp = resultado["expediente"]
-    return JsonResponse({
-        "encontrado": True,
-        "expediente_id": exp.id if exp else None,
-        "nombre": persona.nombre_completo,
-        "vinculo": persona.get_tipo_vinculo_display(),
-    })
+    return JsonResponse(
+        {
+            "encontrado": True,
+            "expediente_id": exp.id if exp else None,
+            "nombre": persona.nombre_completo,
+            "vinculo": persona.get_tipo_vinculo_display(),
+        }
+    )
 
 
 @login_required
@@ -95,13 +103,19 @@ def profesionales_json(request):
     servicio_id = request.GET.get("servicio")
     if not servicio_id:
         return JsonResponse({"profesionales": []})
-    profesionales = PerfilProfesional.objects.filter(
-        servicios__id=servicio_id
-    ).select_related("usuario").distinct()
-    return JsonResponse({"profesionales": [
-        {"id": p.id, "nombre": p.usuario.get_full_name() or p.usuario.username}
-        for p in profesionales
-    ]})
+    profesionales = (
+        PerfilProfesional.objects.filter(servicios__id=servicio_id)
+        .select_related("usuario")
+        .distinct()
+    )
+    return JsonResponse(
+        {
+            "profesionales": [
+                {"id": p.id, "nombre": p.usuario.get_full_name() or p.usuario.username}
+                for p in profesionales
+            ]
+        }
+    )
 
 
 @login_required

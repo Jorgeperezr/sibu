@@ -4,6 +4,7 @@ API del expediente único con filtrado RBAC.
 - PersonaViewSet: búsqueda por cédula.
 - ExpedienteViewSet: detalle + línea de tiempo filtrada; acción break-the-glass.
 """
+
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -14,8 +15,12 @@ from apps.usuarios.services import registrar_break_glass
 
 from .models import Expediente, Persona
 from .selectors import timeline
-from .serializers import (AtencionResumenSerializer, BreakGlassSerializer,
-                          ExpedienteSerializer, PersonaSerializer)
+from .serializers import (
+    AtencionResumenSerializer,
+    BreakGlassSerializer,
+    ExpedienteSerializer,
+    PersonaSerializer,
+)
 from .services import resolver_por_cedula
 
 
@@ -33,11 +38,13 @@ class PersonaViewSet(viewsets.ReadOnlyModelViewSet):
                 {"detalle": "No existe en la base institucional. Registre como externo."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        return Response({
-            "persona": PersonaSerializer(resultado["persona"]).data,
-            "expediente_id": resultado["expediente"].id if resultado["expediente"] else None,
-            "institucional": resultado["institucional"],
-        })
+        return Response(
+            {
+                "persona": PersonaSerializer(resultado["persona"]).data,
+                "expediente_id": resultado["expediente"].id if resultado["expediente"] else None,
+                "institucional": resultado["institucional"],
+            }
+        )
 
 
 class ExpedienteViewSet(viewsets.ReadOnlyModelViewSet):
@@ -65,12 +72,16 @@ class ExpedienteViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = BreakGlassSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         registrar_break_glass(
-            request.user, expediente.id, serializer.validated_data["motivo"],
+            request.user,
+            expediente.id,
+            serializer.validated_data["motivo"],
             ip=request.META.get("REMOTE_ADDR"),
             user_agent=request.META.get("HTTP_USER_AGENT", ""),
         )
         atenciones = timeline(expediente, request.user, break_glass=True)
-        return Response({
-            "detalle": "Acceso de emergencia registrado y auditado.",
-            "atenciones": AtencionResumenSerializer(atenciones, many=True).data,
-        })
+        return Response(
+            {
+                "detalle": "Acceso de emergencia registrado y auditado.",
+                "atenciones": AtencionResumenSerializer(atenciones, many=True).data,
+            }
+        )

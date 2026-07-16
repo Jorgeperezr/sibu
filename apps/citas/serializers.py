@@ -1,4 +1,5 @@
 """Serializers DRF del módulo de citas."""
+
 from rest_framework import serializers
 
 from .models import Agenda, BloqueoAgenda, Cita
@@ -9,9 +10,19 @@ class AgendaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Agenda
-        fields = ["id", "profesional", "servicio", "dia_semana",
-                  "dia_semana_display", "hora_inicio", "hora_fin",
-                  "duracion_turno_min", "vigente_desde", "vigente_hasta", "activa"]
+        fields = [
+            "id",
+            "profesional",
+            "servicio",
+            "dia_semana",
+            "dia_semana_display",
+            "hora_inicio",
+            "hora_fin",
+            "duracion_turno_min",
+            "vigente_desde",
+            "vigente_hasta",
+            "activa",
+        ]
 
 
 class BloqueoAgendaSerializer(serializers.ModelSerializer):
@@ -21,21 +32,36 @@ class BloqueoAgendaSerializer(serializers.ModelSerializer):
 
 
 class CitaSerializer(serializers.ModelSerializer):
-    paciente = serializers.CharField(
-        source="expediente.persona.nombre_completo", read_only=True)
+    paciente = serializers.CharField(source="expediente.persona.nombre_completo", read_only=True)
     cedula = serializers.CharField(source="expediente.persona.cedula", read_only=True)
     servicio_nombre = serializers.CharField(source="servicio.nombre", read_only=True)
     profesional_nombre = serializers.CharField(
-        source="profesional.usuario.get_full_name", read_only=True)
+        source="profesional.usuario.get_full_name", read_only=True
+    )
     estado_display = serializers.CharField(source="get_estado_display", read_only=True)
 
     class Meta:
         model = Cita
-        fields = ["id", "expediente", "paciente", "cedula", "servicio",
-                  "servicio_nombre", "profesional", "profesional_nombre",
-                  "fecha_hora", "duracion_min", "estado", "estado_display",
-                  "origen", "motivo", "cita_origen", "llegada_en",
-                  "atendida_en", "observaciones"]
+        fields = [
+            "id",
+            "expediente",
+            "paciente",
+            "cedula",
+            "servicio",
+            "servicio_nombre",
+            "profesional",
+            "profesional_nombre",
+            "fecha_hora",
+            "duracion_min",
+            "estado",
+            "estado_display",
+            "origen",
+            "motivo",
+            "cita_origen",
+            "llegada_en",
+            "atendida_en",
+            "observaciones",
+        ]
         read_only_fields = ["estado", "cita_origen", "llegada_en", "atendida_en"]
 
 
