@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: A4; margin: 2.5cm 2cm 3.5cm 2cm; }
+    body { font-family: sans-serif; font-size: 10pt; color: #222; }
+    h1 { font-size: 14pt; margin: 0 0 2pt; }
+    .sub { color: #666; font-size: 9pt; margin-bottom: 14pt; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12pt; }
+    th, td { text-align: left; padding: 4pt 6pt; border-bottom: .5pt solid #ddd; }
+    th { width: 30%; color: #555; font-weight: normal; }
+    .zona-firma { margin-top: 40pt; border-top: .5pt dashed #999; padding-top: 8pt;
+                  font-size: 8pt; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Universidad Nacional de Loja — Bienestar Universitario</h1>
+  <div class="sub">{{ atencion.servicio.nombre }} · Informe de atención</div>
+
+  <table>
+    <tr><th>Paciente</th><td>{{ persona.nombre_completo }}</td></tr>
+    <tr><th>Cédula</th><td>{{ persona.cedula }}</td></tr>
+    <tr><th>Expediente</th><td>{{ atencion.expediente.numero_expediente }}</td></tr>
+    <tr><th>Fecha de atención</th><td>{{ atencion.fecha_hora|date:"d/m/Y H:i" }}</td></tr>
+    <tr><th>Profesional</th><td>{{ atencion.profesional.usuario.get_full_name|default:"—" }}</td></tr>
+    <tr><th>Motivo</th><td>{{ atencion.motivo|default:"—" }}</td></tr>
+  </table>
+
+  <div class="zona-firma">
+    Documento generado por SIBU. La firma electrónica se aplica mediante FirmaEC
+    y su validez puede verificarse en https://www.firmadigital.gob.ec/
+    <br>Espacio reservado para el estampado de la firma.
+  </div>
+</body>
+</html>

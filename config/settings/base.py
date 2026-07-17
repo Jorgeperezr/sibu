@@ -228,3 +228,38 @@ GOOGLE_OAUTH = {
     "SCOPES": ["https://www.googleapis.com/auth/drive.file"],
     "SHARED_DRIVE_ID": env("GOOGLE_SHARED_DRIVE_ID", default=""),
 }
+
+
+# ---------------------------------------------------------------------------
+# FirmaEC (MINTEL) — firma electrónica de documentos
+# ---------------------------------------------------------------------------
+# SIBU no hace criptografía: genera el PDF, pide un token al servicio FirmaEC y
+# el usuario firma con la aplicación de escritorio instalada en su equipo. Ni la
+# clave privada ni la contraseña del .p12 llegan nunca al servidor.
+#
+# Referencia: Manual de Implementación Institucional FirmaEC Descentralizada
+# 2.1.0 (MINTEL). Requiere autorización del MINTEL y un Administrador
+# Institucional de FirmaEC (AIF) delegado por la máxima autoridad.
+
+# URL del proyecto `firmadigital-servicio`. Preproducción del MINTEL:
+# https://impws.firmadigital.gob.ec/servicio
+FIRMAEC_SERVICIO_URL = env("FIRMAEC_SERVICIO_URL", default="")
+
+# Nombre del sistema requirente registrado ante FirmaEC (viaja en firmaec://).
+FIRMAEC_SISTEMA = env("FIRMAEC_SISTEMA", default="")
+
+# API Key que SIBU presenta AL llamar a FirmaEC.
+FIRMAEC_API_KEY = env("FIRMAEC_API_KEY", default="")
+
+# API Key que FirmaEC presenta al devolver el documento firmado. Es distinta de
+# la anterior y protege un endpoint sin sesión: tratarla como un secreto.
+FIRMAEC_CALLBACK_API_KEY = env("FIRMAEC_CALLBACK_API_KEY", default="")
+
+FIRMAEC_RAZON = env("FIRMAEC_RAZON", default="Firma de responsabilidad")
+FIRMAEC_PREPRODUCCION = env.bool("FIRMAEC_PREPRODUCCION", default=True)
+
+# Firmar implica que el PDF SALE de SIBU hacia el servicio FirmaEC. Poner esto
+# en True afirma que ese servicio corre en infraestructura de la propia UNL
+# (despliegue descentralizado). Solo entonces se permite firmar contenido de
+# servicios confidenciales como Psicología. Ver apps/firma/policy.py.
+FIRMAEC_DESCENTRALIZADO_PROPIO = env.bool("FIRMAEC_DESCENTRALIZADO_PROPIO", default=False)

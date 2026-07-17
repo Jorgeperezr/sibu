@@ -1,0 +1,417 @@
+"""
+Firma electrónica con FirmaEC.
+
+El foco está en el endpoint de retorno: FirmaEC lo invoca desde su servidor, sin
+sesión ni CSRF. Lo único que lo protege es la API Key y las validaciones. Si
+alguien lo alcanza, escribe en el expediente de un paciente.
+"""
+
+import base64
+import json
+from unittest.mock import patch
+
+import pytest
+from django.core.exceptions import ValidationError
+from django.test import Client
+from django.utils import timezone
+
+from apps.core.models import Servicio
+from apps.expediente.models import Atencion
+from apps.expediente.tests.factories import (
+    crear_estructura,
+    crear_expediente,
+    crear_profesional,
+)
+from apps.firma import services
+from apps.firma.models import FirmaDocumento, SolicitudFirma
+
+PDF = b"%PDF-1.4 contenido de prueba"
+CLAVE_CALLBACK = "clave-callback-de-prueba"
+
+
+def _certificado(cedula="1104567890", **extra):
+    base = {
+        "emitidoPara": "JORGE PEREZ",
+        "emitidoPor": "Security Data",
+        "cedula": cedula,
+        "entidadCertificadora": "Security Data",
+        "serial": "0123456789",
+        "certificadoVigente": True,
+        "certificadoDigitalValido": True,
+        "integridadFirma": True,
+    }
+    base.update(extra)
+    return base
+
+
+@pytest.fixture
+def escenario(db):
+    est = crear_estructura()
+    u, prof = crear_profesional("medico", est["medicina"], est["salud"])
+    prof.cedula = "1104567890"
+    prof.save()
+    exp = crear_expediente(cedula="1712345678")
+    atencion = Atencion.objects.create(
+        expediente=exp, servicio=est["medicina"], profesional=prof, fecha_hora=timezone.now()
+    )
+    solicitud = services.preparar_solicitud(
+        atencion=atencion,
+        solicitante=u,
+        pdf=PDF,
+        documento_ref_tipo="atencion",
+        documento_ref_id=atencion.pk,
+    )
+    return {"est": est, "u": u, "prof": prof, "exp": exp, "atencion": atencion, "s": solicitud}
+
+
+def _callback(correlacion, *, cedula="1104567890", api_key=CLAVE_CALLBACK, **campos):
+    cuerpo = {
+        "cedula": cedula,
+        "nombreDocumento": f"SIBU-{correlacion}.pdf",
+        "archivo": base64.b64encode(b"%PDF-1.4 firmado").decode(),
+        "firmasValidas": True,
+        "integridadDocumento": True,
+        "error": "null",
+        "certificado": [_certificado(cedula)],
+    }
+    cuerpo.update(campos)
+    return Client().post(
+        "/grabar_archivos_firmados",
+        data=json.dumps(cuerpo),
+        content_type="application/json",
+        headers={"x-api-key": api_key},
+    )
+
+
+# --------------------------------------------------------------------------
+# El camino feliz
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_la_solicitud_no_guarda_la_clave_privada_ni_la_contrasena(escenario):
+    """SIBU solo custodia el PDF: nada del certificado del usuario."""
+    campos = {f.name for f in SolicitudFirma._meta.get_fields()}
+    for prohibido in ("password", "clave", "contrasena", "p12", "llave_privada"):
+        assert not any(prohibido in c for c in campos), f"El modelo expone '{prohibido}'"
+
+
+@pytest.mark.django_db
+def test_callback_valido_asienta_la_firma(escenario, settings):
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    r = _callback(escenario["s"].correlacion)
+    assert r.status_code == 200
+    assert r.content.decode() == "OK"  # el manual exige exactamente esto
+
+    escenario["s"].refresh_from_db()
+    assert escenario["s"].estado == SolicitudFirma.Estado.FIRMADA
+    firma = FirmaDocumento.objects.get(documento_ref_id=escenario["atencion"].pk)
+    assert firma.firmante_nombre == "JORGE PEREZ"
+    assert firma.entidad_certificadora == "Security Data"
+    assert firma.hash_documento == escenario["s"].hash_firmado
+
+
+@pytest.mark.django_db
+def test_la_firma_queda_auditada(escenario, settings):
+    from apps.auditoria.models import LogAuditoria
+
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    _callback(escenario["s"].correlacion)
+    log = LogAuditoria.objects.filter(accion=LogAuditoria.Accion.SIGN).first()
+    assert log is not None
+    assert log.expediente_id == escenario["exp"].pk
+    assert log.detalle["firmante"] == "JORGE PEREZ"
+
+
+# --------------------------------------------------------------------------
+# El endpoint expuesto
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_sin_api_key_no_entra(escenario, settings):
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    r = _callback(escenario["s"].correlacion, api_key="")
+    assert r.status_code == 403
+    escenario["s"].refresh_from_db()
+    assert escenario["s"].estado != SolicitudFirma.Estado.FIRMADA
+
+
+@pytest.mark.django_db
+def test_api_key_incorrecta_no_entra(escenario, settings):
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    assert _callback(escenario["s"].correlacion, api_key="otra-clave").status_code == 403
+
+
+@pytest.mark.django_db
+def test_si_no_hay_api_key_configurada_se_rechaza_todo(escenario, settings):
+    """Un despliegue mal configurado no puede quedar abierto de par en par."""
+    settings.FIRMAEC_CALLBACK_API_KEY = ""
+    assert _callback(escenario["s"].correlacion, api_key="").status_code == 403
+
+
+@pytest.mark.django_db
+def test_correlacion_inventada_no_crea_nada(escenario, settings):
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    r = _callback("correlacion-que-no-existe")
+    assert r.status_code == 400
+    assert FirmaDocumento.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_nombre_de_documento_ajeno_se_rechaza(escenario, settings):
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    r = Client().post(
+        "/grabar_archivos_firmados",
+        data=json.dumps({"cedula": "1104567890", "nombreDocumento": "cualquier-cosa.pdf"}),
+        content_type="application/json",
+        headers={"x-api-key": CLAVE_CALLBACK},
+    )
+    assert r.status_code == 400
+
+
+@pytest.mark.django_db
+def test_otra_cedula_no_puede_firmar_el_documento_ajeno(escenario, settings):
+    """
+    El firmante tiene que ser quien pidió firmar. Sin esto, cualquier titular de
+    un certificado válido podría firmar el informe de otro profesional.
+    """
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    r = _callback(escenario["s"].correlacion, cedula="0999999999")
+    assert r.status_code == 400
+    escenario["s"].refresh_from_db()
+    assert escenario["s"].estado == SolicitudFirma.Estado.FALLIDA
+    assert FirmaDocumento.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_firma_invalida_no_se_guarda(escenario, settings):
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    r = _callback(escenario["s"].correlacion, firmasValidas=False)
+    assert r.status_code == 400
+    assert FirmaDocumento.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_integridad_rota_no_se_guarda(escenario, settings):
+    """Si la firma no cubre todo el documento, el PDF pudo alterarse después."""
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    r = _callback(escenario["s"].correlacion, integridadDocumento=False)
+    assert r.status_code == 400
+    assert FirmaDocumento.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_certificado_no_vigente_se_rechaza(escenario, settings):
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    r = _callback(
+        escenario["s"].correlacion,
+        certificado=[_certificado(certificadoVigente=False)],
+    )
+    assert r.status_code == 400
+    assert FirmaDocumento.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_archivo_que_no_es_pdf_se_rechaza(escenario, settings):
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    r = _callback(
+        escenario["s"].correlacion,
+        archivo=base64.b64encode(b"<?php system($_GET[0]); ?>").decode(),
+    )
+    assert r.status_code == 400
+    assert FirmaDocumento.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_reenvio_no_duplica_la_firma(escenario, settings):
+    """FirmaEC podría reintentar: la segunda vez no debe sobrescribir nada."""
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    assert _callback(escenario["s"].correlacion).status_code == 200
+    assert _callback(escenario["s"].correlacion).status_code == 400
+    assert FirmaDocumento.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_get_no_es_aceptado(escenario, settings):
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    assert Client().get("/grabar_archivos_firmados").status_code == 405
+
+
+# --------------------------------------------------------------------------
+# El sello de Psicología frente a un firmador externo
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_psicologia_no_sale_a_un_firmador_externo(escenario, settings):
+    """
+    Firmar manda el PDF fuera de SIBU. Con FirmaEC centralizado, un informe
+    psicológico saldría además de la UNL. El RBAC no lo impediría: la fuga
+    sería por una tubería legítima.
+    """
+    settings.FIRMAEC_DESCENTRALIZADO_PROPIO = False
+    psico = Servicio.objects.get(codigo="psicologia")
+    u, prof = crear_profesional("psicologo", psico, psico.seccion)
+    prof.cedula = "1104567890"
+    prof.save()
+    atencion = Atencion.objects.create(
+        expediente=escenario["exp"], servicio=psico, profesional=prof, fecha_hora=timezone.now()
+    )
+    with pytest.raises(ValidationError, match="confidencial"):
+        services.preparar_solicitud(
+            atencion=atencion,
+            solicitante=u,
+            pdf=PDF,
+            documento_ref_tipo="atencion",
+            documento_ref_id=atencion.pk,
+        )
+
+
+@pytest.mark.django_db
+def test_psicologia_si_el_firmador_es_de_la_institucion(escenario, settings):
+    """Con FirmaEC descentralizado propio, el contenido no sale de la UNL."""
+    settings.FIRMAEC_DESCENTRALIZADO_PROPIO = True
+    psico = Servicio.objects.get(codigo="psicologia")
+    u, prof = crear_profesional("psicologo2", psico, psico.seccion)
+    prof.cedula = "1104567890"
+    prof.save()
+    atencion = Atencion.objects.create(
+        expediente=escenario["exp"], servicio=psico, profesional=prof, fecha_hora=timezone.now()
+    )
+    solicitud = services.preparar_solicitud(
+        atencion=atencion,
+        solicitante=u,
+        pdf=PDF,
+        documento_ref_tipo="atencion",
+        documento_ref_id=atencion.pk,
+    )
+    assert solicitud.pk
+
+
+# --------------------------------------------------------------------------
+# Reglas de negocio
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_no_se_firma_dos_veces_el_mismo_documento(escenario, settings):
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    _callback(escenario["s"].correlacion)
+    with pytest.raises(ValidationError, match="ya fue firmado"):
+        services.preparar_solicitud(
+            atencion=escenario["atencion"],
+            solicitante=escenario["u"],
+            pdf=PDF,
+            documento_ref_tipo="atencion",
+            documento_ref_id=escenario["atencion"].pk,
+        )
+
+
+@pytest.mark.django_db
+def test_solicitud_repetida_reutiliza_la_abierta(escenario):
+    otra = services.preparar_solicitud(
+        atencion=escenario["atencion"],
+        solicitante=escenario["u"],
+        pdf=PDF,
+        documento_ref_tipo="atencion",
+        documento_ref_id=escenario["atencion"].pk,
+    )
+    assert otra.pk == escenario["s"].pk
+
+
+@pytest.mark.django_db
+def test_sin_cedula_en_el_perfil_no_se_puede_firmar(escenario):
+    u, prof = crear_profesional(
+        "sincedula", escenario["est"]["medicina"], escenario["est"]["salud"]
+    )
+    prof.cedula = ""
+    prof.save()
+    atencion = Atencion.objects.create(
+        expediente=escenario["exp"],
+        servicio=escenario["est"]["medicina"],
+        profesional=prof,
+        fecha_hora=timezone.now(),
+    )
+    with pytest.raises(ValidationError, match="cédula"):
+        services.preparar_solicitud(
+            atencion=atencion,
+            solicitante=u,
+            pdf=PDF,
+            documento_ref_tipo="atencion",
+            documento_ref_id=atencion.pk,
+        )
+
+
+@pytest.mark.django_db
+def test_el_enlace_firmaec_lleva_el_token_y_no_el_pdf(escenario, settings):
+    """El PDF nunca viaja por la URL: solo el JWT."""
+    settings.FIRMAEC_SERVICIO_URL = "https://impws.firmadigital.gob.ec/servicio"
+    settings.FIRMAEC_SISTEMA = "sibu"
+    settings.FIRMAEC_API_KEY = "k"
+    settings.FIRMAEC_PREPRODUCCION = True
+    with patch("apps.firma.client.crear_documento", return_value="aaa.bbb.ccc"):
+        enlace = services.solicitar_token(escenario["s"])
+    assert enlace.startswith("firmaec://sibu/firmar?")
+    assert "token=aaa.bbb.ccc" in enlace
+    assert "tipo_certificado=2" in enlace
+    assert "pre=true" in enlace
+    assert base64.b64encode(PDF).decode()[:20] not in enlace
+    escenario["s"].refresh_from_db()
+    assert escenario["s"].estado == SolicitudFirma.Estado.ENVIADA
+
+
+@pytest.mark.django_db
+def test_las_solicitudes_vencidas_se_expiran(escenario, settings):
+    escenario["s"].estado = SolicitudFirma.Estado.ENVIADA
+    escenario["s"].token_expira_en = timezone.now() - timezone.timedelta(minutes=1)
+    escenario["s"].save()
+    assert services.expirar_vencidas() == 1
+    escenario["s"].refresh_from_db()
+    assert escenario["s"].estado == SolicitudFirma.Estado.EXPIRADA
+
+
+@pytest.mark.django_db
+def test_una_solicitud_expirada_ya_no_admite_firma(escenario, settings):
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    escenario["s"].estado = SolicitudFirma.Estado.EXPIRADA
+    escenario["s"].save()
+    assert _callback(escenario["s"].correlacion).status_code == 400
+    assert FirmaDocumento.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_el_rechazo_queda_auditado(escenario, settings):
+    """
+    Regresión: el registro del rechazo vivía dentro del atomic, así que el
+    ValidationError que aborta la operación lo revertía y los intentos
+    fallidos no dejaban rastro. En una historia clínica son justamente los que
+    hay que poder auditar.
+    """
+    from apps.auditoria.models import LogAuditoria
+
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    _callback(escenario["s"].correlacion, cedula="0999999999")
+
+    log = LogAuditoria.objects.filter(
+        accion=LogAuditoria.Accion.SIGN, resultado="rechazado"
+    ).first()
+    assert log is not None, "El intento rechazado no dejó rastro en la auditoría"
+    assert "cédula" in log.detalle["motivo"]
+    escenario["s"].refresh_from_db()
+    assert escenario["s"].estado == SolicitudFirma.Estado.FALLIDA
+
+
+@pytest.mark.django_db
+def test_url_de_servicio_no_https_se_rechaza(escenario, settings):
+    """urlopen acepta file://: una URL mal configurada leería el disco."""
+    from django.core.exceptions import ImproperlyConfigured
+
+    from apps.firma import client
+
+    settings.FIRMAEC_SISTEMA = "sibu"
+    settings.FIRMAEC_API_KEY = "k"
+    for mala in ("file:///etc/passwd", "http://evil.example.com/servicio"):
+        settings.FIRMAEC_SERVICIO_URL = mala
+        with pytest.raises(ImproperlyConfigured, match="https"):
+            client.crear_documento(cedula="1104567890", nombre="x.pdf", pdf=PDF)
