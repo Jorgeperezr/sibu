@@ -8,6 +8,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.academico.api import CargaInstitucionalViewSet, consultar_persona
 from apps.citas.api import AgendaViewSet, BloqueoAgendaViewSet, CitaViewSet
+from apps.derivaciones.api import DerivacionViewSet, ReferenciaExternaViewSet
 from apps.expediente.api import ExpedienteViewSet, PersonaViewSet
 from apps.farmacia.api import (
     AlertasFarmaciaView,
@@ -21,6 +22,9 @@ from apps.odontologia.api import (
     AtencionOdontologiaViewSet,
     CatalogoProcedimientoViewSet,
 )
+from apps.psicologia.api import EscalaPsicometricaViewSet, FichaPsicologicaViewSet
+from apps.psicopedagogia.api import FichaPsicopedagogicaViewSet
+from apps.trabajo_social.api import FichaSocioeconomicaViewSet, VisitaDomiciliariaViewSet
 
 router = DefaultRouter()
 router.register("academico/cargas", CargaInstitucionalViewSet, basename="carga")
@@ -37,6 +41,14 @@ router.register("odontologia/catalogo", CatalogoProcedimientoViewSet, basename="
 router.register("farmacia/medicamentos", MedicamentoViewSet, basename="medicamento")
 router.register("farmacia/lotes", LoteViewSet, basename="lote")
 router.register("farmacia/recetas", RecetaViewSet, basename="receta")
+# Sprint 7b
+router.register("psicologia/escalas", EscalaPsicometricaViewSet, basename="escala-psico")
+router.register("psicologia/fichas", FichaPsicologicaViewSet, basename="ficha-psico")
+router.register("psicopedagogia/fichas", FichaPsicopedagogicaViewSet, basename="ficha-psicoped")
+router.register("trabajo-social/fichas", FichaSocioeconomicaViewSet, basename="ficha-socio")
+router.register("trabajo-social/visitas", VisitaDomiciliariaViewSet, basename="visita-ts")
+router.register("derivaciones", DerivacionViewSet, basename="derivacion")
+router.register("referencias-externas", ReferenciaExternaViewSet, basename="referencia-externa")
 
 
 def salud(_request):

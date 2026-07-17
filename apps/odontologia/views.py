@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.expediente.models import Expediente
+from apps.usuarios.decorators import verificar_acceso_atencion
 
 from . import services
 from .models import (
@@ -115,8 +116,14 @@ def _arcada(piezas, vigente):
 def consulta(request, pk):
     """Odontograma interactivo + procedimientos + plan."""
     hc = get_object_or_404(
-        AtencionOdontologia.objects.select_related("atencion__expediente__persona"), pk=pk
+        AtencionOdontologia.objects.select_related(
+            "atencion__expediente__persona", "atencion__servicio"
+        ),
+        pk=pk,
     )
+    # Sin esto, cualquier usuario autenticado abre la historia de cualquier
+    # paciente cambiando el id en la URL.
+    verificar_acceso_atencion(request.user, hc.atencion)
     perfil = getattr(request.user, "perfil", None)
 
     if request.method == "POST":

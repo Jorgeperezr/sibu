@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Ficha socioeconómica — SIBU{% endblock %}
+{% block content %}
+<h2>Ficha socioeconómica</h2>
+<p class="text-muted">
+  {{ expediente.persona.nombre_completo }} · Expediente {{ expediente.numero_expediente }}
+</p>
+
+{% if messages %}{% for m in messages %}
+<div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
+{% endfor %}{% endif %}
+
+{% if not vigente %}
+<div class="card">
+  <div class="card-body">
+    <p>Este expediente aún no tiene ficha socioeconómica.</p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="prepoblar">
+      <button class="btn btn-primary">Pre-poblar desde la ficha de matrícula</button>
+      <div class="form-text">
+        Crea la v1 con lo que el estudiante declaró al matricularse. No inventa datos.
+      </div>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between">
+        <span>Versión vigente: v{{ vigente.version }}</span>
+        <span class="badge bg-secondary">{{ vigente.get_origen_display }}</span>
+      </div>
+      <div class="card-body">
+        {% if vigente.puntaje %}
+        <div class="alert {% if vigente.estrato == 'Extrema vulnerabilidad' %}alert-danger{% elif vigente.estrato == 'Vulnerabilidad alta' %}alert-warning{% else %}alert-secondary{% endif %} py-2">
+          <strong>{{ vigente.puntaje }} SBU</strong> per cápita — {{ vigente.estrato }}
+        </div>
+        {% endif %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="verificar">
+          <h6 class="small text-uppercase text-muted">Ingresos del hogar</h6>
+          <div class="row g-2 mb-3">
+            <div class="col-6"><input name="ingreso-sueldo_padre" class="form-control form-control-sm" placeholder="Sueldo padre"></div>
+            <div class="col-6"><input name="ingreso-sueldo_madre" class="form-control form-control-sm" placeholder="Sueldo madre"></div>
+            <div class="col-6"><input name="ingreso-estudiante" class="form-control form-control-sm" placeholder="Ingreso del estudiante"></div>
+            <div class="col-6"><input name="ingreso-otros" class="form-control form-control-sm" placeholder="Otros"></div>
+          </div>
+          <h6 class="small text-uppercase text-muted">Egresos</h6>
+          <div class="row g-2 mb-3">
+            <div class="col-6"><input name="egreso-arriendo" class="form-control form-control-sm" placeholder="Arriendo"></div>
+            <div class="col-6"><input name="egreso-alimentacion" class="form-control form-control-sm" placeholder="Alimentación"></div>
+            <div class="col-6"><input name="egreso-salud" class="form-control form-control-sm" placeholder="Salud"></div>
+            <div class="col-6"><input name="egreso-educacion" class="form-control form-control-sm" placeholder="Educación"></div>
+          </div>
+          <div class="mb-3" style="max-width:220px">
+            <label class="form-label small">Miembros del hogar</label>
+            <input type="number" name="numero_miembros" class="form-control form-control-sm"
+                   min="1" value="{{ vigente.convivencia.numero_miembros|default:1 }}">
+          </div>
+          <button class="btn btn-primary">Registrar verificación</button>
+          <div class="form-text">
+            Crea una versión nueva. La anterior se conserva como histórico auditable.
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">Historial de versiones</div>
+      <div class="card-body p-0">
+        <ul class="list-group list-group-flush">
+          {% for f in historial %}
+          <li class="list-group-item {% if f.vigente %}bg-light{% endif %}">
+            <div class="d-flex justify-content-between">
+              <strong class="small">v{{ f.version }}{% if f.vigente %} · vigente{% endif %}</strong>
+              <span class="small text-muted">{{ f.creado_en|date:"d/m/Y H:i" }}</span>
+            </div>
+            <div class="small text-muted">
+              {{ f.get_origen_display }}
+              {% if f.puntaje %} · {{ f.puntaje }} SBU · {{ f.estrato }}{% endif %}
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
