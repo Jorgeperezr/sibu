@@ -16,7 +16,8 @@ y desplegable.
 | S7b | API REST e interfaz web de los 4 módulos del S7 | ✅ Entregado |
 | S8 | **firma electrónica con FirmaEC** | ✅ Entregado |
 | S8b | firma intercambiable + `becas` (fase 1) | ✅ Entregado |
-| S8c | `talleres` (Google Drive) + portal de autogestión | Pendiente |
+| S8c | `talleres` con almacén intercambiable | ✅ Entregado |
+| S8d | portal de autogestión | Pendiente |
 | S9 | `reportes` + tableros + indicadores | Pendiente |
 | S10 | Endurecimiento, pruebas de carga/penetración, piloto | Pendiente |
 
