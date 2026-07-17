@@ -20,6 +20,8 @@ class LogAuditoria(models.Model):
         EXPORT = "export", "Exportar"
         PRINT = "print", "Imprimir"
         BREAK_GLASS = "break_glass", "Acceso de emergencia"
+        SIGN_REQUEST = "sign_request", "Solicitar firma"
+        SIGN = "sign", "Firmar documento"
 
     fecha_hora = models.DateTimeField(auto_now_add=True, db_index=True)
     usuario = models.ForeignKey(Usuario, null=True, blank=True, on_delete=models.SET_NULL)
