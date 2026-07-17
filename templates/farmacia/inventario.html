@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Inventario · Farmacia{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <h1 class="h4 mb-0">Inventario</h1>
+  <a href="{% url 'farmacia:mostrador' %}" class="btn btn-sm btn-outline-secondary">Mostrador</a>
+</div>
+
+{% if por_caducar %}
+<div class="card mb-3 border-warning">
+  <div class="card-header bg-warning-subtle">Lotes que caducan en los próximos 90 días</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead class="table-light"><tr><th>Medicamento</th><th>Lote</th><th>Caduca</th><th>Cantidad</th></tr></thead>
+      <tbody>
+        {% for l in por_caducar %}
+        <tr>
+          <td>{{ l.medicamento }}</td>
+          <td>{{ l.numero_lote }}</td>
+          <td class="text-warning-emphasis fw-bold">{{ l.fecha_caducidad|date:"d/m/Y" }}</td>
+          <td>{{ l.cantidad_actual }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-header">Stock por medicamento</div>
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead class="table-light"><tr><th>Medicamento</th><th>Disponible</th><th>Mínimo</th><th></th></tr></thead>
+      <tbody>
+        {% for m in medicamentos %}
+        <tr {% if m.sin_stock %}class="table-danger"{% elif m.bajo_minimo %}class="table-warning"{% endif %}>
+          <td>{{ m.medicamento }}<br><small class="text-muted">{{ m.medicamento.codigo }}</small></td>
+          <td><strong>{{ m.disponible }}</strong> {{ m.medicamento.unidad_medida }}</td>
+          <td>{{ m.medicamento.stock_minimo }}</td>
+          <td>
+            {% if m.sin_stock %}<span class="badge bg-danger">Sin stock</span>
+            {% elif m.bajo_minimo %}<span class="badge bg-warning text-dark">Bajo mínimo</span>
+            {% else %}<span class="badge bg-success">OK</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+          <tr><td colspan="4" class="text-center text-muted py-3">Sin medicamentos registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Lotes con existencias (orden FEFO)</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead class="table-light"><tr><th>Medicamento</th><th>Lote</th><th>Caduca</th><th>Cantidad</th><th>Proveedor</th></tr></thead>
+      <tbody>
+        {% for l in lotes %}
+        <tr>
+          <td>{{ l.medicamento }}</td>
+          <td>{{ l.numero_lote }}</td>
+          <td>{{ l.fecha_caducidad|date:"d/m/Y" }}</td>
+          <td>{{ l.cantidad_actual }}</td>
+          <td><small class="text-muted">{{ l.proveedor|default:"—" }}</small></td>
+        </tr>
+        {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-3">Sin lotes con existencias.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

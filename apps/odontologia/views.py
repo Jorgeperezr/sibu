@@ -1,1 +1,183 @@
-# apps.odontologia.views
+"""Interfaz web de Odontología: odontograma interactivo."""
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.shortcuts import get_object_or_404, redirect, render
+
+from apps.expediente.models import Expediente
+
+from . import services
+from .models import (
+    AtencionOdontologia,
+    CatalogoProcedimiento,
+    EstadoPieza,
+    OdontogramaDetalle,
+)
+
+# Distribución de las piezas para dibujar la boca (arcada superior / inferior).
+ARCADA_SUPERIOR = [
+    "18",
+    "17",
+    "16",
+    "15",
+    "14",
+    "13",
+    "12",
+    "11",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+]
+ARCADA_INFERIOR = [
+    "48",
+    "47",
+    "46",
+    "45",
+    "44",
+    "43",
+    "42",
+    "41",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+]
+
+# Color Bootstrap por estado, para el odontograma visual.
+COLOR_ESTADO = {
+    EstadoPieza.SANO: "success",
+    EstadoPieza.CARIADO: "danger",
+    EstadoPieza.OBTURADO: "primary",
+    EstadoPieza.PERDIDO: "dark",
+    EstadoPieza.EXTRAIDO_OTRO: "secondary",
+    EstadoPieza.CORONA: "info",
+    EstadoPieza.SELLANTE: "warning",
+    EstadoPieza.PROTESIS: "info",
+    EstadoPieza.IMPLANTE: "info",
+    EstadoPieza.AUSENTE: "light",
+}
+
+
+@login_required
+def iniciar_consulta(request, expediente_id):
+    """Crea la HC odontológica y redirige al odontograma."""
+    expediente = get_object_or_404(Expediente, pk=expediente_id)
+    perfil = getattr(request.user, "perfil", None)
+    if perfil is None:
+        messages.error(request, "Su usuario no tiene perfil profesional asignado.")
+        return redirect("expediente:detalle", pk=expediente.id)
+    try:
+        hc = services.crear_atencion_odontologia(
+            expediente=expediente,
+            profesional=perfil,
+            motivo=request.POST.get("motivo", ""),
+            usuario=request.user,
+        )
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+        return redirect("expediente:detalle", pk=expediente.id)
+    return redirect("odontologia:consulta", pk=hc.pk)
+
+
+def _arcada(piezas, vigente):
+    """Arma la fila de piezas con su estado y color para la plantilla."""
+    fila = []
+    for pieza in piezas:
+        registro = vigente.get(pieza)
+        estado = registro.estado_codigo if registro else ""
+        fila.append(
+            {
+                "pieza": pieza,
+                "estado": estado,
+                "estado_display": registro.get_estado_codigo_display()
+                if registro
+                else "Sin registrar",
+                "color": COLOR_ESTADO.get(estado, "outline-secondary")
+                if estado
+                else "outline-secondary",
+                "observacion": registro.observacion if registro else "",
+            }
+        )
+    return fila
+
+
+@login_required
+def consulta(request, pk):
+    """Odontograma interactivo + procedimientos + plan."""
+    hc = get_object_or_404(
+        AtencionOdontologia.objects.select_related("atencion__expediente__persona"), pk=pk
+    )
+    perfil = getattr(request.user, "perfil", None)
+
+    if request.method == "POST":
+        accion = request.POST.get("accion")
+        try:
+            if accion == "pieza":
+                services.registrar_estado_pieza(
+                    hc.atencion,
+                    request.POST["pieza_fdi"],
+                    request.POST["estado"],
+                    superficie=request.POST.get("superficie", ""),
+                    tipo=request.POST.get("tipo", OdontogramaDetalle.TipoRegistro.INICIAL),
+                    observacion=request.POST.get("observacion", ""),
+                )
+                messages.success(request, f"Pieza {request.POST['pieza_fdi']} actualizada.")
+
+            elif accion == "procedimiento":
+                if perfil is None:
+                    raise ValidationError("Su usuario no tiene perfil profesional.")
+                services.ejecutar_procedimiento(
+                    hc.atencion,
+                    request.POST["catalogo"],
+                    ejecutado_por=perfil,
+                    pieza_fdi=request.POST.get("pieza_fdi", ""),
+                    observacion=request.POST.get("observacion", ""),
+                )
+                messages.success(request, "Procedimiento registrado.")
+
+            elif accion == "guardar":
+                hc.plan_tratamiento = request.POST.get("plan_tratamiento", "")
+                hc.indicaciones = request.POST.get("indicaciones", "")
+                hc.save()
+                messages.success(request, "Consulta guardada.")
+
+            elif accion == "cerrar":
+                services.cerrar_atencion(hc.atencion, usuario=request.user)
+                messages.success(request, "Atención cerrada.")
+                return redirect("expediente:detalle", pk=hc.atencion.expediente_id)
+
+        except (ValidationError, CatalogoProcedimiento.DoesNotExist) as exc:
+            msg = (
+                "; ".join(exc.messages)
+                if hasattr(exc, "messages")
+                else "Procedimiento no encontrado."
+            )
+            messages.error(request, msg)
+        return redirect("odontologia:consulta", pk=hc.pk)
+
+    vigente = services.odontograma_vigente(hc.atencion.expediente)
+    return render(
+        request,
+        "odontologia/consulta.html",
+        {
+            "hc": hc,
+            "atencion": hc.atencion,
+            "persona": hc.atencion.expediente.persona,
+            "superior": _arcada(ARCADA_SUPERIOR, vigente),
+            "inferior": _arcada(ARCADA_INFERIOR, vigente),
+            "estados": EstadoPieza.choices,
+            "catalogo": CatalogoProcedimiento.objects.filter(activo=True),
+            "procedimientos": hc.atencion.procedimientos_odonto.select_related("catalogo"),
+            "indices": services.calcular_indices(hc.atencion.expediente),
+        },
+    )
