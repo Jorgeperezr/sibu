@@ -11,7 +11,7 @@ y desplegable.
 | S3 | `citas` — agenda y ciclo de vida de la cita | ✅ Entregado |
 | S4 | `enfermeria` + `medicina` — triaje, HC médica, recetas y órdenes | ✅ Entregado |
 | S5 | `laboratorio` — órdenes, resultados y envío al correo institucional | ✅ Entregado |
-| S6 | `odontologia` + `farmacia` — odontograma, despacho e inventario | Pendiente |
+| S6 | `odontologia` + `farmacia` — odontograma, despacho e inventario | ✅ Entregado |
 | S7 | `psicologia` + `psicopedagogia` + `trabajo_social` + `derivaciones` | Pendiente |
 | S8 | `becas` (fase 1) + `talleres` (Google Drive) + portal de autogestión | Pendiente |
 | S9 | `reportes` + tableros + indicadores | Pendiente |
