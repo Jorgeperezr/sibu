@@ -1,8 +1,17 @@
-from django.apps import apps as django_apps
 from django.contrib import admin
 
-for _model in django_apps.get_app_config("psicologia").get_models():
-    try:
-        admin.site.register(_model)
-    except admin.sites.AlreadyRegistered:
-        pass
+from .models import EscalaPsicometrica
+
+
+@admin.register(EscalaPsicometrica)
+class EscalaPsicometricaAdmin(admin.ModelAdmin):
+    """
+    Solo se administra el CATÁLOGO de escalas.
+
+    Las fichas y sesiones NO se registran en el admin: su contenido está
+    sellado y el admin de Django no aplica el RBAC de servicio.
+    """
+
+    list_display = ("codigo", "nombre", "puntaje_min", "puntaje_max", "activo")
+    list_filter = ("activo",)
+    search_fields = ("codigo", "nombre")
