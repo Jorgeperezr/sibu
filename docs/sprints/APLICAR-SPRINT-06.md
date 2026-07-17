@@ -14,7 +14,7 @@ git checkout main && git pull origin main
 tar -xzf sibu_fix_ci_ruff_v2.tar.gz
 rm sibu_fix_ci_ruff_v2.tar.gz
 
-git status --short   # debe listar ~84 archivos .py, NO un .tar.gz
+git status --short   # debe listar archivos .py modificados, NINGÚN .tar.gz
 ruff check .         # debe decir: All checks passed!
 
 git add -A
