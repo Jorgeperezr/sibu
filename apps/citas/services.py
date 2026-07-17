@@ -121,16 +121,23 @@ def reservar_cita(
 
     fin = fecha_hora + timedelta(minutes=duracion_min)
 
+    # La agenda se define en hora local (el profesional atiende de 08:00 a 16:00
+    # en Loja, no en UTC). Si `fecha_hora` llega en UTC, .weekday()/.date()/.time()
+    # darían el día y la hora equivocados: una cita a las 20:00 en Loja es la
+    # 01:00 UTC del día SIGUIENTE. Normalizar a hora local antes de comparar.
+    local_inicio = timezone.localtime(fecha_hora)
+    local_fin = timezone.localtime(fin)
+
     # 1) Verificar que el turno está dentro de alguna agenda vigente ese día
     agendas = Agenda.objects.filter(
         profesional=profesional,
         servicio=servicio,
-        dia_semana=fecha_hora.weekday(),
+        dia_semana=local_inicio.weekday(),
         activa=True,
-        vigente_desde__lte=fecha_hora.date(),
-        hora_inicio__lte=fecha_hora.time(),
-        hora_fin__gte=fin.time(),
-    ).filter(models_q_vigente_hasta(fecha_hora.date()))
+        vigente_desde__lte=local_inicio.date(),
+        hora_inicio__lte=local_inicio.time(),
+        hora_fin__gte=local_fin.time(),
+    ).filter(models_q_vigente_hasta(local_inicio.date()))
     if not agendas.exists():
         raise ValidationError("El horario está fuera de la agenda del profesional.")
 

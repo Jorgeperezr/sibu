@@ -63,9 +63,11 @@ def puede_ver_atencion(user, atencion, break_glass: bool = False) -> bool:
     perfil = getattr(user, "perfil", None)
     if perfil is not None and atencion.profesional_id == perfil.pk:
         return True
-    # Contenido confidencial (Psicología): solo el tratante, nunca break-the-glass.
+    # Contenido confidencial (Psicología): solo el equipo del propio servicio.
+    # NUNCA por break-the-glass, ni para Dirección, Coordinación o Admin.
+    # Decisión funcional del cliente (Sprint 7): el sello no admite excepciones.
     if servicio.codigo in SERVICIOS_CONFIDENCIALES:
-        return False
+        return user.rol_principal == Rol.PROFESIONAL and servicio.pk in servicios_del_usuario(user)
     if puede_ver_servicio(user, servicio):
         return True
     # Acceso de emergencia justificado para el resto de servicios.
