@@ -24,6 +24,7 @@ from apps.expediente.tests.factories import (
 )
 from apps.firma import services
 from apps.firma.models import FirmaDocumento, SolicitudFirma
+from apps.firma.providers import get_provider
 
 PDF = b"%PDF-1.4 contenido de prueba"
 CLAVE_CALLBACK = "clave-callback-de-prueba"
@@ -42,6 +43,21 @@ def _certificado(cedula="1104567890", **extra):
     }
     base.update(extra)
     return base
+
+
+@pytest.fixture(autouse=True)
+def firmaec_activo(settings):
+    """
+    Las pruebas del callback exigen el proveedor FirmaEC.
+
+    El defecto del sistema es "deshabilitada": un despliegue sin configurar no
+    debe exponer el endpoint de retorno.
+    """
+    settings.FIRMA_PROVIDER = "firmaec"
+    settings.FIRMAEC_SERVICIO_URL = "https://impws.firmadigital.gob.ec/servicio"
+    settings.FIRMAEC_SISTEMA = "sibu"
+    settings.FIRMAEC_API_KEY = "k"
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
 
 
 @pytest.fixture
@@ -346,12 +362,11 @@ def test_sin_cedula_en_el_perfil_no_se_puede_firmar(escenario):
 @pytest.mark.django_db
 def test_el_enlace_firmaec_lleva_el_token_y_no_el_pdf(escenario, settings):
     """El PDF nunca viaja por la URL: solo el JWT."""
-    settings.FIRMAEC_SERVICIO_URL = "https://impws.firmadigital.gob.ec/servicio"
-    settings.FIRMAEC_SISTEMA = "sibu"
-    settings.FIRMAEC_API_KEY = "k"
     settings.FIRMAEC_PREPRODUCCION = True
     with patch("apps.firma.client.crear_documento", return_value="aaa.bbb.ccc"):
-        enlace = services.solicitar_token(escenario["s"])
+        inicio = services.iniciar_firma(escenario["s"])
+    enlace = inicio.enlace
+    assert inicio.tipo == "enlace"
     assert enlace.startswith("firmaec://sibu/firmar?")
     assert "token=aaa.bbb.ccc" in enlace
     assert "tipo_certificado=2" in enlace
@@ -409,9 +424,112 @@ def test_url_de_servicio_no_https_se_rechaza(escenario, settings):
 
     from apps.firma import client
 
-    settings.FIRMAEC_SISTEMA = "sibu"
-    settings.FIRMAEC_API_KEY = "k"
     for mala in ("file:///etc/passwd", "http://evil.example.com/servicio"):
         settings.FIRMAEC_SERVICIO_URL = mala
         with pytest.raises(ImproperlyConfigured, match="https"):
             client.crear_documento(cedula="1104567890", nombre="x.pdf", pdf=PDF)
+
+
+# --------------------------------------------------------------------------
+# La firma como pieza intercambiable y opcional
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_por_defecto_no_hay_firmador(settings):
+    """
+    Un despliegue recién instalado no firma, y eso está bien.
+
+    FirmaEC exige registro ante el MINTEL: hasta que exista, el sistema debe
+    funcionar diciendo que la firma no está disponible, no reventando.
+    """
+    from apps.firma.providers import get_provider
+
+    del settings.FIRMA_PROVIDER
+    proveedor = get_provider()
+    assert proveedor.codigo == "deshabilitada"
+    assert proveedor.disponible() is False
+    assert "no está habilitada" in proveedor.motivo_no_disponible()
+
+
+@pytest.mark.django_db
+def test_firmaec_sin_configurar_no_esta_disponible(settings):
+    """Faltando credenciales, se avisa: no se intenta y falla a mitad."""
+    from apps.firma.providers import get_provider
+
+    settings.FIRMA_PROVIDER = "firmaec"
+    settings.FIRMAEC_API_KEY = ""
+    proveedor = get_provider()
+    assert proveedor.disponible() is False
+    assert "FIRMAEC_API_KEY" in proveedor.motivo_no_disponible()
+
+
+@pytest.mark.django_db
+def test_firmador_desconocido_se_detecta(settings):
+    from apps.firma.providers import get_provider
+
+    settings.FIRMA_PROVIDER = "inventado"
+    with pytest.raises(ValidationError, match="no existe"):
+        get_provider()
+
+
+@pytest.mark.django_db
+def test_sin_firmador_no_se_puede_iniciar_pero_el_pdf_existe(escenario, settings):
+    """Apagar el firmador no apaga el documento."""
+    settings.FIRMA_PROVIDER = "deshabilitada"
+    with pytest.raises(ValidationError, match="no está habilitada"):
+        services.iniciar_firma(escenario["s"])
+    escenario["s"].refresh_from_db()
+    # La solicitud sigue abierta y el PDF sin firmar sigue disponible.
+    assert escenario["s"].abierta
+    assert bytes(escenario["s"].pdf_original).startswith(b"%PDF-")
+
+
+@pytest.mark.django_db
+def test_el_callback_no_existe_si_el_firmador_no_es_firmaec(escenario, settings):
+    """No se acepta el retorno de un firmador que esta instalación no usa."""
+    settings.FIRMA_PROVIDER = "deshabilitada"
+    r = _callback(escenario["s"].correlacion)
+    assert r.status_code == 404
+    assert FirmaDocumento.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_un_firmador_interno_si_puede_firmar_psicologia(escenario, settings):
+    """
+    La política pregunta "¿sale de la institución?", no "¿es FirmaEC?".
+
+    Un firmador interno no plantea el problema del sello, se llame como se
+    llame.
+    """
+    from apps.firma.policy import verificar_puede_salir_a_firmar
+    from apps.firma.providers import FirmadorProvider
+
+    class FirmadorInterno(FirmadorProvider):
+        codigo, nombre, externo = "interno", "Firmador interno", False
+
+        def disponible(self):
+            return True
+
+        def motivo_no_disponible(self):
+            return ""
+
+        def nombre_archivo(self, solicitud):
+            return solicitud.nombre_documento
+
+        def iniciar(self, solicitud):
+            raise NotImplementedError
+
+    settings.FIRMAEC_DESCENTRALIZADO_PROPIO = False
+    psico = Servicio.objects.get(codigo="psicologia")
+    atencion = Atencion.objects.create(
+        expediente=escenario["exp"],
+        servicio=psico,
+        profesional=escenario["prof"],
+        fecha_hora=timezone.now(),
+    )
+    # Con un firmador externo, denegado.
+    with pytest.raises(ValidationError, match="confidencial"):
+        verificar_puede_salir_a_firmar(atencion, proveedor=get_provider())
+    # Con uno interno, permitido: el contenido no sale.
+    verificar_puede_salir_a_firmar(atencion, proveedor=FirmadorInterno())

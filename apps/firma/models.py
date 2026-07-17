@@ -85,16 +85,6 @@ class SolicitudFirma(ModeloBase):
         return f"Firma {self.nombre_documento} ({self.get_estado_display()})"
 
     @property
-    def nombre_archivo_firmaec(self) -> str:
-        """
-        El nombre que viaja a FirmaEC y vuelve en el callback.
-
-        Lleva la correlación embebida porque es el único campo libre que el
-        protocolo nos devuelve.
-        """
-        return f"SIBU-{self.correlacion}.pdf"
-
-    @property
     def abierta(self) -> bool:
         return self.estado in (self.Estado.PREPARADA, self.Estado.ENVIADA)
 

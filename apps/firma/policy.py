@@ -22,18 +22,24 @@ from django.core.exceptions import ValidationError
 from apps.usuarios.rbac import SERVICIOS_CONFIDENCIALES
 
 
-def verificar_puede_salir_a_firmar(atencion) -> None:
+def verificar_puede_salir_a_firmar(atencion, *, proveedor=None) -> None:
     """
-    Lanza ValidationError si el contenido no puede salir hacia FirmaEC.
+    Lanza ValidationError si el contenido no puede salir hacia el firmador.
 
-    Se permite solo si la institución declara explícitamente que su despliegue
-    de FirmaEC es descentralizado y está dentro de su propia infraestructura
-    (`FIRMAEC_DESCENTRALIZADO_PROPIO = True`). Es una afirmación de la
-    institución sobre su topología, no algo que SIBU pueda verificar solo: por
-    eso es una decisión consciente y auditable, no un valor por defecto.
+    La pregunta no es "¿es FirmaEC?" sino "¿este firmador saca el documento de
+    la institución?". Un firmador interno no plantea el problema; cualquier
+    firmador externo sí, se llame como se llame.
+
+    Para los externos se permite solo si la institución declara que el servicio
+    corre en su propia infraestructura (`FIRMAEC_DESCENTRALIZADO_PROPIO`). Es
+    una afirmación sobre su topología que SIBU no puede verificar: por eso es
+    una decisión consciente y auditable, no un valor por defecto.
     """
     codigo = atencion.servicio.codigo
     if codigo not in SERVICIOS_CONFIDENCIALES:
+        return
+
+    if proveedor is not None and not proveedor.externo:
         return
 
     if not getattr(settings, "FIRMAEC_DESCENTRALIZADO_PROPIO", False):

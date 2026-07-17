@@ -9,4 +9,5 @@ urlpatterns = [
     path("panel/<int:pk>/", views.panel, name="panel"),
     path("estado/<int:pk>/", api.estado_solicitud, name="estado"),
     path("descargar/<int:pk>/", views.descargar, name="descargar"),
+    path("descargar-original/<int:pk>/", views.descargar_original, name="descargar_original"),
 ]

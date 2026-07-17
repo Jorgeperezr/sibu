@@ -53,6 +53,13 @@ def _extraer_correlacion(nombre: str) -> str:
 @require_POST
 def grabar_archivos_firmados(request):
     """Recibe el PDF firmado desde FirmaEC."""
+    # Si el firmador configurado no es FirmaEC, este endpoint no debe existir
+    # operativamente: no se acepta un retorno de un firmador que no usamos.
+    from .providers import FirmaECProvider, get_provider
+
+    if get_provider().codigo != FirmaECProvider.codigo:
+        return HttpResponse("Firmador no habilitado", status=404, content_type="text/plain")
+
     if not _api_key_valida(request):
         logger.warning(
             "Callback de FirmaEC con API Key inválida desde %s", request.META.get("REMOTE_ADDR")
