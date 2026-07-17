@@ -11,6 +11,7 @@ from apps.usuarios.decorators import verificar_acceso_atencion
 
 from . import services
 from .models import SolicitudFirma
+from .providers import get_provider
 
 
 @login_required
@@ -53,19 +54,23 @@ def panel(request, pk):
     )
     verificar_acceso_atencion(request.user, solicitud.atencion)
 
-    enlace = None
+    inicio = None
     if request.method == "POST" and solicitud.abierta:
         try:
-            enlace = services.solicitar_token(solicitud)
+            inicio = services.iniciar_firma(solicitud)
         except ValidationError as exc:
             messages.error(request, " ".join(exc.messages))
 
+    proveedor = get_provider()
     return render(
         request,
         "firma/panel.html",
         {
             "solicitud": solicitud,
-            "enlace": enlace,
+            "inicio": inicio,
+            "proveedor": proveedor,
+            "firma_disponible": proveedor.disponible(),
+            "motivo": "" if proveedor.disponible() else proveedor.motivo_no_disponible(),
             "firma": getattr(solicitud, "firma", None),
         },
     )
@@ -93,5 +98,32 @@ def descargar(request, pk):
         detalle={"hash_firmado": solicitud.hash_firmado},
     )
     respuesta = HttpResponse(bytes(solicitud.pdf_firmado), content_type="application/pdf")
+    respuesta["Content-Disposition"] = f'inline; filename="{solicitud.nombre_documento}"'
+    return respuesta
+
+
+@login_required
+def descargar_original(request, pk):
+    """
+    Entrega el PDF sin firmar.
+
+    Con la firma deshabilitada el documento sigue siendo útil: se genera, se
+    descarga y se imprime. Apagar el firmador no debe apagar el informe.
+    """
+    solicitud = get_object_or_404(SolicitudFirma.objects.select_related("atencion"), pk=pk)
+    verificar_acceso_atencion(request.user, solicitud.atencion)
+
+    from apps.auditoria.models import LogAuditoria
+
+    LogAuditoria.objects.create(
+        usuario=request.user,
+        accion=LogAuditoria.Accion.EXPORT,
+        modulo="firma",
+        entidad="SolicitudFirma",
+        entidad_id=str(solicitud.pk),
+        expediente_id=solicitud.atencion.expediente_id,
+        detalle={"firmado": False, "hash_original": solicitud.hash_original},
+    )
+    respuesta = HttpResponse(bytes(solicitud.pdf_original), content_type="application/pdf")
     respuesta["Content-Disposition"] = f'inline; filename="{solicitud.nombre_documento}"'
     return respuesta

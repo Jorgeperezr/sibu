@@ -16,9 +16,9 @@ from django.utils import timezone
 
 from apps.auditoria.models import LogAuditoria
 
-from . import client
 from .models import FirmaDocumento, SolicitudFirma
 from .policy import verificar_puede_salir_a_firmar
+from .providers import InicioFirma, get_provider
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ def preparar_solicitud(
     No contacta a FirmaEC todavía: primero se comprueba que este contenido
     pueda salir de la institución.
     """
-    verificar_puede_salir_a_firmar(atencion)
+    verificar_puede_salir_a_firmar(atencion, proveedor=get_provider())
 
     if not pdf:
         raise ValidationError("El documento a firmar está vacío.")
@@ -104,20 +104,24 @@ def preparar_solicitud(
     return solicitud
 
 
-def solicitar_token(solicitud: SolicitudFirma) -> str:
-    """Pide el JWT a FirmaEC y devuelve el enlace firmaec:// listo para el navegador."""
+def iniciar_firma(solicitud: SolicitudFirma) -> InicioFirma:
+    """
+    Arranca la firma con el proveedor configurado.
+
+    No sabe qué firmador es: solo pide `iniciar()`. Cambiar de firmador no
+    toca esta función.
+    """
     if not solicitud.abierta:
         raise ValidationError("Esta solicitud ya no admite firma.")
-    verificar_puede_salir_a_firmar(solicitud.atencion)
 
-    token = client.crear_documento(
-        cedula=solicitud.cedula_solicitante,
-        nombre=solicitud.nombre_archivo_firmaec,
-        pdf=bytes(solicitud.pdf_original),
-    )
+    proveedor = get_provider()
+    if not proveedor.disponible():
+        raise ValidationError(proveedor.motivo_no_disponible())
+    verificar_puede_salir_a_firmar(solicitud.atencion, proveedor=proveedor)
+
+    inicio = proveedor.iniciar(solicitud)
     solicitud.estado = SolicitudFirma.Estado.ENVIADA
-    # El manual fija 5 minutos por defecto para el JWT.
-    solicitud.token_expira_en = timezone.now() + timezone.timedelta(minutes=5)
+    solicitud.token_expira_en = timezone.now() + timezone.timedelta(minutes=inicio.vigencia_min)
     solicitud.save(update_fields=["estado", "token_expira_en", "actualizado_en"])
 
     LogAuditoria.objects.create(
@@ -130,9 +134,10 @@ def solicitar_token(solicitud: SolicitudFirma) -> str:
         detalle={
             "documento": f"{solicitud.documento_ref_tipo}#{solicitud.documento_ref_id}",
             "hash_original": solicitud.hash_original,
+            "proveedor": proveedor.codigo,
         },
     )
-    return client.construir_enlace(token, razon=solicitud.razon)
+    return inicio
 
 
 def _registrar_rechazo(solicitud: SolicitudFirma, motivo: str) -> None:

@@ -7,6 +7,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from apps.academico.api import CargaInstitucionalViewSet, consultar_persona
+from apps.becas.api import BecaBeneficiarioViewSet, TipoBecaViewSet
 from apps.citas.api import AgendaViewSet, BloqueoAgendaViewSet, CitaViewSet
 from apps.derivaciones.api import DerivacionViewSet, ReferenciaExternaViewSet
 from apps.expediente.api import ExpedienteViewSet, PersonaViewSet
@@ -49,6 +50,9 @@ router.register("trabajo-social/fichas", FichaSocioeconomicaViewSet, basename="f
 router.register("trabajo-social/visitas", VisitaDomiciliariaViewSet, basename="visita-ts")
 router.register("derivaciones", DerivacionViewSet, basename="derivacion")
 router.register("referencias-externas", ReferenciaExternaViewSet, basename="referencia-externa")
+# Sprint 8b
+router.register("becas/tipos", TipoBecaViewSet, basename="tipo-beca")
+router.register("becas/beneficiarios", BecaBeneficiarioViewSet, basename="beca-beneficiario")
 
 
 def salud(_request):

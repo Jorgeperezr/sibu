@@ -231,7 +231,17 @@ GOOGLE_OAUTH = {
 
 
 # ---------------------------------------------------------------------------
-# FirmaEC (MINTEL) — firma electrónica de documentos
+# Firma electrónica — proveedor
+# ---------------------------------------------------------------------------
+# La firma es una pieza intercambiable, no un supuesto del sistema.
+#   "deshabilitada" (por defecto): SIBU funciona sin firmar. Es el estado
+#       correcto mientras la UNL no esté registrada ante el MINTEL.
+#   "firmaec": FirmaEC del MINTEL.
+# Ver apps/firma/providers.py.
+FIRMA_PROVIDER = env("FIRMA_PROVIDER", default="deshabilitada")
+
+# ---------------------------------------------------------------------------
+# FirmaEC (MINTEL) — parámetros del proveedor "firmaec"
 # ---------------------------------------------------------------------------
 # SIBU no hace criptografía: genera el PDF, pide un token al servicio FirmaEC y
 # el usuario firma con la aplicación de escritorio instalada en su equipo. Ni la
