@@ -1,8 +1,26 @@
 # Cómo aplicar el Sprint 6
 
 ## ⚠️ ANTES: aplicar el fix del CI
+
 Si aún no lo hiciste, aplica primero `sibu_fix_ci_ruff_v2.tar.gz` a `main`.
 Sin él, el CI seguirá en rojo por los 70 errores de ruff de los Sprints 1-4.
+
+**El tarball hay que EXTRAERLO, no commitearlo.** Si el commit del fix aparece
+en el historial con un diff que solo agrega el `.tar.gz`, la extracción nunca
+ocurrió: el fix no está aplicado y `main` sigue en rojo.
+
+```bash
+git checkout main && git pull origin main
+tar -xzf sibu_fix_ci_ruff_v2.tar.gz
+rm sibu_fix_ci_ruff_v2.tar.gz
+
+git status --short   # debe listar ~84 archivos .py, NO un .tar.gz
+ruff check .         # debe decir: All checks passed!
+
+git add -A
+git commit -m "fix(ci): corregir los 70 errores de ruff de los sprints 1-4"
+git push origin main
+```
 
 ## Aplicar el sprint
 ```bash
@@ -13,6 +31,11 @@ git checkout -b sprint/06-odontologia-farmacia
 # Arrastra el tar.gz a la raíz, luego:
 tar -xzf sibu_sprint6_odontologia_farmacia.tar.gz
 rm sibu_sprint6_odontologia_farmacia.tar.gz
+
+# Confirmar que la extracción SÍ ocurrió antes de commitear.
+# Debe listar los archivos del sprint. Si aparece un .tar.gz o la lista sale
+# vacía, el paquete no se extrajo: no continúes, el sprint no está aplicado.
+git status --short
 
 python manage.py migrate
 

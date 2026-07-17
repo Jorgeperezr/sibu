@@ -12,6 +12,11 @@ git checkout -b sprint/07-psicologia-ts-derivaciones
 tar -xzf sibu_sprint7_psicologia_ts_derivaciones.tar.gz
 rm sibu_sprint7_psicologia_ts_derivaciones.tar.gz
 
+# Confirmar que la extracción SÍ ocurrió antes de commitear.
+# Debe listar los archivos del sprint. Si aparece un .tar.gz o la lista sale
+# vacía, el paquete no se extrajo: no continúes, el sprint no está aplicado.
+git status --short
+
 python manage.py migrate
 
 # SEPARADOS, sin &&

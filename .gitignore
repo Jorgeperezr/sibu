@@ -28,3 +28,9 @@ htmlcov/
 client_secret*.json
 credentials.json
 token.json
+
+# Entregables de sprint: se extraen sobre el repo, nunca se versionan.
+# Sin esto, un `git add -A` con el tarball presente lo commitea como blob
+# binario y el sprint parece aplicado sin estarlo.
+*.tar.gz
+*.zip

@@ -10,6 +10,11 @@ git checkout -b sprint/07b-api-ui
 tar -xzf sibu_sprint7b_api_ui.tar.gz
 rm sibu_sprint7b_api_ui.tar.gz
 
+# Confirmar que la extracción SÍ ocurrió antes de commitear.
+# Debe listar los archivos del sprint. Si aparece un .tar.gz o la lista sale
+# vacía, el paquete no se extrajo: no continúes, el sprint no está aplicado.
+git status --short
+
 # No hay migraciones nuevas: este sprint solo expone lo que ya existía.
 python manage.py migrate
 
@@ -21,6 +26,7 @@ python manage.py check
 git add -A
 git commit -m "feat: sprint 7b — API REST e interfaz web de los 4 módulos"
 git push -u origin sprint/07b-api-ui
+
 git checkout main
 git merge --no-ff sprint/07b-api-ui -m "Merge sprint 7b"
 git push origin main
