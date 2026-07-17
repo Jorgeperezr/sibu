@@ -25,6 +25,7 @@ from apps.odontologia.api import (
 )
 from apps.psicologia.api import EscalaPsicometricaViewSet, FichaPsicologicaViewSet
 from apps.psicopedagogia.api import FichaPsicopedagogicaViewSet
+from apps.talleres.api import TallerViewSet
 from apps.trabajo_social.api import FichaSocioeconomicaViewSet, VisitaDomiciliariaViewSet
 
 router = DefaultRouter()
@@ -53,6 +54,8 @@ router.register("referencias-externas", ReferenciaExternaViewSet, basename="refe
 # Sprint 8b
 router.register("becas/tipos", TipoBecaViewSet, basename="tipo-beca")
 router.register("becas/beneficiarios", BecaBeneficiarioViewSet, basename="beca-beneficiario")
+# Sprint 8c
+router.register("talleres", TallerViewSet, basename="taller")
 
 
 def salud(_request):

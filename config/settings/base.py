@@ -222,6 +222,12 @@ SIBU = {
 # Cifrado a nivel de campo (datos sensibles). Clave separada de SECRET_KEY.
 FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY", default="")
 
+# Almacén de evidencias de talleres. Google Drive es una implementación, no un
+# supuesto: mientras el OAuth del Workspace institucional no exista, el módulo
+# funciona con el almacén local. Ver apps/talleres/providers.py.
+#   "local"  (por defecto) | "gdrive"
+TALLERES_ALMACEN = env("TALLERES_ALMACEN", default="local")
+
 # Integración Google Workspace
 GOOGLE_OAUTH = {
     "CLIENT_SECRETS_FILE": env("GOOGLE_CLIENT_SECRETS", default=""),
