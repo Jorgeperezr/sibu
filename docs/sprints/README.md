@@ -12,8 +12,9 @@ y desplegable.
 | S4 | `enfermeria` + `medicina` — triaje, HC médica, recetas y órdenes | ✅ Entregado |
 | S5 | `laboratorio` — órdenes, resultados y envío al correo institucional | ✅ Entregado |
 | S6 | `odontologia` + `farmacia` — odontograma, despacho e inventario | ✅ Entregado |
-| S7 | `psicologia` + `psicopedagogia` + `trabajo_social` + `derivaciones` | ✅ Entregado (lógica y pruebas; API/UI en 7b) |
-| S8 | `becas` (fase 1) + `talleres` (Google Drive) + portal de autogestión | Pendiente |
+| S7 | `psicologia` + `psicopedagogia` + `trabajo_social` + `derivaciones` | ✅ Entregado (lógica y pruebas) |
+| S7b | API REST e interfaz web de los 4 módulos del S7 | ✅ Entregado |
+| S8 | `becas` (fase 1) + `talleres` (Google Drive) + portal de autogestión + **firma digital de informes** | Pendiente |
 | S9 | `reportes` + tableros + indicadores | Pendiente |
 | S10 | Endurecimiento, pruebas de carga/penetración, piloto | Pendiente |
 
