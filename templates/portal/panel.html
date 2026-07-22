@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Mi portal — SIBU{% endblock %}
+{% block content %}
+<h2>Hola, {{ persona.nombres }}</h2>
+<p class="text-muted small">Portal de autogestión de Bienestar Universitario.</p>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between">
+        <span>Mis citas</span>
+        <a href="{% url 'portal:citas' %}" class="btn btn-sm btn-primary">Agendar</a>
+      </div>
+      <div class="card-body p-0">
+        {% if citas %}
+        <ul class="list-group list-group-flush small">
+          {% for c in citas|slice:":6" %}
+          <li class="list-group-item d-flex justify-content-between">
+            <span>{{ c.servicio.nombre }} · {{ c.fecha_hora|date:"d/m H:i" }}</span>
+            <span class="badge bg-light text-dark border">{{ c.get_estado_display }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}<p class="text-muted small p-3 mb-0">Sin citas.</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">Resultados de laboratorio</div>
+      <div class="card-body p-0">
+        {% if resultados %}
+        <ul class="list-group list-group-flush small">
+          {% for r in resultados %}
+          <li class="list-group-item">
+            Orden {{ r.pk }} · publicado {{ r.publicado_en|date:"d/m/Y" }}
+            <div class="text-muted">El detalle llegó a su correo institucional. No constituye diagnóstico.</div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}<p class="text-muted small p-3 mb-0">Sin resultados publicados.</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Mis recetas</div>
+      <div class="card-body p-0">
+        {% if recetas %}
+        <ul class="list-group list-group-flush small">
+          {% for r in recetas %}
+          <li class="list-group-item d-flex justify-content-between">
+            <span>{{ r.codigo }}</span>
+            <span class="badge bg-light text-dark border">{{ r.get_estado_display }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}<p class="text-muted small p-3 mb-0">Sin recetas.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header">Mis becas</div>
+      <div class="card-body p-0">
+        {% if becas %}
+        <ul class="list-group list-group-flush small">
+          {% for b in becas %}
+          <li class="list-group-item d-flex justify-content-between">
+            <span>{{ b.tipo_beca.nombre }} · desde {{ b.periodo_desde.codigo }}</span>
+            <span class="badge bg-light text-dark border">{{ b.get_estado_display }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}<p class="text-muted small p-3 mb-0">Sin becas registradas.</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Mis talleres</div>
+      <div class="card-body p-0">
+        {% if talleres %}
+        <ul class="list-group list-group-flush small">
+          {% for t in talleres %}
+          <li class="list-group-item">
+            {{ t.taller.tema }} · {{ t.taller.fecha|date:"d/m/Y" }}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}<p class="text-muted small p-3 mb-0">Sin talleres.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

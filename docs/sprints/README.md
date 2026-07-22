@@ -17,7 +17,7 @@ y desplegable.
 | S8 | **firma electrónica con FirmaEC** | ✅ Entregado |
 | S8b | firma intercambiable + `becas` (fase 1) | ✅ Entregado |
 | S8c | `talleres` con almacén intercambiable | ✅ Entregado |
-| S8d | portal de autogestión | Pendiente |
+| S8d | portal de autogestión | ✅ Entregado |
 | S9 | `reportes` + tableros + indicadores | Pendiente |
 | S10 | Endurecimiento, pruebas de carga/penetración, piloto | Pendiente |
 
