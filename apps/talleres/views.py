@@ -14,10 +14,14 @@ from .providers import get_almacen
 
 @login_required
 def bandeja(request):
+    mis_servicios = servicios_del_usuario(request.user)
+    if not mis_servicios:
+        # Un usuario del portal (o cualquiera sin servicios) no navega las
+        # bandejas internas: 403 explícito, no una página vacía de un módulo
+        # que no le corresponde.
+        raise PermissionDenied("Su usuario no tiene servicios asignados.")
     talleres = (
-        Taller.objects.filter(
-            eliminado_en__isnull=True, servicio_id__in=servicios_del_usuario(request.user)
-        )
+        Taller.objects.filter(eliminado_en__isnull=True, servicio_id__in=mis_servicios)
         .select_related("servicio", "responsable__usuario")
         .order_by("-fecha")
     )
