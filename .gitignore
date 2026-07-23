@@ -34,3 +34,4 @@ token.json
 # binario y el sprint parece aplicado sin estarlo.
 *.tar.gz
 *.zip
+\n\n# Informe local del script de diagnóstico\ndiagnostico.txt\n

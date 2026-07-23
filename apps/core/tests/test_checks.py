@@ -44,10 +44,30 @@ def test_allowed_hosts_comodin(settings):
     assert "sibu.E003" in _ids(checks.comprobar_secretos(None))
 
 
-@pytest.mark.django_db
 def test_sqlite_en_produccion(settings):
+    """
+    La prueba fija el motor en lugar de heredarlo del entorno.
+
+    Antes leía DATABASES tal como viniera: en un contenedor con
+    DATABASE_URL=sqlite pasaba, y en Codespaces (PostgreSQL) fallaba, porque el
+    check callaba con razón. Estaba comprobando la configuración de la máquina,
+    no el comportamiento del check. Tampoco necesita base de datos: el check
+    solo lee la cadena ENGINE.
+    """
     settings.DEBUG = False
+    settings.DATABASES = {
+        "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}
+    }
     assert "sibu.E010" in _ids(checks.comprobar_base_de_datos(None))
+
+
+def test_postgresql_en_produccion_no_se_queja(settings):
+    """El control positivo que faltaba."""
+    settings.DEBUG = False
+    settings.DATABASES = {
+        "default": {"ENGINE": "django.db.backends.postgresql", "NAME": "sibu"}
+    }
+    assert checks.comprobar_base_de_datos(None) == []
 
 
 @pytest.mark.django_db
