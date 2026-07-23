@@ -91,6 +91,22 @@ PYEOF
 echo
 
 echo "---------- 8. CHECKS DE DESPLIEGUE ----------"
-python manage.py check --deploy 2>&1 | grep -E "sibu\.[EW][0-9]+|security\.[EW][0-9]+|System check" | head -25
+mod="${DJANGO_SETTINGS_MODULE:-config.settings.dev}"
+echo "settings en uso: $mod"
+case "$mod" in
+  *prod*)
+    python manage.py check --deploy 2>&1 | grep -E "sibu\.[EW][0-9]+|security\.[EW][0-9]+|System check" | head -25
+    ;;
+  *)
+    echo "   Los checks de despliegue solo aplican con config.settings.prod."
+    echo "   Bajo '$mod' permanecen en silencio A PROPÓSITO, y los avisos"
+    echo "   security.W0xx que Django emite aquí describen la configuración de"
+    echo "   desarrollo: son esperados y NO indican un problema."
+    echo
+    echo "   Para comprobar producción de verdad, con el .env real cargado:"
+    echo "     DJANGO_SETTINGS_MODULE=config.settings.prod \\"
+    echo "       python manage.py check --deploy"
+    ;;
+esac
 echo
 echo "==================== FIN ===================="
