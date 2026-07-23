@@ -15,6 +15,11 @@ from django.core.checks import Error, Warning, register
 
 ETIQUETA = "sibu"
 
+# Hosts que solo tienen sentido en la máquina del desarrollador.
+HOSTS_DE_DESARROLLO = frozenset(
+    {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1", "testserver"}  # noqa: S104
+)
+
 
 def _es_produccion() -> bool:
     return not settings.DEBUG
@@ -61,6 +66,20 @@ def comprobar_secretos(app_configs, **kwargs):
                 "ALLOWED_HOSTS está vacío: Django rechazará todas las peticiones.",
                 hint="Defina ALLOWED_HOSTS en el entorno, p. ej. sibu.unl.edu.ec",
                 id="sibu.E004",
+            )
+        )
+    elif all(h in HOSTS_DE_DESARROLLO for h in hosts):
+        # Un valor heredado del entorno de desarrollo pasa las comprobaciones
+        # anteriores y es igual de fatal: Django responde 400 a todo el que
+        # entre por el dominio real. Arranca, el check calla, y nadie puede
+        # usarlo. No se prohíbe localhost (una comprobación de salud local lo
+        # necesita); se exige que no sea lo único.
+        problemas.append(
+            Error(
+                "ALLOWED_HOSTS solo contiene hosts de desarrollo "
+                f"({', '.join(hosts)}): nadie podrá entrar por el dominio real.",
+                hint="Añada el dominio institucional, p. ej. sibu.unl.edu.ec",
+                id="sibu.E005",
             )
         )
     return problemas

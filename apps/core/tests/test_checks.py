@@ -150,3 +150,22 @@ def test_una_configuracion_correcta_no_genera_errores(settings):
         checks.comprobar_talleres,
     ):
         assert fn(None) == [], f"{fn.__name__} se quejó de una config correcta"
+
+
+def test_allowed_hosts_solo_de_desarrollo(settings):
+    """
+    Un ALLOWED_HOSTS heredado de desarrollo pasa E003 y E004, y sin embargo
+    deja el sitio inservible: Django responde 400 por el dominio real.
+    """
+    settings.DEBUG = False
+    settings.SECRET_KEY = "x" * 60
+    settings.ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+    assert "sibu.E005" in _ids(checks.comprobar_secretos(None))
+
+
+def test_localhost_junto_al_dominio_real_es_legitimo(settings):
+    """No se prohíbe localhost: una comprobación de salud local lo necesita."""
+    settings.DEBUG = False
+    settings.SECRET_KEY = "x" * 60
+    settings.ALLOWED_HOSTS = ["sibu.unl.edu.ec", "localhost"]
+    assert checks.comprobar_secretos(None) == []
