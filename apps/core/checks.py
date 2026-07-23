@@ -46,12 +46,21 @@ def comprobar_secretos(app_configs, **kwargs):
                 id="sibu.E002",
             )
         )
-    if "*" in getattr(settings, "ALLOWED_HOSTS", []):
+    hosts = getattr(settings, "ALLOWED_HOSTS", [])
+    if "*" in hosts:
         problemas.append(
             Error(
                 "ALLOWED_HOSTS contiene '*': acepta peticiones de cualquier dominio.",
                 hint="Liste los dominios reales: sibu.unl.edu.ec",
                 id="sibu.E003",
+            )
+        )
+    elif not hosts:
+        problemas.append(
+            Error(
+                "ALLOWED_HOSTS está vacío: Django rechazará todas las peticiones.",
+                hint="Defina ALLOWED_HOSTS en el entorno, p. ej. sibu.unl.edu.ec",
+                id="sibu.E004",
             )
         )
     return problemas

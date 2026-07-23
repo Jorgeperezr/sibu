@@ -55,18 +55,14 @@ def test_sqlite_en_produccion(settings):
     solo lee la cadena ENGINE.
     """
     settings.DEBUG = False
-    settings.DATABASES = {
-        "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}
-    }
+    settings.DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
     assert "sibu.E010" in _ids(checks.comprobar_base_de_datos(None))
 
 
 def test_postgresql_en_produccion_no_se_queja(settings):
     """El control positivo que faltaba."""
     settings.DEBUG = False
-    settings.DATABASES = {
-        "default": {"ENGINE": "django.db.backends.postgresql", "NAME": "sibu"}
-    }
+    settings.DATABASES = {"default": {"ENGINE": "django.db.backends.postgresql", "NAME": "sibu"}}
     assert checks.comprobar_base_de_datos(None) == []
 
 

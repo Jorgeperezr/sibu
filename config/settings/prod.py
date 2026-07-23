@@ -16,8 +16,12 @@ DEBUG = False
 # rechaza peticiones o falla los POST detrás del proxy, y el fallo aparece
 # tarde, en forma de "CSRF verification failed" en un formulario que
 # funcionaba en local.
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
-CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS")
+# Sin valor por defecto, la ausencia de una variable aborta la importación
+# de los ajustes y `check --deploy` no llega a ejecutarse: la configuración
+# que falta se descubriría de una en una. Con el defecto vacío, los checks
+# informan de todo junto (sibu.E003/E004/E020) en una sola pasada.
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
 # --- HTTPS / cabeceras de seguridad ---
 SECURE_SSL_REDIRECT = True
@@ -76,11 +80,13 @@ MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 # --- Correo institucional (SMTP UNL / Google Workspace) ---
 # El portal depende de esto: sin SMTP nadie puede vincular su cuenta.
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = env("EMAIL_HOST")
+# Mismo motivo: que falte el SMTP lo reporta el check sibu.W040/E041,
+# no una excepción al arrancar.
+EMAIL_HOST = env("EMAIL_HOST", default="")
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = env("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="bienestar@unl.edu.ec")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
