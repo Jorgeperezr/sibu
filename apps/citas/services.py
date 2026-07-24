@@ -174,7 +174,7 @@ def cambiar_estado(cita: Cita, nuevo: str, usuario=None) -> Cita:
     permitidos = TRANSICIONES.get(cita.estado, set())
     if nuevo not in permitidos:
         raise ValidationError(
-            f"Transición inválida: {cita.estado} → {nuevo}. " f"Permitidas: {sorted(permitidos)}"
+            f"Transición inválida: {cita.estado} → {nuevo}. Permitidas: {sorted(permitidos)}"
         )
     cita.estado = nuevo
     if nuevo == Cita.Estado.EN_ESPERA and cita.llegada_en is None:

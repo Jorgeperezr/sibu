@@ -17,7 +17,7 @@ ETIQUETA = "sibu"
 
 # Hosts que solo tienen sentido en la máquina del desarrollador.
 HOSTS_DE_DESARROLLO = frozenset(
-    {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1", "testserver"}  # noqa: S104
+    {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1", "testserver"}  # nosec B104  # noqa: S104
 )
 
 
