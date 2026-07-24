@@ -55,8 +55,7 @@ def derivar(
         raise ValidationError("El motivo de la derivación es obligatorio.")
     if atencion_origen.servicio_id == servicio_destino.pk:
         raise ValidationError(
-            f"No tiene sentido derivar a {servicio_destino.nombre}: "
-            f"es el mismo servicio que emite."
+            f"No tiene sentido derivar a {servicio_destino.nombre}: es el mismo servicio que emite."
         )
     if not servicio_destino.activo:
         raise ValidationError(f"El servicio {servicio_destino.nombre} no está activo.")
@@ -176,8 +175,7 @@ def retornar(derivacion: Derivacion, texto: str) -> Derivacion:
     """
     if derivacion.estado != Derivacion.Estado.ATENDIDA:
         raise ValidationError(
-            f"Solo se retornan derivaciones atendidas "
-            f"(actual: {derivacion.get_estado_display()})."
+            f"Solo se retornan derivaciones atendidas (actual: {derivacion.get_estado_display()})."
         )
 
     if _es_confidencial(derivacion.servicio_destino):
