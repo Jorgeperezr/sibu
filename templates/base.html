@@ -12,11 +12,31 @@
   <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container">
       <a class="navbar-brand" href="{% url 'inicio' %}">SIBU · UNL</a>
-      <div class="ms-auto navbar-text text-white">
-        {% if user.is_authenticated %}{{ user.get_full_name|default:user.username }}
+
+      {% if user.is_authenticated %}
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav-sibu"
+              aria-controls="nav-sibu" aria-expanded="false" aria-label="Menú">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="nav-sibu">
+        <ul class="navbar-nav me-auto">
+          {% for m in nav_modulos %}
+          <li class="nav-item">
+            <a class="nav-link{% if request.resolver_match.view_name == m.url_name %} active fw-semibold{% endif %}"
+               href="{% url m.url_name %}">{{ m.etiqueta }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+        <div class="navbar-text text-white">
+          {{ user.get_full_name|default:user.username }}
           · <a class="text-white" href="{% url 'logout' %}">Salir</a>
-        {% else %}<a class="text-white" href="{% url 'login' %}">Ingresar</a>{% endif %}
+        </div>
       </div>
+      {% else %}
+      <div class="ms-auto navbar-text text-white">
+        <a class="text-white" href="{% url 'login' %}">Ingresar</a>
+      </div>
+      {% endif %}
     </div>
   </nav>
   <main class="container py-4">
