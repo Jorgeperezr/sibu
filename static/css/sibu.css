@@ -1,1 +1,143 @@
-/* Estilos base de SIBU */
+/*
+ * SIBU — capa visual temporal sobre Bootstrap 5.
+ *
+ * Objetivo: hacer legible y navegable la interfaz sin reescribir las 36
+ * plantillas. Todo vive aquí y en base.html; una identidad visual definitiva
+ * (logo institucional, paleta oficial de la UNL, tipografía propia) es un
+ * trabajo de diseño posterior. Esto sube el piso, no pone el techo.
+ *
+ * No se toca el marcado de cada módulo: se estilan las clases de Bootstrap que
+ * ya usan (.card, .table, .badge, .navbar...) para que el efecto alcance a
+ * todas las páginas a la vez.
+ */
+
+:root {
+  /* Verde institucional aproximado de la UNL, como marcador de posición hasta
+     tener el color oficial. */
+  --sibu-primary: #1b7f5a;
+  --sibu-primary-dark: #145d42;
+  --sibu-accent: #c9a227;
+  --sibu-bg: #f4f6f8;
+  --sibu-text: #22303c;
+  --sibu-muted: #64748b;
+  --sibu-border: #e2e8f0;
+  --sibu-confidencial: #b45309;
+}
+
+body {
+  background: var(--sibu-bg);
+  color: var(--sibu-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ---- Barra superior: verde institucional en vez del azul de Bootstrap ---- */
+.navbar.bg-primary {
+  background: linear-gradient(90deg, var(--sibu-primary), var(--sibu-primary-dark)) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.navbar-brand {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.navbar .nav-link {
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.7rem !important;
+  transition: background 0.15s;
+}
+.navbar .nav-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.navbar .nav-link.active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ---- Botones y enlaces primarios heredan el verde ---- */
+.btn-primary {
+  --bs-btn-bg: var(--sibu-primary);
+  --bs-btn-border-color: var(--sibu-primary);
+  --bs-btn-hover-bg: var(--sibu-primary-dark);
+  --bs-btn-hover-border-color: var(--sibu-primary-dark);
+  --bs-btn-active-bg: var(--sibu-primary-dark);
+}
+.btn-outline-primary {
+  --bs-btn-color: var(--sibu-primary);
+  --bs-btn-border-color: var(--sibu-primary);
+  --bs-btn-hover-bg: var(--sibu-primary);
+  --bs-btn-hover-border-color: var(--sibu-primary);
+}
+a {
+  color: var(--sibu-primary-dark);
+}
+.text-primary {
+  color: var(--sibu-primary) !important;
+}
+
+/* ---- Tarjetas: separación y sombra suave para dar jerarquía ---- */
+.card {
+  border: 1px solid var(--sibu-border);
+  border-radius: 0.6rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.card-header {
+  background: #fff;
+  border-bottom: 2px solid var(--sibu-primary);
+  font-weight: 600;
+  color: var(--sibu-primary-dark);
+}
+
+/* Las tarjetas-enlace de la portada se elevan al pasar el cursor. */
+a .card {
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+a .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* ---- Tablas más legibles ---- */
+.table > thead {
+  background: #eef2f5;
+}
+.table > thead th {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--sibu-muted);
+  border-bottom: 2px solid var(--sibu-border);
+}
+
+/* ---- Encabezado de página: una línea de acento bajo el primer título ---- */
+main > .container > h1:first-child,
+main h1.h4,
+main h2:first-of-type {
+  padding-bottom: 0.4rem;
+  border-bottom: 3px solid var(--sibu-accent);
+  display: inline-block;
+}
+
+/* ---- Señal de confidencialidad: cualquier elemento marcado como tal ---- */
+.sibu-confidencial,
+.badge.bg-confidencial {
+  background: var(--sibu-confidencial) !important;
+  color: #fff !important;
+}
+.card.sibu-sello {
+  border-left: 4px solid var(--sibu-confidencial);
+}
+
+/* ---- Pie discreto ---- */
+.sibu-footer {
+  color: var(--sibu-muted);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--sibu-border);
+  margin-top: 3rem;
+  padding: 1.2rem 0;
+}
+
+/* ---- Accesibilidad: foco visible para navegación por teclado ---- */
+a:focus-visible,
+.btn:focus-visible,
+.form-control:focus {
+  outline: 2px solid var(--sibu-accent);
+  outline-offset: 1px;
+}
