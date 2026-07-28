@@ -83,3 +83,17 @@ def test_modulos_que_el_admin_ve_renderizan_sin_romperse(admin):
         r = c.get(reverse(nombre))
         assert r.status_code == 200, f"{nombre} devolvió {r.status_code}"
         assert "sibu-footer" in r.content.decode()
+
+
+@pytest.mark.django_db
+def test_ningun_comentario_de_plantilla_se_filtra_al_html(admin):
+    """
+    Un comentario {# ... #} partido en dos líneas se imprime como texto: Django
+    solo los reconoce en una línea. Pasó en la portada y era visible. Esta
+    prueba lo atrapa: ningún resto de sintaxis de plantilla debe llegar al HTML.
+    """
+    c = Client()
+    c.login(username="admin", password=CLAVE)
+    cuerpo = c.get(reverse("inicio")).content.decode()
+    for resto in ("{#", "#}", "{% comment", "endcomment", "Mensajes centralizados"):
+        assert resto not in cuerpo, f"Se filtró sintaxis de plantilla: {resto!r}"

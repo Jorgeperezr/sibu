@@ -47,8 +47,10 @@
     {# Migas de pan opcionales: una plantilla puede rellenar el bloque. #}
     {% block breadcrumb %}{% endblock %}
 
-    {# Mensajes centralizados: antes cada plantilla repetía este bloque. Las
-       que aún lo traigan seguirán funcionando; las nuevas ya no lo necesitan. #}
+    {% comment %}
+      Mensajes centralizados: antes cada plantilla repetía este bloque. Las que
+      aún lo traigan seguirán funcionando; las nuevas ya no lo necesitan.
+    {% endcomment %}
     {% if messages %}
     <div class="mb-3">
       {% for m in messages %}
