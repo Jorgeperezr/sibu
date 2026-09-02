@@ -33,6 +33,9 @@ def estructura(db):
     Servicio.objects.get_or_create(
         codigo="odontologia", defaults={"nombre": "Odontología", "seccion": salud}
     )
+    Servicio.objects.get_or_create(
+        codigo="enfermeria", defaults={"nombre": "Enfermería", "seccion": salud}
+    )
     psico_sec, _ = Seccion.objects.get_or_create(
         codigo="psicopedagogica", defaults={"nombre": "Psicopedagógica"}
     )
@@ -86,13 +89,37 @@ def test_quien_no_es_de_odontologia_no_ve_odontologia(estructura):
 
 
 @pytest.mark.django_db
+def test_cada_servicio_de_salud_ve_el_suyo_y_no_los_demas(estructura):
+    """Los nueve servicios son navegables, y cada uno solo ve el propio."""
+    for codigo, etiqueta in [
+        ("medicina", "Medicina"),
+        ("enfermeria", "Enfermería"),
+        ("odontologia", "Odontología"),
+    ]:
+        servicio = Servicio.objects.get(codigo=codigo)
+        _, prof = crear_profesional(f"prof_{codigo}", servicio, servicio.seccion)
+        etiquetas = _etiquetas(prof.usuario)
+        assert etiqueta in etiquetas
+        otros = {"Medicina", "Enfermería", "Odontología"} - {etiqueta}
+        assert otros & etiquetas == set()
+
+
+@pytest.mark.django_db
 def test_el_admin_ve_todos_los_modulos(estructura):
     """Admin navega todo; el acceso fino al contenido lo resuelve cada vista."""
     u = Usuario.objects.create_user(
         username="admin", password=CLAVE, rol_principal=Rol.ADMIN_GENERAL
     )
     etiquetas = _etiquetas(u)
-    assert {"Odontología", "Laboratorio", "Farmacia", "Psicología", "Becas"} <= etiquetas
+    assert {
+        "Medicina",
+        "Enfermería",
+        "Odontología",
+        "Laboratorio",
+        "Farmacia",
+        "Psicología",
+        "Becas",
+    } <= etiquetas
 
 
 @pytest.mark.django_db

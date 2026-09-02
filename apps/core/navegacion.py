@@ -32,6 +32,8 @@ class Modulo:
 # nombre del seed (p. ej. "Becas y Ayudas Económicas" -> "becas-y-ayudas-economicas").
 MODULOS = [
     Modulo("Mi agenda", "citas:mi_agenda", ("siempre", None), "General"),
+    Modulo("Medicina", "medicina:bandeja", ("servicio", "medicina"), "Salud"),
+    Modulo("Enfermería", "enfermeria:bandeja", ("servicio", "enfermeria"), "Salud"),
     Modulo("Odontología", "odontologia:bandeja", ("servicio", "odontologia"), "Salud"),
     Modulo("Laboratorio", "laboratorio:bandeja", ("servicio", "laboratorio-clinico"), "Salud"),
     Modulo("Farmacia", "farmacia:mostrador", ("servicio", "farmacia"), "Salud"),

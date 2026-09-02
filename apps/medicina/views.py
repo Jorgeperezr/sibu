@@ -5,12 +5,34 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.core.models import CIE10
+from apps.core.models import CIE10, Servicio
 from apps.enfermeria.services import ultimo_triaje
-from apps.expediente.models import Expediente
+from apps.expediente.models import Atencion, Expediente
+from apps.usuarios.decorators import verificar_acceso_atencion, verificar_es_del_servicio
 
 from . import services
 from .models import AtencionMedicina
+
+
+@login_required
+def bandeja(request):
+    """
+    Cola de trabajo de Medicina: las historias aún en borrador del servicio.
+
+    Mismo criterio que el menú (`servicios_del_usuario`): quien ve el enlace
+    entra y quien no lo ve recibe 403.
+    """
+    servicio = get_object_or_404(Servicio, codigo="medicina")
+    verificar_es_del_servicio(request.user, servicio)
+
+    historias = (
+        AtencionMedicina.objects.filter(
+            atencion__servicio=servicio, atencion__estado=Atencion.Estado.BORRADOR
+        )
+        .select_related("atencion__expediente__persona", "atencion__profesional__usuario")
+        .order_by("-atencion__fecha_hora")
+    )
+    return render(request, "medicina/bandeja.html", {"historias": historias})
 
 
 @login_required
@@ -41,8 +63,14 @@ def consulta(request, pk):
     Muestra automáticamente el triaje de Enfermería si existe.
     """
     hc = get_object_or_404(
-        AtencionMedicina.objects.select_related("atencion__expediente__persona"), pk=pk
+        AtencionMedicina.objects.select_related(
+            "atencion__expediente__persona", "atencion__servicio"
+        ),
+        pk=pk,
     )
+    # Sin esto, cualquier usuario autenticado abría la historia clínica de
+    # cualquier paciente cambiando el id en la URL.
+    verificar_acceso_atencion(request.user, hc.atencion)
 
     if request.method == "POST":
         accion = request.POST.get("accion")
