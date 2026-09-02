@@ -16,7 +16,7 @@ from apps.medicina import services as med_services
 def escenario(db):
     est = crear_estructura()
     _, medico = crear_profesional("medico", est["medicina"], est["salud"])
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     CIE10.objects.get_or_create(codigo="J00", defaults={"descripcion": "Resfriado"})
     hemograma = Examen.objects.create(
         codigo="LAB-001", nombre="Biometría hemática", perfil="Hematología"

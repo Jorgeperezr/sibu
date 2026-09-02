@@ -35,7 +35,7 @@ def escenario(db):
     u_otro.set_password(CLAVE)
     u_otro.save()
 
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     hc = services.crear_atencion_odontologia(expediente=exp, profesional=dentista, motivo="Dolor")
     return {"hc": hc, "exp": exp}
 

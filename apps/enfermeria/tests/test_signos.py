@@ -14,7 +14,7 @@ from apps.expediente.tests.factories import crear_estructura, crear_expediente, 
 def escenario(db):
     est = crear_estructura()
     _, enfermera = crear_profesional("enfermera", est["medicina"], est["salud"])
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     return {"est": est, "enfermera": enfermera, "exp": exp}
 
 

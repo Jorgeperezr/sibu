@@ -32,7 +32,7 @@ def escenario(db):
         defaults={"nombre": "Becas y ayudas económicas", "seccion": seccion},
     )
     u, prof = crear_profesional("trabajadora", servicio, seccion)
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
 
     p1, _ = PeriodoAcademico.objects.get_or_create(
         codigo="2026-1",

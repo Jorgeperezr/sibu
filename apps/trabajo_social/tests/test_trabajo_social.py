@@ -24,7 +24,7 @@ def escenario(db):
         codigo="trabajo-social", defaults={"nombre": "Trabajo Social", "seccion": est["salud"]}
     )
     _, trabajador = crear_profesional("ts", ts, ts.seccion)
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     exp.persona.residencia_actual = {"canton": "Loja", "tipo": "arrendada"}
     exp.persona.procedencia = {"canton": "Saraguro"}
     exp.persona.save()

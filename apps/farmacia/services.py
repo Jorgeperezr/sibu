@@ -16,7 +16,7 @@ from datetime import date, timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -38,11 +38,39 @@ from .models import (
 
 def _siguiente_numero() -> str:
     """Numeración correlativa anual: RX-2026-000001."""
-    anio = timezone.now().year
+    anio = timezone.localtime().year
     prefijo = f"RX-{anio}-"
     ultima = Receta.objects.filter(numero__startswith=prefijo).order_by("-numero").first()
     consecutivo = int(ultima.numero.split("-")[-1]) + 1 if ultima else 1
     return f"{prefijo}{consecutivo:06d}"
+
+
+def _crear_receta_con_numero(atencion: Atencion, horas: int, usuario, intentos: int = 5) -> Receta:
+    """
+    Crea la receta reintentando si otro proceso tomó el mismo correlativo.
+
+    `_siguiente_numero()` lee el último número y suma uno: dos emisiones
+    simultáneas obtienen el mismo. La restricción única de `Receta.numero` lo
+    impide a nivel de base —la integridad nunca estuvo en riesgo—, pero el
+    segundo usuario recibía un error 500. Cada intento va en su propio
+    savepoint para no abortar la transacción exterior.
+    """
+    for intento in range(intentos):
+        try:
+            with transaction.atomic():
+                return Receta.objects.create(
+                    atencion=atencion,
+                    numero=_siguiente_numero(),
+                    valida_hasta=timezone.now() + timedelta(hours=horas),
+                    creado_por=usuario,
+                )
+        except IntegrityError:
+            if intento == intentos - 1:
+                raise ValidationError(
+                    "No se pudo asignar número de receta por alta concurrencia. "
+                    "Vuelva a intentarlo."
+                ) from None
+    raise AssertionError("inalcanzable")  # pragma: no cover
 
 
 @transaction.atomic
@@ -59,12 +87,7 @@ def emitir_receta(atencion: Atencion, items: list[dict], usuario=None) -> Receta
         raise ValidationError("La receta debe tener al menos un medicamento.")
 
     horas = settings.SIBU.get("RECETA_VALIDEZ_HORAS", 72)
-    receta = Receta.objects.create(
-        atencion=atencion,
-        numero=_siguiente_numero(),
-        valida_hasta=timezone.now() + timedelta(hours=horas),
-        creado_por=usuario,
-    )
+    receta = _crear_receta_con_numero(atencion, horas, usuario)
 
     for item in items:
         medicamento = Medicamento.objects.get(pk=item["medicamento_id"])
@@ -285,6 +308,11 @@ def despachar_item(detalle: RecetaDetalle, cantidad: int, *, usuario) -> list[Di
     if cantidad <= 0:
         raise ValidationError("La cantidad a despachar debe ser mayor a cero.")
 
+    # Bloquear el detalle antes de contar lo ya despachado: sin esto, dos
+    # despachos simultáneos del mismo ítem leen el mismo pendiente y entre los
+    # dos entregan más de lo prescrito.
+    detalle = RecetaDetalle.objects.select_for_update().get(pk=detalle.pk)
+
     pendiente = pendiente_por_despachar(detalle)
     if cantidad > pendiente:
         raise ValidationError(
@@ -292,7 +320,12 @@ def despachar_item(detalle: RecetaDetalle, cantidad: int, *, usuario) -> list[Di
             f"(prescritas {detalle.cantidad_prescrita})."
         )
 
-    disponible = stock_disponible(detalle.medicamento)
+    # Bloquear los lotes ANTES de decidir si hay stock. Comprobar con
+    # `stock_disponible()` y consumir después dejaba una ventana entre la
+    # lectura y el consumo: dos despachos concurrentes pasaban ambos la
+    # comprobación y el segundo entregaba de menos en silencio.
+    lotes = list(lotes_fefo(detalle.medicamento).select_for_update())
+    disponible = sum(lote.cantidad_actual for lote in lotes)
     if cantidad > disponible:
         raise ValidationError(
             f"Stock insuficiente de {detalle.medicamento}: "
@@ -301,7 +334,7 @@ def despachar_item(detalle: RecetaDetalle, cantidad: int, *, usuario) -> list[Di
 
     dispensaciones = []
     restante = cantidad
-    for lote in lotes_fefo(detalle.medicamento).select_for_update():
+    for lote in lotes:
         if restante <= 0:
             break
         toma = min(lote.cantidad_actual, restante)
@@ -326,6 +359,15 @@ def despachar_item(detalle: RecetaDetalle, cantidad: int, *, usuario) -> list[Di
             )
         )
         restante -= toma
+
+    if restante > 0:
+        # Los lotes están bloqueados y el disponible se calculó sobre ellos, así
+        # que esto no debería ocurrir. Si ocurre, algo descuadró: abortar la
+        # transacción antes que entregar de menos sin decirlo.
+        raise ValidationError(
+            f"No se pudo completar el despacho de {detalle.medicamento}: "
+            f"faltaron {restante} unidades. No se registró ninguna entrega."
+        )
 
     _actualizar_estado_receta(receta)
     return dispensaciones

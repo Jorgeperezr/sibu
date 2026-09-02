@@ -5,8 +5,10 @@ Toda ficha de servicio (Medicina, Enfermería, …) extiende `Atencion` mediante
 una relación OneToOne (patrón "clase base + extensión", informe 4.2 y 11.3).
 """
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
+from apps.academico.validators import normalizar_cedula, validar_cedula_ecuatoriana
 from apps.core.models import ModeloBase, Servicio
 from apps.usuarios.models import PerfilProfesional
 
@@ -51,6 +53,27 @@ class Persona(ModeloBase):
     def nombre_completo(self):
         return f"{self.apellidos} {self.nombres}".strip()
 
+    def save(self, *args, **kwargs):
+        """
+        Normaliza y valida la cédula antes de tocar la base.
+
+        La cédula es la clave de vinculación del expediente único: una mal
+        digitada crea una persona fantasma que ya no se puede cruzar con nada.
+        `academico`, `talleres` y `portal` validaban en su propio servicio, pero
+        el modelo aceptaba cualquier cadena, así que cualquier otra vía de
+        creación —el admin, el shell, una migración de datos— la colaba.
+
+        Se valida solo el documento de tipo cédula: un externo con pasaporte no
+        pasa el módulo 10 ecuatoriano y es un caso legítimo.
+        """
+        if self.tipo_documento == "cedula":
+            self.cedula = normalizar_cedula(self.cedula)
+            if not validar_cedula_ecuatoriana(self.cedula):
+                raise ValidationError(
+                    {"cedula": f"La cédula {self.cedula} no es válida (módulo 10 ecuatoriano)."}
+                )
+        return super().save(*args, **kwargs)
+
 
 class Expediente(ModeloBase):
     """Carpeta digital única que consolida todas las atenciones de la persona."""
@@ -65,6 +88,15 @@ class Expediente(ModeloBase):
     class Meta:
         verbose_name = "expediente"
         verbose_name_plural = "expedientes"
+        constraints = [
+            # PositiveSmallIntegerField solo impide el negativo: un 250 % de
+            # discapacidad entraba sin protestar.
+            models.CheckConstraint(
+                condition=models.Q(discapacidad_porcentaje__isnull=True)
+                | models.Q(discapacidad_porcentaje__lte=100),
+                name="ck_expediente_discapacidad_hasta_100",
+            ),
+        ]
 
     def __str__(self):
         return f"Expediente {self.numero_expediente}"

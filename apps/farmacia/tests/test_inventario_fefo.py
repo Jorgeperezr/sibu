@@ -22,7 +22,7 @@ def escenario(db):
     est = crear_estructura()
     _, medico = crear_profesional("medico", est["medicina"], est["salud"])
     _, quimico = crear_profesional("quimico", est["medicina"], est["salud"])
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     CIE10.objects.get_or_create(codigo="J00", defaults={"descripcion": "Resfriado"})
 
     paracetamol = Medicamento.objects.create(
@@ -324,3 +324,57 @@ def test_trazabilidad_saldo_reconstruible(escenario):
     lote.refresh_from_db()
     assert saldo == lote.cantidad_actual == 70
     assert movimientos.last().saldo_resultante == 70
+
+
+# ==========================================================================
+# Concurrencia: el stock se comprobaba antes de bloquear los lotes
+# ==========================================================================
+
+
+@pytest.mark.django_db
+def test_el_despacho_aborta_si_el_stock_se_agota_entre_la_lectura_y_el_consumo(escenario):
+    """
+    Simula la carrera: dos despachos leen el mismo stock disponible, ambos
+    pasan la validación y el segundo se encuentra los lotes ya vacíos.
+
+    Antes, el bucle terminaba con `restante > 0` sin decir nada: quedaban
+    dispensaciones por menos de lo pedido mientras el llamador daba por
+    entregada la cantidad completa. Ahora aborta y no deja entrega a medias.
+    """
+    from unittest.mock import patch
+
+    services.ingresar_lote(
+        escenario["med"], "L-001", 100, _fecha(365), usuario=escenario["quimico"]
+    )
+    receta = services.emitir_receta(
+        escenario["hc"].atencion,
+        [{"medicamento_id": escenario["med"].id, "cantidad_prescrita": 20}],
+    )
+    detalle = receta.detalles.first()
+
+    # `lotes_fefo` sin resultados es lo que ve el segundo despacho cuando el
+    # primero ya consumió todo entre la comprobación y el consumo.
+    with patch("apps.farmacia.services.lotes_fefo") as fefo:
+        fefo.return_value = Lote.objects.none()
+        with pytest.raises(ValidationError, match="Stock insuficiente"):
+            services.despachar_item(detalle, 20, usuario=escenario["quimico"])
+
+    assert not detalle.dispensaciones.exists()
+
+
+@pytest.mark.django_db
+def test_no_se_despacha_mas_de_lo_prescrito_aunque_sobre_stock(escenario):
+    """El pendiente se cuenta con el detalle bloqueado, no a ojo."""
+    services.ingresar_lote(
+        escenario["med"], "L-001", 500, _fecha(365), usuario=escenario["quimico"]
+    )
+    receta = services.emitir_receta(
+        escenario["hc"].atencion,
+        [{"medicamento_id": escenario["med"].id, "cantidad_prescrita": 10}],
+    )
+    detalle = receta.detalles.first()
+    services.despachar_item(detalle, 6, usuario=escenario["quimico"])
+
+    # Quedan 4 pendientes y stock de sobra: el límite es la receta, no el stock.
+    with pytest.raises(ValidationError, match="Solo quedan 4"):
+        services.despachar_item(detalle, 6, usuario=escenario["quimico"])

@@ -23,7 +23,7 @@ def escenario(db):
     )
     _, medico = crear_profesional("medico", est["medicina"], est["salud"])
     _, psicologo = crear_profesional("psicologo", psico, psico.seccion)
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     atencion_med = crear_atencion(exp, est["medicina"], medico)
     return {
         "est": est,
@@ -90,7 +90,7 @@ def test_atender_con_atencion_de_otro_servicio(escenario):
 def test_atender_con_paciente_distinto(escenario):
     d = services.derivar(escenario["atencion_med"], escenario["psico"], motivo="Depresión")
     services.aceptar(d)
-    otro_exp = crear_expediente(cedula="1102030405")
+    otro_exp = crear_expediente(cedula="1102030408")
     atencion_otro = crear_atencion(otro_exp, escenario["psico"], escenario["psicologo"])
     with pytest.raises(ValidationError, match="otro paciente"):
         services.atender(d, atencion_otro)
@@ -193,7 +193,7 @@ def test_rechazar_exige_motivo(escenario):
 @pytest.mark.django_db
 def test_bandeja_prioriza_urgentes(escenario):
     services.derivar(escenario["atencion_med"], escenario["psico"], motivo="Rutina")
-    otro_exp = crear_expediente(cedula="1102030405")
+    otro_exp = crear_expediente(cedula="1102030408")
     atencion2 = crear_atencion(otro_exp, escenario["est"]["medicina"], escenario["medico"])
     services.derivar(atencion2, escenario["psico"], motivo="Crisis", prioridad="urgente")
 

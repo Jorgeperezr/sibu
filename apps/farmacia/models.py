@@ -24,6 +24,14 @@ class Medicamento(ModeloBase):
     class Meta:
         verbose_name = "medicamento"
         verbose_name_plural = "medicamentos"
+        constraints = [
+            # stock_maximo=0 significa "sin máximo definido", no un máximo real.
+            models.CheckConstraint(
+                condition=models.Q(stock_maximo=0)
+                | models.Q(stock_maximo__gte=models.F("stock_minimo")),
+                name="ck_medicamento_min_no_supera_max",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.dci} {self.concentracion}".strip()
@@ -41,6 +49,20 @@ class Lote(models.Model):
         verbose_name = "lote"
         verbose_name_plural = "lotes"
         indexes = [models.Index(fields=["medicamento", "fecha_caducidad"])]  # soporte FEFO
+        constraints = [
+            # `ingresar_lote` hace get_or_create sobre esta pareja: sin la
+            # restricción, dos ingresos simultáneos crean dos lotes gemelos y
+            # el stock del medicamento queda partido en dos filas.
+            models.UniqueConstraint(
+                fields=["medicamento", "numero_lote"], name="uniq_lote_por_medicamento"
+            ),
+            # El saldo de un lote nunca puede quedar en negativo: sería stock
+            # que no existe. La lógica ya lo evita; esto lo hace imposible.
+            models.CheckConstraint(
+                condition=models.Q(cantidad_actual__gte=0),
+                name="ck_lote_cantidad_no_negativa",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.medicamento} · lote {self.numero_lote} (cad. {self.fecha_caducidad})"
@@ -99,6 +121,14 @@ class RecetaDetalle(models.Model):
     duracion = models.CharField(max_length=60, blank=True)
     indicaciones = models.CharField(max_length=255, blank=True)
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(cantidad_prescrita__gt=0),
+                name="ck_receta_detalle_cantidad_positiva",
+            ),
+        ]
+
     def __str__(self):
         return f"{self.medicamento} x{self.cantidad_prescrita}"
 
@@ -115,6 +145,12 @@ class Dispensacion(models.Model):
     class Meta:
         verbose_name = "dispensación"
         verbose_name_plural = "dispensaciones"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(cantidad_despachada__gt=0),
+                name="ck_dispensacion_cantidad_positiva",
+            ),
+        ]
 
     def __str__(self):
         return f"Despacho {self.cantidad_despachada} — {self.receta_detalle}"

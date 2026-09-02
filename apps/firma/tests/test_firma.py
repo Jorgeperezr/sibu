@@ -30,7 +30,7 @@ PDF = b"%PDF-1.4 contenido de prueba"
 CLAVE_CALLBACK = "clave-callback-de-prueba"
 
 
-def _certificado(cedula="1104567890", **extra):
+def _certificado(cedula="1104567894", **extra):
     base = {
         "emitidoPara": "JORGE PEREZ",
         "emitidoPor": "Security Data",
@@ -64,9 +64,9 @@ def firmaec_activo(settings):
 def escenario(db):
     est = crear_estructura()
     u, prof = crear_profesional("medico", est["medicina"], est["salud"])
-    prof.cedula = "1104567890"
+    prof.cedula = "1104567894"
     prof.save()
-    exp = crear_expediente(cedula="1712345678")
+    exp = crear_expediente(cedula="1712345675")
     atencion = Atencion.objects.create(
         expediente=exp, servicio=est["medicina"], profesional=prof, fecha_hora=timezone.now()
     )
@@ -80,7 +80,7 @@ def escenario(db):
     return {"est": est, "u": u, "prof": prof, "exp": exp, "atencion": atencion, "s": solicitud}
 
 
-def _callback(correlacion, *, cedula="1104567890", api_key=CLAVE_CALLBACK, **campos):
+def _callback(correlacion, *, cedula="1104567894", api_key=CLAVE_CALLBACK, **campos):
     cuerpo = {
         "cedula": cedula,
         "nombreDocumento": f"SIBU-{correlacion}.pdf",
@@ -179,7 +179,7 @@ def test_nombre_de_documento_ajeno_se_rechaza(escenario, settings):
     settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
     r = Client().post(
         "/grabar_archivos_firmados",
-        data=json.dumps({"cedula": "1104567890", "nombreDocumento": "cualquier-cosa.pdf"}),
+        data=json.dumps({"cedula": "1104567894", "nombreDocumento": "cualquier-cosa.pdf"}),
         content_type="application/json",
         headers={"x-api-key": CLAVE_CALLBACK},
     )
@@ -269,7 +269,7 @@ def test_psicologia_no_sale_a_un_firmador_externo(escenario, settings):
     settings.FIRMAEC_DESCENTRALIZADO_PROPIO = False
     psico = Servicio.objects.get(codigo="psicologia")
     u, prof = crear_profesional("psicologo", psico, psico.seccion)
-    prof.cedula = "1104567890"
+    prof.cedula = "1104567894"
     prof.save()
     atencion = Atencion.objects.create(
         expediente=escenario["exp"], servicio=psico, profesional=prof, fecha_hora=timezone.now()
@@ -290,7 +290,7 @@ def test_psicologia_si_el_firmador_es_de_la_institucion(escenario, settings):
     settings.FIRMAEC_DESCENTRALIZADO_PROPIO = True
     psico = Servicio.objects.get(codigo="psicologia")
     u, prof = crear_profesional("psicologo2", psico, psico.seccion)
-    prof.cedula = "1104567890"
+    prof.cedula = "1104567894"
     prof.save()
     atencion = Atencion.objects.create(
         expediente=escenario["exp"], servicio=psico, profesional=prof, fecha_hora=timezone.now()
@@ -427,7 +427,7 @@ def test_url_de_servicio_no_https_se_rechaza(escenario, settings):
     for mala in ("file:///etc/passwd", "http://evil.example.com/servicio"):
         settings.FIRMAEC_SERVICIO_URL = mala
         with pytest.raises(ImproperlyConfigured, match="https"):
-            client.crear_documento(cedula="1104567890", nombre="x.pdf", pdf=PDF)
+            client.crear_documento(cedula="1104567894", nombre="x.pdf", pdf=PDF)
 
 
 # --------------------------------------------------------------------------
