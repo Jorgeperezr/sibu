@@ -97,6 +97,66 @@ def modulos_visibles(user):
     return visibles
 
 
+@dataclass(frozen=True)
+class AccionExpediente:
+    """Algo que este usuario puede abrir o iniciar sobre un expediente."""
+
+    etiqueta: str
+    url_name: str  # recibe el id del expediente como único argumento
+    regla: tuple  # mismo formato que Modulo.regla
+    icono: str = ""
+    variante: str = "outline-primary"
+
+
+# Qué se puede iniciar desde un expediente. Igual que MODULOS, la visibilidad
+# sale del RBAC: no hay una lista paralela de botones que se desincronice del
+# 403 que daría la vista.
+ACCIONES_EXPEDIENTE = [
+    AccionExpediente("Triaje", "enfermeria:triaje", ("servicio", "enfermeria"), "clipboard-pulse"),
+    AccionExpediente(
+        "Consulta médica", "medicina:iniciar", ("servicio", "medicina"), "stethoscope"
+    ),
+    AccionExpediente(
+        "Consulta odontológica", "odontologia:iniciar", ("servicio", "odontologia"), "emoji-smile"
+    ),
+    AccionExpediente(
+        "Proceso psicológico", "psicologia:iniciar", ("servicio", "psicologia"), "chat-heart"
+    ),
+    AccionExpediente(
+        "Ficha psicopedagógica",
+        "psicopedagogia:iniciar",
+        ("servicio", "psicopedagogia"),
+        "book",
+    ),
+    AccionExpediente(
+        "Ficha socioeconómica",
+        "trabajo_social:ficha",
+        ("servicio", "trabajo-social"),
+        "house-heart",
+    ),
+    AccionExpediente(
+        "Trazabilidad de derivaciones",
+        "derivaciones:trazabilidad",
+        ("siempre", None),
+        "diagram-3",
+        "outline-secondary",
+    ),
+]
+
+
+def acciones_expediente(user):
+    """Acciones que este usuario puede ejecutar sobre un expediente, en orden."""
+    if not user.is_authenticated or getattr(user, "rol_principal", None) == Rol.USUARIO_FINAL:
+        return []
+
+    from apps.core.models import Servicio
+    from apps.usuarios.rbac import servicios_del_usuario
+
+    servicios_ids = servicios_del_usuario(user)
+    codigos_por_id = dict(Servicio.objects.values_list("id", "codigo"))
+    return [a for a in ACCIONES_EXPEDIENTE if _ve_modulo(user, a, servicios_ids, codigos_por_id)]
+
+
 def navegacion(request):
     """Context processor: expone `nav_modulos` en todas las plantillas."""
     return {"nav_modulos": modulos_visibles(request.user)}

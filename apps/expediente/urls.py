@@ -11,5 +11,6 @@ urlpatterns = [
         "", RedirectView.as_view(pattern_name="expediente:buscar", permanent=False), name="indice"
     ),
     path("buscar/", views.buscar, name="buscar"),
+    path("nuevo/", views.nuevo, name="nuevo"),
     path("<int:pk>/", views.detalle, name="detalle"),
 ]

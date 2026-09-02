@@ -196,3 +196,57 @@ def test_expediente_raiz_redirige_a_buscar(estructura):
     r = c.get("/expediente/")
     assert r.status_code == 302
     assert r.url.endswith("/expediente/buscar/")
+
+
+# --------------------------------------------------------------------------
+# Acciones sobre el expediente
+# --------------------------------------------------------------------------
+
+
+def _acciones(user):
+    from apps.core.navegacion import acciones_expediente
+
+    return {a.etiqueta for a in acciones_expediente(user)}
+
+
+@pytest.mark.django_db
+def test_cada_servicio_solo_puede_iniciar_lo_suyo(estructura):
+    """
+    Los botones del expediente salen del RBAC, igual que el menú: quien no
+    puede abrir esa atención tampoco ve el botón, y quien lo ve no se lleva un
+    403 al pulsarlo.
+    """
+    medicina = Servicio.objects.get(codigo="medicina")
+    _, medico = crear_profesional("medico_acc", medicina, medicina.seccion)
+    acciones = _acciones(medico.usuario)
+    assert "Consulta médica" in acciones
+    assert "Proceso psicológico" not in acciones
+    assert "Triaje" not in acciones
+
+
+@pytest.mark.django_db
+def test_el_psicologo_es_el_unico_que_abre_un_proceso_psicologico(estructura):
+    psico = Servicio.objects.get(codigo="psicologia")
+    _, prof = crear_profesional("psi_acc", psico, psico.seccion)
+    assert "Proceso psicológico" in _acciones(prof.usuario)
+
+    lab = Servicio.objects.get(codigo="laboratorio-clinico")
+    _, otro = crear_profesional("lab_acc", lab, lab.seccion)
+    assert "Proceso psicológico" not in _acciones(otro.usuario)
+
+
+@pytest.mark.django_db
+def test_la_trazabilidad_de_derivaciones_la_ve_cualquier_profesional(estructura):
+    """No es contenido clínico: es el rastro de a dónde se derivó."""
+    lab = Servicio.objects.get(codigo="laboratorio-clinico")
+    _, prof = crear_profesional("lab_traza", lab, lab.seccion)
+    assert "Trazabilidad de derivaciones" in _acciones(prof.usuario)
+
+
+@pytest.mark.django_db
+def test_un_usuario_del_portal_no_inicia_atenciones(estructura):
+    """El estudiante consulta lo suyo; no abre historias clínicas."""
+    u = Usuario.objects.create_user(
+        username="estu_acc", password=CLAVE, rol_principal=Rol.USUARIO_FINAL
+    )
+    assert _acciones(u) == set()

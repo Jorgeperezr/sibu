@@ -8,7 +8,11 @@ la línea de tiempo respetando el RBAC.
 
 from __future__ import annotations
 
+from django.core.exceptions import ValidationError
+from django.db import transaction
+
 from apps.academico.providers import get_provider
+from apps.academico.validators import normalizar_cedula
 
 from .models import Expediente, Persona
 
@@ -20,6 +24,42 @@ def obtener_o_crear_expediente(persona: Persona, usuario=None) -> Expediente:
         defaults={"numero_expediente": f"EXP-{persona.cedula}", "creado_por": usuario},
     )
     return expediente
+
+
+def registrar_persona(datos: dict, usuario=None) -> Expediente:
+    """
+    Da de alta a una persona y abre su expediente.
+
+    Es la salida al callejón que dejaba la búsqueda: cuando una cédula no está
+    ni en la base local ni en la institucional, la pantalla ofrecía registrarla
+    como externa pero no había por dónde hacerlo.
+
+    No valida la cédula aquí: `Persona.save()` aplica el módulo 10 sobre los
+    documentos de tipo cédula, así que la comprobación vive en un solo sitio.
+    """
+    cedula = normalizar_cedula(datos.get("cedula", ""))
+    if Persona.objects.filter(cedula=cedula).exists():
+        raise ValidationError(f"Ya existe una persona registrada con la cédula {cedula}.")
+
+    if not (datos.get("nombres") or "").strip() or not (datos.get("apellidos") or "").strip():
+        raise ValidationError("Nombres y apellidos son obligatorios.")
+
+    with transaction.atomic():
+        persona = Persona.objects.create(
+            cedula=cedula,
+            tipo_documento=datos.get("tipo_documento") or "cedula",
+            nombres=datos["nombres"].strip(),
+            apellidos=datos["apellidos"].strip(),
+            fecha_nacimiento=datos.get("fecha_nacimiento") or None,
+            sexo=datos.get("sexo", ""),
+            tipo_vinculo=datos.get("tipo_vinculo") or Persona.TipoVinculo.EXTERNO,
+            correo_institucional=datos.get("correo_institucional", ""),
+            correo_personal=datos.get("correo_personal", ""),
+            telefono=datos.get("telefono", ""),
+            celular=datos.get("celular", ""),
+            creado_por=usuario,
+        )
+        return obtener_o_crear_expediente(persona, usuario)
 
 
 def resolver_por_cedula(cedula: str, usuario=None):

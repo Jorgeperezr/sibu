@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Buscar expediente · SIBU{% endblock %}
 {% block content %}
-<h1 class="h3 mb-3">Buscar por cédula</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Buscar por cédula</h1>
+  <a href="{% url 'expediente:nuevo' %}" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-person-plus"></i> Registrar persona
+  </a>
+</div>
 
 <form method="get" class="row g-2 mb-4">
   <div class="col-auto">
@@ -16,6 +21,16 @@
 {% if messages %}{% for m in messages %}
   <div class="alert alert-{{ m.tags }}">{{ m }}</div>
 {% endfor %}{% endif %}
+
+{% if cedula and not persona %}
+{% comment %}
+El aviso de arriba dice que la persona puede registrarse como externa. Sin este
+enlace era una promesa sin salida: había que abrir el shell.
+{% endcomment %}
+<a href="{% url 'expediente:nuevo' %}?cedula={{ cedula|urlencode }}" class="btn btn-primary mb-4">
+  Registrar a {{ cedula }} y abrir su expediente
+</a>
+{% endif %}
 
 {% if persona %}
 <div class="card border-{{ semaforo }}">

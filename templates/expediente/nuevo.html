@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Registrar persona — SIBU{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Registrar persona</h2>
+  <a href="{% url 'expediente:buscar' %}" class="btn btn-sm btn-outline-secondary">Volver a buscar</a>
+</div>
+
+<p class="text-muted">
+  Se abre el expediente único de la persona. Si ya consta en la base
+  institucional, búsquela por cédula en lugar de registrarla aquí.
+</p>
+
+{% if messages %}{% for m in messages %}
+<div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
+{% endfor %}{% endif %}
+
+<form method="post" class="card" style="max-width:820px">
+  {% csrf_token %}
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="cedula">Cédula <span class="text-danger">*</span></label>
+        <input class="form-control" id="cedula" name="cedula" value="{{ datos.cedula|default:'' }}"
+               required maxlength="13" inputmode="numeric">
+        <div class="form-text">10 dígitos. Se valida con el módulo 10 ecuatoriano.</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="tipo_documento">Tipo de documento</label>
+        <select class="form-select" id="tipo_documento" name="tipo_documento">
+          <option value="cedula">Cédula</option>
+          <option value="pasaporte" {% if datos.tipo_documento == "pasaporte" %}selected{% endif %}>
+            Pasaporte
+          </option>
+        </select>
+        <div class="form-text">El pasaporte no pasa por el módulo 10.</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="tipo_vinculo">Vínculo con la UNL</label>
+        <select class="form-select" id="tipo_vinculo" name="tipo_vinculo">
+          {% for valor, etiqueta in vinculos %}
+          <option value="{{ valor }}" {% if datos.tipo_vinculo == valor %}selected{% endif %}>
+            {{ etiqueta }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label" for="nombres">Nombres <span class="text-danger">*</span></label>
+        <input class="form-control" id="nombres" name="nombres" value="{{ datos.nombres|default:'' }}" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="apellidos">Apellidos <span class="text-danger">*</span></label>
+        <input class="form-control" id="apellidos" name="apellidos" value="{{ datos.apellidos|default:'' }}" required>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label" for="fecha_nacimiento">Fecha de nacimiento</label>
+        <input type="date" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento"
+               value="{{ datos.fecha_nacimiento|default:'' }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="sexo">Sexo</label>
+        <select class="form-select" id="sexo" name="sexo">
+          <option value="">—</option>
+          <option value="F" {% if datos.sexo == "F" %}selected{% endif %}>Femenino</option>
+          <option value="M" {% if datos.sexo == "M" %}selected{% endif %}>Masculino</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="celular">Celular</label>
+        <input class="form-control" id="celular" name="celular" value="{{ datos.celular|default:'' }}">
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label" for="correo_institucional">Correo institucional</label>
+        <input type="email" class="form-control" id="correo_institucional"
+               name="correo_institucional" value="{{ datos.correo_institucional|default:'' }}">
+        <div class="form-text">Es la vía de acceso al portal del estudiante.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="correo_personal">Correo personal</label>
+        <input type="email" class="form-control" id="correo_personal"
+               name="correo_personal" value="{{ datos.correo_personal|default:'' }}">
+      </div>
+    </div>
+  </div>
+  <div class="card-footer d-flex gap-2">
+    <button class="btn btn-primary">Registrar y abrir expediente</button>
+    <a href="{% url 'expediente:buscar' %}" class="btn btn-outline-secondary">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

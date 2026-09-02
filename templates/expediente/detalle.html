@@ -18,6 +18,27 @@
 </div>
 {% endif %}
 
+{% if messages %}{% for m in messages %}
+<div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
+{% endfor %}{% endif %}
+
+{% if acciones %}
+<div class="card mb-3">
+  <div class="card-header">Iniciar atención</div>
+  <div class="card-body d-flex flex-wrap gap-2">
+    {% for a in acciones %}
+    {% comment %}
+    Los botones salen del RBAC, igual que el menú: quien no puede abrir esa
+    atención tampoco ve el botón, y el que lo ve no recibe un 403 al pulsarlo.
+    {% endcomment %}
+    <a href="{% url a.url_name expediente.id %}" class="btn btn-sm btn-{{ a.variante }}">
+      {% if a.icono %}<i class="bi bi-{{ a.icono }}"></i>{% endif %} {{ a.etiqueta }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <div class="card">
   <div class="card-header d-flex justify-content-between">
     <span>Línea de tiempo ({{ total_atenciones }} atenciones visibles)</span>
