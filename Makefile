@@ -1,4 +1,4 @@
-.PHONY: install migrate run up worker perfil seed setup test lint fmt help
+.PHONY: install migrate run up worker perfil demo seed setup test lint fmt help
 
 help:         ## Mostrar esta ayuda
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -23,6 +23,9 @@ seed:         ## Cargar datos base (secciones, servicios, roles)
 
 perfil:       ## Dar al superusuario un perfil de dev con todos los servicios
 	python manage.py perfil_dev
+
+demo:         ## Sembrar usuarios, pacientes y actividad para probar el sistema
+	python manage.py datos_demo
 
 setup:        ## Primera vez: migraciones + datos base + RBAC
 	python manage.py migrate

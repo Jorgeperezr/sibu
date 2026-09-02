@@ -1,0 +1,468 @@
+"""
+Siembra un escenario completo para poder PROBAR el sistema.
+
+`seed_inicial` deja secciones, servicios y roles: la estructura, pero ni un
+solo paciente. Con la base así, todas las pantallas salen vacías y no hay con
+qué entrar. Este comando llena ese hueco: crea un usuario por servicio, varios
+pacientes con su expediente, y actividad real en cada módulo —citas, historias
+clínicas, triaje, odontograma, recetas con stock, órdenes de laboratorio,
+talleres y becas— para que el sistema se pueda recorrer de punta a punta.
+
+    python manage.py datos_demo            # siembra (idempotente)
+    python manage.py datos_demo --limpiar  # borra lo sembrado y vuelve a empezar
+
+Al terminar imprime las credenciales de acceso.
+
+ADVERTENCIA: son datos ficticios y contraseñas conocidas. Solo corre con
+DEBUG=True, igual que `perfil_dev`: en el servidor real esto sería una puerta
+abierta con pacientes inventados dentro del expediente único.
+"""
+
+from datetime import date, timedelta
+
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
+from django.utils import timezone
+
+CLAVE = "sibu-demo-2026"
+
+# Cédulas ficticias que pasan el módulo 10 ecuatoriano: `Persona.save()` las
+# valida, así que un número inventado a ojo no entraría.
+PACIENTES = [
+    ("1101001004", "María Fernanda", "Jaramillo Ochoa", "F"),
+    ("1102002001", "Luis Alberto", "Cueva Riofrío", "M"),
+    ("1103003008", "Ana Belén", "Sarango Guamán", "F"),
+    ("1104004005", "Diego Armando", "Tandazo Loaiza", "M"),
+    ("1105005001", "Carmen Rocío", "Chamba Vivanco", "F"),
+    ("1106006008", "Jorge Andrés", "Espinosa Torres", "M"),
+]
+
+# (username, nombre, apellido, código de servicio, rol)
+PROFESIONALES = [
+    ("medico", "Ricardo", "Valdivieso", "medicina", "profesional"),
+    ("enfermera", "Sonia", "Pineda", "enfermeria", "profesional"),
+    ("odontologo", "Marcelo", "Ludeña", "odontologia", "profesional"),
+    ("laboratorista", "Paola", "Bermeo", "laboratorio-clinico", "laboratorio"),
+    ("farmaceutico", "Iván", "Costa", "farmacia", "farmacia"),
+    ("psicologo", "Elena", "Maldonado", "psicologia", "profesional"),
+    ("psicopedagogo", "Tania", "Ordóñez", "psicopedagogia", "profesional"),
+    ("trabajadora", "Rosa", "Célleri", "trabajo-social", "profesional"),
+    ("becas", "Pablo", "Quezada", "becas-y-ayudas-economicas", "profesional"),
+]
+
+
+class Command(BaseCommand):
+    help = "Crea usuarios, pacientes y actividad de ejemplo para probar el sistema."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--limpiar",
+            action="store_true",
+            help="Borra los datos de demostración antes de sembrarlos de nuevo.",
+        )
+
+    def handle(self, *args, **opciones):
+        # Estos datos son ficticios y las contraseñas, públicas. En producción
+        # esto no es una comodidad: es un expediente único contaminado.
+        if not settings.DEBUG:
+            raise CommandError(
+                "datos_demo solo corre con DEBUG=True. Son pacientes inventados y "
+                "contraseñas conocidas; en el servidor real no tienen cabida."
+            )
+
+        if opciones["limpiar"]:
+            self._limpiar()
+
+        with transaction.atomic():
+            self._sembrar()
+
+        self._credenciales()
+
+    # ------------------------------------------------------------------ borrar
+
+    def _limpiar(self):
+        from apps.expediente.models import Persona
+        from apps.usuarios.models import Usuario
+
+        cedulas = [c for c, *_ in PACIENTES]
+        usuarios = [u for u, *_ in PROFESIONALES] + ["director", "estudiante"]
+        # Las atenciones cuelgan del expediente con PROTECT, así que se borra
+        # desde la persona hacia abajo con el borrado en cascada de Django.
+        Persona.objects.filter(cedula__in=cedulas).delete()
+        Usuario.objects.filter(username__in=usuarios).delete()
+        self.stdout.write("Datos de demostración eliminados.")
+
+    # ----------------------------------------------------------------- sembrar
+
+    def _sembrar(self):
+        from apps.core.models import PeriodoAcademico, Servicio
+        from apps.expediente.models import Expediente, Persona
+        from apps.usuarios.models import PerfilProfesional, Rol, Usuario
+
+        if not Servicio.objects.exists():
+            raise CommandError("No hay servicios. Ejecute antes: python manage.py seed_inicial")
+
+        # --- Usuarios ------------------------------------------------------
+        self.perfiles = {}
+        for username, nombres, apellidos, codigo, rol in PROFESIONALES:
+            servicio = Servicio.objects.filter(codigo=codigo).first()
+            if servicio is None:
+                continue
+            u, _ = Usuario.objects.get_or_create(
+                username=username,
+                defaults={"first_name": nombres, "last_name": apellidos, "rol_principal": rol},
+            )
+            u.set_password(CLAVE)
+            u.save()
+            perfil, _ = PerfilProfesional.objects.get_or_create(
+                usuario=u, defaults={"seccion": servicio.seccion}
+            )
+            perfil.servicios.add(servicio)
+            self.perfiles[codigo] = perfil
+
+        # Dirección: ve el tablero, no el contenido clínico.
+        director, _ = Usuario.objects.get_or_create(
+            username="director",
+            defaults={
+                "first_name": "Gabriela",
+                "last_name": "Aguirre",
+                "rol_principal": Rol.DIRECTOR,
+            },
+        )
+        director.set_password(CLAVE)
+        director.save()
+
+        # --- Personas y expedientes ----------------------------------------
+        self.expedientes = []
+        for i, (cedula, nombres, apellidos, sexo) in enumerate(PACIENTES):
+            persona, _ = Persona.objects.get_or_create(
+                cedula=cedula,
+                defaults={
+                    "nombres": nombres,
+                    "apellidos": apellidos,
+                    "sexo": sexo,
+                    "fecha_nacimiento": date(2003, 1, 1) + timedelta(days=i * 200),
+                    "tipo_vinculo": Persona.TipoVinculo.ESTUDIANTE,
+                    "correo_institucional": f"{cedula}@unl.edu.ec",
+                },
+            )
+            exp, _ = Expediente.objects.get_or_create(
+                persona=persona, defaults={"numero_expediente": f"EXP-{cedula}"}
+            )
+            self.expedientes.append(exp)
+
+        # El estudiante del portal se vincula al primer expediente.
+        estudiante, _ = Usuario.objects.get_or_create(
+            username="estudiante",
+            defaults={
+                "first_name": PACIENTES[0][1],
+                "last_name": PACIENTES[0][2],
+                "rol_principal": Rol.USUARIO_FINAL,
+            },
+        )
+        estudiante.set_password(CLAVE)
+        estudiante.save()
+        self._vincular_portal(estudiante, self.expedientes[0])
+
+        self.periodo, _ = PeriodoAcademico.objects.get_or_create(
+            codigo="2026-1",
+            defaults={
+                "nombre": "Abril–Agosto 2026",
+                "fecha_inicio": date(2026, 4, 1),
+                "fecha_fin": date(2026, 8, 31),
+                "vigente": True,
+            },
+        )
+
+        self._agenda_y_citas()
+        self._medicina_y_enfermeria()
+        self._odontologia()
+        self._farmacia()
+        self._laboratorio()
+        self._psicologia()
+        self._talleres_y_becas()
+
+    # ------------------------------------------------------------- por módulo
+
+    def _vincular_portal(self, usuario, expediente):
+        from apps.portal.models import VinculacionPortal
+
+        VinculacionPortal.objects.get_or_create(
+            usuario=usuario,
+            defaults={
+                "expediente": expediente,
+                "verificado": True,
+                "correo_destino": expediente.persona.correo_institucional,
+                "token_hash": "demo",
+                "token_expira_en": timezone.now() + timedelta(days=365),
+            },
+        )
+
+    def _agenda_y_citas(self):
+        from apps.citas import services
+        from apps.citas.models import Agenda
+        from apps.core.models import Servicio
+
+        medicina = Servicio.objects.get(codigo="medicina")
+        perfil = self.perfiles.get("medicina")
+        if perfil is None:
+            return
+
+        # Agenda de lunes a viernes, para que haya turnos que reservar.
+        for dia in range(5):
+            Agenda.objects.get_or_create(
+                profesional=perfil,
+                servicio=medicina,
+                dia_semana=dia,
+                hora_inicio="08:00",
+                defaults={"hora_fin": "12:00", "duracion_turno_min": 20},
+            )
+
+        # Una cita en el próximo día hábil, a las 09:00 hora de Loja.
+        proximo = timezone.localtime() + timedelta(days=1)
+        while proximo.weekday() > 4:
+            proximo += timedelta(days=1)
+        inicio = proximo.replace(hour=9, minute=0, second=0, microsecond=0)
+        for exp in self.expedientes[:3]:
+            try:
+                services.reservar_cita(
+                    expediente=exp,
+                    servicio=medicina,
+                    profesional=perfil,
+                    fecha_hora=inicio,
+                    duracion_min=20,
+                )
+            except Exception:  # noqa: BLE001 - turno ocupado o fuera de agenda
+                pass
+            inicio += timedelta(minutes=20)
+
+    def _medicina_y_enfermeria(self):
+        from apps.enfermeria.models import SignosVitales
+        from apps.medicina import services
+
+        med, enf = self.perfiles.get("medicina"), self.perfiles.get("enfermeria")
+        if med is None:
+            return
+
+        for exp in self.expedientes[:3]:
+            if enf is not None and not SignosVitales.objects.filter(expediente=exp).exists():
+                SignosVitales.objects.create(
+                    expediente=exp,
+                    temperatura="36.8",
+                    fc=72,
+                    fr=16,
+                    pa_sistolica=118,
+                    pa_diastolica=76,
+                    sat_o2=97,
+                    peso="62.5",
+                    talla="1.65",
+                    responsable=enf,
+                )
+            if not exp.atenciones.filter(servicio__codigo="medicina").exists():
+                services.crear_atencion_medicina(
+                    expediente=exp, profesional=med, motivo="Cefalea de 3 días de evolución"
+                )
+
+    def _odontologia(self):
+        from apps.odontologia import services
+
+        perfil = self.perfiles.get("odontologia")
+        if perfil is None:
+            return
+        for exp in self.expedientes[3:5]:
+            if exp.atenciones.filter(servicio__codigo="odontologia").exists():
+                continue
+            hc = services.crear_atencion_odontologia(
+                expediente=exp, profesional=perfil, motivo="Control y profilaxis"
+            )
+            services.registrar_estado_pieza(hc.atencion, "16", "cariado")
+            services.registrar_estado_pieza(hc.atencion, "26", "obturado")
+            services.registrar_estado_pieza(hc.atencion, "36", "sano")
+
+    def _farmacia(self):
+        from apps.farmacia import services
+        from apps.farmacia.models import Medicamento
+
+        perfil = self.perfiles.get("farmacia")
+        if perfil is None:
+            return
+
+        catalogo = [
+            ("MED-001", "Paracetamol", "500 mg", "tableta", 50),
+            ("MED-002", "Ibuprofeno", "400 mg", "tableta", 40),
+            ("MED-003", "Amoxicilina", "500 mg", "cápsula", 30),
+            ("MED-004", "Loratadina", "10 mg", "tableta", 20),
+        ]
+        medicamentos = []
+        for codigo, dci, conc, forma, minimo in catalogo:
+            med, _ = Medicamento.objects.get_or_create(
+                codigo=codigo,
+                defaults={
+                    "dci": dci,
+                    "concentracion": conc,
+                    "forma_farmaceutica": forma,
+                    "unidad_medida": forma,
+                    "stock_minimo": minimo,
+                },
+            )
+            medicamentos.append(med)
+
+        hoy = timezone.localdate()
+        for i, med in enumerate(medicamentos):
+            # Dos lotes con caducidades distintas: así el FEFO se ve funcionar.
+            for sufijo, dias, cantidad in (("A", 120, 200), ("B", 400, 300)):
+                try:
+                    services.ingresar_lote(
+                        med,
+                        f"L-{med.codigo}-{sufijo}",
+                        cantidad,
+                        hoy + timedelta(days=dias + i),
+                        usuario=perfil,
+                    )
+                except Exception:  # noqa: BLE001 - ya ingresado
+                    pass
+
+        # Una receta pendiente en el mostrador, emitida desde una consulta.
+        atencion = self._primera_atencion("medicina")
+        if atencion is not None and not atencion.recetas.exists():
+            services.emitir_receta(
+                atencion,
+                [
+                    {
+                        "medicamento_id": medicamentos[0].id,
+                        "cantidad_prescrita": 12,
+                        "dosis": "1 tableta",
+                        "frecuencia": "cada 8 horas",
+                        "duracion": "4 días",
+                    },
+                    {
+                        "medicamento_id": medicamentos[1].id,
+                        "cantidad_prescrita": 6,
+                        "dosis": "1 tableta",
+                        "frecuencia": "cada 12 horas",
+                        "duracion": "3 días",
+                    },
+                ],
+            )
+
+    def _laboratorio(self):
+        from apps.laboratorio import services
+        from apps.laboratorio.models import Examen, ParametroExamen
+
+        perfil = self.perfiles.get("laboratorio-clinico")
+        if perfil is None:
+            return
+
+        examen, creado = Examen.objects.get_or_create(
+            codigo="BH", defaults={"nombre": "Biometría hemática"}
+        )
+        if creado:
+            ParametroExamen.objects.create(
+                examen=examen, nombre="Hemoglobina", unidad="g/dL", ref_min=12, ref_max=16
+            )
+            ParametroExamen.objects.create(
+                examen=examen, nombre="Leucocitos", unidad="10³/µL", ref_min=4, ref_max=11
+            )
+
+        atencion = self._primera_atencion("medicina")
+        if atencion is not None and not atencion.ordenes_lab.exists():
+            services.crear_orden(atencion, [examen.id], diagnostico_presuntivo="Descartar anemia")
+
+    def _psicologia(self):
+        """
+        Un proceso psicológico, para que el servicio no aparezca vacío.
+
+        No se toca el sello: estos datos solo los verá quien pertenezca a
+        Psicología, igual que en producción.
+        """
+        from apps.psicologia import services
+
+        perfil = self.perfiles.get("psicologia")
+        if perfil is None:
+            return
+        exp = self.expedientes[5]
+        if exp.atenciones.filter(servicio__codigo="psicologia").exists():
+            return
+        services.crear_ficha(
+            expediente=exp,
+            profesional=perfil,
+            motivo="Ansiedad ante evaluaciones",
+            usuario=perfil.usuario,
+        )
+
+    def _talleres_y_becas(self):
+        from apps.becas import services as becas_services
+        from apps.becas.models import TipoBeca
+        from apps.core.models import Servicio
+        from apps.talleres import services as talleres_services
+
+        # Taller: registrar a alguien en un taller NO le abre expediente.
+        perfil_psico = self.perfiles.get("psicologia")
+        if perfil_psico is not None:
+            psico = Servicio.objects.get(codigo="psicologia")
+            from apps.talleres.models import Taller
+
+            if not Taller.objects.exists():
+                taller = talleres_services.crear_taller(
+                    servicio=psico,
+                    responsable=perfil_psico,
+                    tema="Manejo del estrés en época de exámenes",
+                    fecha=timezone.localdate(),
+                    usuario=perfil_psico.usuario,
+                )
+                for cedula, *_ in PACIENTES[:4]:
+                    try:
+                        talleres_services.registrar_participante(taller, cedula=cedula)
+                    except Exception:  # noqa: BLE001
+                        pass
+
+        # Beca sobre un expediente distinto del que ya tiene actividad clínica.
+        perfil_becas = self.perfiles.get("becas-y-ayudas-economicas")
+        if perfil_becas is not None:
+            tipo, _ = TipoBeca.objects.get_or_create(
+                codigo="socioeconomica",
+                defaults={"nombre": "Beca socioeconómica"},
+            )
+            try:
+                becas_services.registrar_beneficiario(
+                    expediente=self.expedientes[1],
+                    tipo_beca=tipo,
+                    periodo_desde=self.periodo,
+                    profesional=perfil_becas,
+                    monto_o_porcentaje="50 %",
+                    resolucion="RES-UNL-2026-014",
+                    usuario=perfil_becas.usuario,
+                )
+            except Exception:  # noqa: BLE001 - ya registrada
+                pass
+
+    # ----------------------------------------------------------------- apoyo
+
+    def _primera_atencion(self, codigo_servicio):
+        for exp in self.expedientes:
+            atencion = exp.atenciones.filter(servicio__codigo=codigo_servicio).first()
+            if atencion is not None:
+                return atencion
+        return None
+
+    def _credenciales(self):
+        ok = self.style.SUCCESS
+        self.stdout.write("")
+        self.stdout.write(ok("Datos de demostración listos."))
+        self.stdout.write("")
+        self.stdout.write(f"  Contraseña para todas las cuentas: {CLAVE}")
+        self.stdout.write("")
+        self.stdout.write("  usuario         entra a")
+        self.stdout.write("  " + "-" * 58)
+        for username, _n, _a, codigo, _rol in PROFESIONALES:
+            if codigo in self.perfiles:
+                self.stdout.write(f"  {username:<15} su servicio ({codigo})")
+        self.stdout.write(f"  {'director':<15} tablero de gestión, sin contenido clínico")
+        self.stdout.write(f"  {'estudiante':<15} portal del paciente (/portal/)")
+        self.stdout.write("")
+        self.stdout.write(
+            "  Cada profesional ve SOLO su servicio: es el comportamiento real.\n"
+            "  Para recorrerlo todo con una cuenta, use 'python manage.py perfil_dev'."
+        )
+        self.stdout.write("")

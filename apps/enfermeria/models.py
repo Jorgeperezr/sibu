@@ -5,12 +5,22 @@ Los signos vitales registrados aquí son reutilizables por Medicina dentro del
 mismo día (la HC médica los muestra automáticamente cuando existen).
 """
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.db import models
 
 from apps.expediente.models import Atencion, Expediente
 from apps.usuarios.models import PerfilProfesional
+
+
+def _a_decimal(valor):
+    """Decimal, o None si el valor no es un número utilizable."""
+    if valor is None or valor == "":
+        return None
+    try:
+        return Decimal(str(valor))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
 
 
 class SignosVitales(models.Model):
@@ -111,8 +121,14 @@ class SignosVitales(models.Model):
         return f"Signos vitales {self.fecha_hora:%d/%m/%Y %H:%M} — {self.expediente}"
 
     def save(self, *args, **kwargs):
-        if self.peso and self.talla and self.talla > 0:
-            self.imc = Decimal(str(round(float(self.peso) / (float(self.talla) ** 2), 1)))
+        # `self.talla` es lo que se asignó, no lo que el campo convertirá: al
+        # crear con `talla="1.65"` —desde el shell, el admin o una carga— aquí
+        # sigue siendo una cadena, y comparar cadena con entero reventaba con
+        # TypeError. La vista de triaje se salvaba porque convierte antes; el
+        # resto de caminos, no. Se convierte aquí, que es donde se calcula.
+        peso, talla = _a_decimal(self.peso), _a_decimal(self.talla)
+        if peso and talla and talla > 0:
+            self.imc = Decimal(str(round(float(peso) / (float(talla) ** 2), 1)))
         super().save(*args, **kwargs)
 
 

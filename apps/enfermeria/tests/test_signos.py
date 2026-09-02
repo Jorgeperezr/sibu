@@ -90,3 +90,56 @@ def test_ultimo_triaje_expirado_devuelve_none(escenario):
         )
     with freeze_time("2026-01-06 10:00:00"):
         assert ultimo_triaje(escenario["exp"]) is None
+
+
+@pytest.mark.django_db
+def test_el_imc_se_calcula_aunque_lleguen_cadenas(escenario):
+    """
+    Regresión: `save()` comparaba `self.talla > 0` sin convertir el tipo.
+
+    `self.talla` es lo que se asignó, no lo que el campo convertirá al guardar:
+    al crear con `talla="1.65"` —desde el shell, el admin o una carga de datos—
+    seguía siendo una cadena, y comparar cadena con entero reventaba con
+    TypeError. La vista de triaje se salvaba porque convierte antes con
+    `_dec()`; ningún otro camino lo hacía.
+    """
+    sv = SignosVitales.objects.create(
+        expediente=escenario["exp"],
+        peso="62.5",
+        talla="1.65",
+        responsable=escenario["enfermera"],
+    )
+    assert sv.imc == Decimal("23.0")
+
+
+@pytest.mark.django_db
+def test_sin_talla_se_registra_la_toma_sin_imc(escenario):
+    """Falta un dato para el IMC, no la toma entera: se guarda lo demás."""
+    sv = SignosVitales.objects.create(
+        expediente=escenario["exp"],
+        peso="62.5",
+        talla=None,
+        fc=72,
+        responsable=escenario["enfermera"],
+    )
+    assert sv.imc is None
+    assert sv.fc == 72
+
+
+@pytest.mark.django_db
+def test_una_talla_ilegible_se_rechaza_no_se_guarda_a_medias(escenario):
+    """
+    Una talla que no es un número no entra en silencio: el campo la rechaza.
+
+    Importa que sea así y no un `imc = None` discreto, porque un peso guardado
+    junto a una talla basura daría una toma incompleta sin que nadie lo note.
+    """
+    from django.core.exceptions import ValidationError
+
+    with pytest.raises(ValidationError):
+        SignosVitales.objects.create(
+            expediente=escenario["exp"],
+            peso="62.5",
+            talla="no aplica",
+            responsable=escenario["enfermera"],
+        )
