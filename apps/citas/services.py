@@ -141,10 +141,11 @@ def reservar_cita(
     if not agendas.exists():
         raise ValidationError("El horario está fuera de la agenda del profesional.")
 
-    # 2) Sin conflicto: la restricción única de BD lo respalda a nivel base
-    if Cita.objects.filter(
-        profesional=profesional, fecha_hora=fecha_hora, estado__in=ESTADOS_ACTIVOS
-    ).exists():
+    # 2) Sin conflicto. La restricción única de BD respalda el choque exacto de
+    #    `fecha_hora`, pero solo ese: una cita de 10:00 a 10:40 y otra de 10:20
+    #    no coinciden en la hora de inicio y entraban las dos, dejando al
+    #    profesional con dos pacientes a la vez. Hay que comparar intervalos.
+    if _hay_solapamiento(profesional, fecha_hora, fin):
         raise ValidationError("El turno ya está ocupado.")
 
     # 3) Sin bloqueo activo
@@ -162,6 +163,29 @@ def reservar_cita(
         cita_origen=cita_origen,
         creado_por=usuario,
     )
+
+
+def _hay_solapamiento(profesional, inicio, fin, excluir_pk=None) -> bool:
+    """
+    ¿Choca [inicio, fin) con alguna cita activa del profesional?
+
+    Dos intervalos se solapan si cada uno empieza antes de que el otro termine.
+    El extremo derecho queda abierto a propósito: una cita puede empezar justo
+    cuando termina la anterior.
+
+    El filtro por día acota la exploración a las citas que pueden chocar; sin
+    él habría que traer la agenda entera del profesional. Se toma un margen de
+    un día a cada lado para no perder una cita que cruce la medianoche.
+    """
+    candidatas = Cita.objects.filter(
+        profesional=profesional,
+        estado__in=ESTADOS_ACTIVOS,
+        fecha_hora__gte=inicio - timedelta(days=1),
+        fecha_hora__lt=fin + timedelta(days=1),
+    )
+    if excluir_pk is not None:
+        candidatas = candidatas.exclude(pk=excluir_pk)
+    return any(cita.fecha_hora < fin and inicio < cita.fin for cita in candidatas)
 
 
 def cambiar_estado(cita: Cita, nuevo: str, usuario=None) -> Cita:

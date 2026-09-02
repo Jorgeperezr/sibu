@@ -533,3 +533,31 @@ def test_un_firmador_interno_si_puede_firmar_psicologia(escenario, settings):
         verificar_puede_salir_a_firmar(atencion, proveedor=get_provider())
     # Con uno interno, permitido: el contenido no sale.
     verificar_puede_salir_a_firmar(atencion, proveedor=FirmadorInterno())
+
+
+@pytest.mark.django_db
+def test_el_rechazo_del_callback_queda_auditado(escenario, settings):
+    """
+    Un intento de firma rechazado tiene que dejar rastro, y dejarlo de verdad.
+
+    `_registrar_rechazo` escribe el log y el llamador lanza ValidationError
+    acto seguido: es justo la secuencia que CLAUDE.md señala como trampa —
+    auditar y abortar en la misma transacción revierte el propio log—. Con
+    `ATOMIC_REQUESTS = True` toda la petición es una transacción, así que lo
+    único que salva el registro es que el endpoint capture el error en vez de
+    dejarlo escapar. Esta prueba fija esa garantía por la vía real, el POST.
+
+    Las pruebas de rechazo vecinas comprueban que la firma no se guarda; esta
+    comprueba lo contrario: que lo que sí debe guardarse, se guarda.
+    """
+    from apps.auditoria.models import LogAuditoria
+
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    r = _callback(escenario["s"].correlacion, firmasValidas=False)
+    assert r.status_code == 400  # respuesta controlada, no un 500
+
+    log = LogAuditoria.objects.filter(
+        modulo="firma", resultado="rechazado", entidad_id=str(escenario["s"].pk)
+    ).first()
+    assert log is not None, "el intento de firma rechazado no quedó auditado"
+    assert "no son válidas" in log.detalle["motivo"]
