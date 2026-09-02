@@ -1,42 +1,61 @@
 {% extends "base.html" %}
 {% block title %}SIBU — Bienestar Universitario UNL{% endblock %}
 {% block content %}
-<div class="p-4 mb-4 bg-light rounded-3">
-  <h1 class="display-6">Sistema Integral de Bienestar Universitario</h1>
-  <p class="text-muted mb-0">Universidad Nacional de Loja — Unidad de Bienestar Universitario.</p>
-</div>
 
 {% if user.is_authenticated %}
-  {% if nav_modulos %}
-  <h2 class="h5 mb-3">Acceso a los módulos</h2>
-  <div class="row g-3">
-    {% for m in nav_modulos %}
-    <div class="col-sm-6 col-lg-4">
-      <a href="{% url m.url_name %}" class="text-decoration-none">
-        <div class="card h-100 border-0 shadow-sm">
-          <div class="card-body d-flex justify-content-between align-items-center">
-            <span class="fw-semibold text-dark">{{ m.etiqueta }}</span>
-            <span class="text-primary">→</span>
-          </div>
-        </div>
+<div class="sibu-portada mb-4">
+  <h1 class="h4 mb-1">Hola, {{ user.get_full_name|default:user.username }}</h1>
+  <p class="text-muted mb-0">
+    Unidad de Bienestar Universitario · Universidad Nacional de Loja
+  </p>
+</div>
+
+<div class="mb-3 d-flex flex-wrap gap-2">
+  <a href="{% url 'expediente:buscar' %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-search"></i> Buscar expediente
+  </a>
+  <a href="{% url 'expediente:nuevo' %}" class="btn btn-outline-primary btn-sm">
+    <i class="bi bi-person-plus"></i> Registrar persona
+  </a>
+</div>
+
+{% if nav_grupos %}
+  {% comment %}
+  Los mismos grupos que la barra lateral, del mismo origen: la portada no
+  mantiene una lista propia que se desincronice.
+  {% endcomment %}
+  {% for grupo, modulos in nav_grupos %}
+  <h2 class="sibu-seccion">{{ grupo }}</h2>
+  <div class="row g-2 mb-4">
+    {% for m in modulos %}
+    <div class="col-sm-6 col-lg-4 col-xl-3">
+      <a href="{% url m.url_name %}" class="sibu-tarjeta">
+        <span>{{ m.etiqueta }}</span>
+        <i class="bi bi-arrow-right"></i>
       </a>
     </div>
     {% endfor %}
   </div>
-  {% else %}
-  <div class="alert alert-warning">
-    Su cuenta no tiene módulos asignados todavía. Si es profesional, pida a la
-    administración que le asigne un servicio; si es estudiante, use el portal.
-  </div>
-  {% endif %}
-
-  <div class="mt-4 d-flex gap-2">
-    <a href="{% url 'docs' %}" class="btn btn-outline-secondary btn-sm">Documentación de la API</a>
-    {% if user.is_staff %}
-    <a href="/admin/" class="btn btn-outline-secondary btn-sm">Administración</a>
-    {% endif %}
-  </div>
+  {% endfor %}
 {% else %}
-  <p><a href="{% url 'login' %}" class="btn btn-primary">Ingresar</a></p>
+<div class="alert alert-warning">
+  Su cuenta no tiene módulos asignados todavía. Si es profesional, pida a la
+  administración que le asigne un servicio; si es estudiante, use el portal.
+</div>
+{% endif %}
+
+<div class="mt-4 d-flex gap-2">
+  <a href="{% url 'docs' %}" class="btn btn-outline-secondary btn-sm">Documentación de la API</a>
+  {% if user.is_staff %}
+  <a href="/admin/" class="btn btn-outline-secondary btn-sm">Administración</a>
+  {% endif %}
+</div>
+
+{% else %}
+<div class="text-center py-5">
+  <h1 class="h3">Sistema Integral de Bienestar Universitario</h1>
+  <p class="text-muted">Universidad Nacional de Loja</p>
+  <a href="{% url 'login' %}" class="btn btn-primary mt-2">Ingresar</a>
+</div>
 {% endif %}
 {% endblock %}

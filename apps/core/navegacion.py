@@ -157,6 +157,30 @@ def acciones_expediente(user):
     return [a for a in ACCIONES_EXPEDIENTE if _ve_modulo(user, a, servicios_ids, codigos_por_id)]
 
 
+def modulos_por_grupo(user):
+    """
+    Los módulos visibles, agrupados y en el orden en que aparecen.
+
+    La barra lateral crece por grupos: añadir un módulo es una fila más dentro
+    del suyo, no un enlace que estrecha una barra horizontal ya llena. El campo
+    `grupo` del dataclass existía desde el Sprint 12 sin usarse para esto.
+
+    Devuelve [(grupo, [módulos]), ...] en vez de un dict para que el orden sea
+    el de `MODULOS` y la plantilla no tenga que ordenar nada.
+    """
+    grupos: list[tuple[str, list]] = []
+    indice: dict[str, list] = {}
+    for modulo in modulos_visibles(user):
+        if modulo.grupo not in indice:
+            indice[modulo.grupo] = []
+            grupos.append((modulo.grupo, indice[modulo.grupo]))
+        indice[modulo.grupo].append(modulo)
+    return grupos
+
+
 def navegacion(request):
-    """Context processor: expone `nav_modulos` en todas las plantillas."""
-    return {"nav_modulos": modulos_visibles(request.user)}
+    """Context processor: expone la navegación en todas las plantillas."""
+    return {
+        "nav_modulos": modulos_visibles(request.user),
+        "nav_grupos": modulos_por_grupo(request.user),
+    }

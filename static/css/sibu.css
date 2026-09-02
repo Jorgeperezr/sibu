@@ -22,6 +22,8 @@
   --sibu-muted: #64748b;
   --sibu-border: #e2e8f0;
   --sibu-confidencial: #b45309;
+  --sibu-side-bg: #12352a;
+  --sibu-side-w: 232px;
 }
 
 body {
@@ -30,25 +32,180 @@ body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-/* ---- Barra superior: verde institucional en vez del azul de Bootstrap ---- */
-.navbar.bg-primary {
-  background: linear-gradient(90deg, var(--sibu-primary), var(--sibu-primary-dark)) !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+/* ==========================================================================
+   Armazón: barra lateral fija + contenido
+   ==========================================================================
+   Trece módulos no caben legibles en una barra horizontal. La lateral los
+   agrupa por sección y crece hacia abajo, que es gratis; añadir un módulo no
+   estrecha a los demás. Bajo 992 px la misma lista se sirve como panel
+   deslizante y el contenido ocupa todo el ancho.
+   ------------------------------------------------------------------------ */
+.sibu-shell {
+  display: flex;
+  min-height: 100vh;
 }
-.navbar-brand {
+.sibu-side {
+  width: var(--sibu-side-w);
+  flex: 0 0 var(--sibu-side-w);
+  background: var(--sibu-side-bg);
+  color: #dbe7e1;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+.sibu-main {
+  flex: 1 1 auto;
+  min-width: 0; /* sin esto una tabla ancha desborda el flex en vez de scrollar */
+  display: flex;
+  flex-direction: column;
+}
+.sibu-contenido {
+  flex: 1 0 auto;
+  padding: 1.75rem 2rem;
+  max-width: 1200px;
+  width: 100%;
+}
+
+/* ---- Marca ---- */
+.sibu-marca {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.1rem 1.25rem;
+  color: #fff;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.sibu-marca strong {
+  display: block;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+.sibu-marca small {
+  display: block;
+  font-size: 0.7rem;
+  color: #9fc4b4;
+}
+.sibu-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 0.5rem;
+  background: var(--sibu-primary);
+  color: #fff;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
 }
-.navbar .nav-link {
+
+/* ---- Enlaces agrupados ---- */
+.sibu-nav {
+  padding: 0.9rem 0.75rem;
+}
+.sibu-grupo + .sibu-grupo {
+  margin-top: 1.1rem;
+}
+.sibu-grupo-titulo {
+  display: block;
+  padding: 0 0.6rem 0.35rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #7fa697;
+}
+.sibu-enlace {
+  display: block;
+  padding: 0.44rem 0.6rem;
   border-radius: 0.4rem;
-  padding: 0.35rem 0.7rem !important;
-  transition: background 0.15s;
+  color: #dbe7e1;
+  text-decoration: none;
+  font-size: 0.93rem;
+  line-height: 1.35;
 }
-.navbar .nav-link:hover {
-  background: rgba(255, 255, 255, 0.12);
+.sibu-enlace:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
-.navbar .nav-link.active {
-  background: rgba(255, 255, 255, 0.2);
+.sibu-enlace.activo {
+  background: var(--sibu-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ---- Usuario, al pie de la lateral ---- */
+.sibu-usuario {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+}
+.sibu-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  background: var(--sibu-primary);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+.sibu-usuario-datos {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.sibu-usuario-datos span {
+  display: block;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sibu-usuario-datos small {
+  color: #7fa697;
+  font-size: 0.72rem;
+}
+.sibu-salir {
+  color: #9fc4b4;
+  font-size: 1.1rem;
+}
+.sibu-salir:hover {
+  color: #fff;
+}
+
+/* ---- Cabecera solo para pantallas pequeñas ---- */
+.sibu-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: var(--sibu-side-bg);
+}
+.sibu-marca-movil {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.sibu-side-movil {
+  background: var(--sibu-side-bg);
+  color: #dbe7e1;
+}
+.sibu-side-movil .offcanvas-title {
+  color: #fff;
+}
+.sibu-side-movil .btn-close {
+  filter: invert(1) grayscale(1) brightness(2);
+}
+
+@media (max-width: 991.98px) {
+  .sibu-contenido {
+    padding: 1.25rem 1rem;
+  }
 }
 
 /* ---- Botones y enlaces primarios heredan el verde ---- */
@@ -107,9 +264,9 @@ a .card:hover {
 }
 
 /* ---- Encabezado de página: una línea de acento bajo el primer título ---- */
-main > .container > h1:first-child,
-main h1.h4,
-main h2:first-of-type {
+.sibu-contenido > h1:first-child,
+.sibu-contenido h1.h4,
+.sibu-contenido > h2:first-of-type {
   padding-bottom: 0.4rem;
   border-bottom: 3px solid var(--sibu-accent);
   display: inline-block;
@@ -127,11 +284,14 @@ main h2:first-of-type {
 
 /* ---- Pie discreto ---- */
 .sibu-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   color: var(--sibu-muted);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   border-top: 1px solid var(--sibu-border);
-  margin-top: 3rem;
-  padding: 1.2rem 0;
+  padding: 1rem 2rem;
 }
 
 /* ---- Accesibilidad: foco visible para navegación por teclado ---- */
@@ -140,4 +300,59 @@ a:focus-visible,
 .form-control:focus {
   outline: 2px solid var(--sibu-accent);
   outline-offset: 1px;
+}
+
+/* ==========================================================================
+   Portada
+   ========================================================================== */
+.sibu-portada {
+  border-left: 3px solid var(--sibu-accent);
+  padding-left: 0.9rem;
+}
+.sibu-seccion {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--sibu-muted);
+  margin-bottom: 0.6rem;
+  /* Sin esto hereda el subrayado de acento de los títulos de página. */
+  border-bottom: 0;
+  padding-bottom: 0;
+  display: block;
+}
+
+/* Tarjeta de módulo: un rectángulo con nombre y flecha. Nada más, para que la
+   vista de conjunto se lea de un vistazo aunque haya trece. */
+.sibu-tarjeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  background: #fff;
+  border: 1px solid var(--sibu-border);
+  border-radius: 0.5rem;
+  color: var(--sibu-text);
+  text-decoration: none;
+  font-weight: 500;
+  transition: border-color 0.12s, transform 0.12s, box-shadow 0.12s;
+}
+.sibu-tarjeta i {
+  color: var(--sibu-muted);
+}
+.sibu-tarjeta:hover {
+  border-color: var(--sibu-primary);
+  color: var(--sibu-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
+}
+.sibu-tarjeta:hover i {
+  color: var(--sibu-primary);
+}
+
+/* Sin sesión: sin lateral, el contenido centrado y estrecho. */
+.sibu-shell-publico .sibu-contenido {
+  max-width: 560px;
+  margin: 0 auto;
+  padding-top: 3rem;
 }

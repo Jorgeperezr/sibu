@@ -27,15 +27,37 @@ from django.utils import timezone
 
 CLAVE = "sibu-demo-2026"
 
+# Cuenta de administración solicitada para probar el sistema completo.
+#
+# La contraseña no pasa la política del proyecto —AUTH_PASSWORD_VALIDATORS pide
+# 12 caracteres y esta tiene 9—, y no hace falta que la pase: los validadores
+# solo actúan sobre formularios (el admin, `createsuperuser`, el cambio de
+# contraseña), no sobre `set_password()`. Así esta cuenta existe sin rebajar la
+# política que protege al resto, que sigue intacta.
+ADMIN = {
+    "username": "jorge.perez@unl.edu.ec",
+    "email": "jorge.perez@unl.edu.ec",
+    "first_name": "Jorge",
+    "last_name": "Pérez",
+    "clave": "Jorge2025",
+}
+
 # Cédulas ficticias que pasan el módulo 10 ecuatoriano: `Persona.save()` las
 # valida, así que un número inventado a ojo no entraría.
 PACIENTES = [
-    ("1101001004", "María Fernanda", "Jaramillo Ochoa", "F"),
-    ("1102002001", "Luis Alberto", "Cueva Riofrío", "M"),
-    ("1103003008", "Ana Belén", "Sarango Guamán", "F"),
-    ("1104004005", "Diego Armando", "Tandazo Loaiza", "M"),
-    ("1105005001", "Carmen Rocío", "Chamba Vivanco", "F"),
-    ("1106006008", "Jorge Andrés", "Espinosa Torres", "M"),
+    # (cédula, nombres, apellidos, sexo, vínculo con la UNL)
+    ("1101001004", "María Fernanda", "Jaramillo Ochoa", "F", "estudiante"),
+    ("1102002001", "Luis Alberto", "Cueva Riofrío", "M", "estudiante"),
+    ("1103003008", "Ana Belén", "Sarango Guamán", "F", "estudiante"),
+    ("1104004005", "Diego Armando", "Tandazo Loaiza", "M", "estudiante"),
+    ("1105005001", "Carmen Rocío", "Chamba Vivanco", "F", "estudiante"),
+    ("1106006008", "Jorge Andrés", "Espinosa Torres", "M", "estudiante"),
+    ("1109009009", "Silvia Patricia", "Ruiz Montoya", "F", "estudiante"),
+    ("1110001003", "Kevin Joel", "Padilla Ortega", "M", "estudiante"),
+    ("1111002000", "Doris Elizabeth", "Camacho León", "F", "docente"),
+    ("1112003007", "Fabián Eduardo", "Correa Salinas", "M", "docente"),
+    ("1703003002", "Nancy Alexandra", "Bustamante Rojas", "F", "administrativo"),
+    ("1704004009", "Byron Patricio", "Aguilar Zúñiga", "M", "trabajador"),
 ]
 
 # (username, nombre, apellido, código de servicio, rol)
@@ -86,7 +108,11 @@ class Command(BaseCommand):
         from apps.usuarios.models import Usuario
 
         cedulas = [c for c, *_ in PACIENTES]
-        usuarios = [u for u, *_ in PROFESIONALES] + ["director", "estudiante"]
+        usuarios = [u for u, *_ in PROFESIONALES] + [
+            "director",
+            "estudiante",
+            ADMIN["username"],
+        ]
         # Las atenciones cuelgan del expediente con PROTECT, así que se borra
         # desde la persona hacia abajo con el borrado en cascada de Django.
         Persona.objects.filter(cedula__in=cedulas).delete()
@@ -133,9 +159,11 @@ class Command(BaseCommand):
         director.set_password(CLAVE)
         director.save()
 
+        self._administrador()
+
         # --- Personas y expedientes ----------------------------------------
         self.expedientes = []
-        for i, (cedula, nombres, apellidos, sexo) in enumerate(PACIENTES):
+        for i, (cedula, nombres, apellidos, sexo, vinculo) in enumerate(PACIENTES):
             persona, _ = Persona.objects.get_or_create(
                 cedula=cedula,
                 defaults={
@@ -143,8 +171,9 @@ class Command(BaseCommand):
                     "apellidos": apellidos,
                     "sexo": sexo,
                     "fecha_nacimiento": date(2003, 1, 1) + timedelta(days=i * 200),
-                    "tipo_vinculo": Persona.TipoVinculo.ESTUDIANTE,
+                    "tipo_vinculo": vinculo,
                     "correo_institucional": f"{cedula}@unl.edu.ec",
+                    "celular": f"09{cedula[:8]}",
                 },
             )
             exp, _ = Expediente.objects.get_or_create(
@@ -182,6 +211,54 @@ class Command(BaseCommand):
         self._laboratorio()
         self._psicologia()
         self._talleres_y_becas()
+
+    def _administrador(self):
+        """
+        Cuenta con acceso a todo, para recorrer el sistema sin cambiar de sesión.
+
+        ADVERTENCIA: su perfil incluye los NUEVE servicios, Psicología entre
+        ellos. Eso rompe el sello de confidencialidad a propósito —igual que
+        `perfil_dev`— para poder navegar en desarrollo. En producción cada
+        profesional lleva únicamente su servicio, y esta cuenta no debe existir:
+        por eso el comando entero se niega a correr con DEBUG=False.
+        """
+        from django.contrib.auth.models import Permission
+
+        from apps.core.models import Servicio
+        from apps.usuarios.models import PerfilProfesional, Rol, Usuario
+
+        admin, _ = Usuario.objects.get_or_create(
+            username=ADMIN["username"],
+            defaults={"email": ADMIN["email"]},
+        )
+        admin.email = ADMIN["email"]
+        admin.first_name = ADMIN["first_name"]
+        admin.last_name = ADMIN["last_name"]
+
+        # El rol es PROFESIONAL, no ADMIN_GENERAL, y esto no es un descuido:
+        # `rbac.atenciones_visibles` le niega el contenido clínico a quien sea
+        # administrador —`es_admin()` cubre ADMIN_GENERAL y is_superuser— por
+        # separación de funciones. Con rol de administrador, esta cuenta abriría
+        # cada expediente y vería "0 atenciones visibles", que es justo lo
+        # contrario de poder probar el sistema.
+        admin.rol_principal = Rol.PROFESIONAL
+
+        # Para el admin de Django se usan permisos explícitos en lugar de
+        # is_superuser: el atajo habría vuelto a activar `es_admin()` y a
+        # ocultarle el contenido clínico.
+        admin.is_staff = True
+        admin.is_superuser = False
+        admin.set_password(ADMIN["clave"])
+        admin.save()
+        admin.user_permissions.set(Permission.objects.all())
+
+        seccion = Servicio.objects.filter(codigo="medicina").first()
+        perfil, _ = PerfilProfesional.objects.get_or_create(
+            usuario=admin,
+            defaults={"seccion": seccion.seccion if seccion else None},
+        )
+        perfil.servicios.set(Servicio.objects.all())
+        self.admin = admin
 
     # ------------------------------------------------------------- por módulo
 
@@ -451,7 +528,11 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write(ok("Datos de demostración listos."))
         self.stdout.write("")
-        self.stdout.write(f"  Contraseña para todas las cuentas: {CLAVE}")
+        self.stdout.write(ok("  Cuenta con acceso a todo (los nueve servicios y /admin/):"))
+        self.stdout.write(f"    usuario:    {ADMIN['username']}")
+        self.stdout.write(f"    contraseña: {ADMIN['clave']}")
+        self.stdout.write("")
+        self.stdout.write(f"  Resto de cuentas, contraseña: {CLAVE}")
         self.stdout.write("")
         self.stdout.write("  usuario         entra a")
         self.stdout.write("  " + "-" * 58)
