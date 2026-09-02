@@ -161,3 +161,62 @@ def test_visita_futura_rechazada(escenario):
     )
     with pytest.raises(ValidationError, match="fecha futura"):
         services.registrar_visita(atencion, fecha=timezone.localdate() + timedelta(days=1))
+
+
+# ==========================================================================
+# Una sola ficha vigente: es la que decide el puntaje con el que se da una beca
+# ==========================================================================
+
+
+@pytest.mark.django_db
+def test_no_puede_haber_dos_fichas_vigentes_del_mismo_expediente(escenario):
+    """
+    `ficha_vigente()` hace `.filter(vigente=True).first()` sin orden definido.
+    Con dos vigentes devolvería una arbitraria, y de ella salen el puntaje y el
+    estrato con los que se resuelve una beca. La base tiene que impedirlo.
+    """
+    from django.db import IntegrityError, transaction
+
+    exp = escenario["exp"]
+    FichaSocioeconomica.objects.create(expediente=exp, version=1, vigente=True)
+    with pytest.raises(IntegrityError), transaction.atomic():
+        FichaSocioeconomica.objects.create(expediente=exp, version=2, vigente=True)
+
+
+@pytest.mark.django_db
+def test_las_versiones_no_se_repiten_en_un_expediente(escenario):
+    """El historial se ordena por versión: repetirla lo vuelve ambiguo."""
+    from django.db import IntegrityError, transaction
+
+    exp = escenario["exp"]
+    FichaSocioeconomica.objects.create(expediente=exp, version=1, vigente=True)
+    with pytest.raises(IntegrityError), transaction.atomic():
+        FichaSocioeconomica.objects.create(expediente=exp, version=1, vigente=False)
+
+
+@pytest.mark.django_db
+def test_varias_versiones_no_vigentes_conviven(escenario):
+    """El historial completo se conserva: solo la vigencia es única."""
+    exp = escenario["exp"]
+    FichaSocioeconomica.objects.create(expediente=exp, version=1, vigente=False)
+    FichaSocioeconomica.objects.create(expediente=exp, version=2, vigente=False)
+    FichaSocioeconomica.objects.create(expediente=exp, version=3, vigente=True)
+    assert FichaSocioeconomica.objects.filter(expediente=exp).count() == 3
+
+
+@pytest.mark.django_db
+def test_verificar_ficha_deja_una_sola_vigente(escenario):
+    """
+    El versionado desmarcaba la anterior DESPUÉS de crear la nueva y sin
+    transacción: un fallo entre ambos pasos dejaba dos vigentes.
+    """
+    exp = escenario["exp"]
+    services.prepoblar_desde_matricula(exp)
+    ts = escenario["trabajador"]
+    services.verificar_ficha(exp, {"ingresos": {"sueldo": 400}}, profesional=ts)
+    services.verificar_ficha(exp, {"ingresos": {"sueldo": 500}}, profesional=ts)
+
+    vigentes = FichaSocioeconomica.objects.filter(expediente=exp, vigente=True)
+    assert vigentes.count() == 1
+    assert vigentes.first().version == 3
+    assert FichaSocioeconomica.objects.filter(expediente=exp).count() == 3
