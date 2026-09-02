@@ -59,15 +59,22 @@ def preparar_solicitud(
     No contacta a FirmaEC todavía: primero se comprueba que este contenido
     pueda salir de la institución.
     """
-    verificar_puede_salir_a_firmar(atencion, proveedor=get_provider())
+    proveedor = get_provider()
+    verificar_puede_salir_a_firmar(atencion, proveedor=proveedor)
 
     if not pdf:
         raise ValidationError("El documento a firmar está vacío.")
     if len(pdf) > TAM_MAXIMO_PDF:
         raise ValidationError("El documento supera el tamaño máximo admitido (15 MB).")
 
+    # OJO: `PerfilProfesional` NO tiene campo `cedula` —la cédula vive en
+    # `Persona`, y el perfil no enlaza con ella—, así que este getattr devuelve
+    # siempre "" fuera de las pruebas. Con FirmaEC eso significa que la firma
+    # nunca llegaría a arrancar; queda pendiente decidir de dónde sale la cédula
+    # del profesional el día que se active. Lo que sí se corrige aquí es que ese
+    # requisito de FirmaEC bloqueara también al firmador local, que no la usa.
     cedula = getattr(getattr(solicitante, "perfil", None), "cedula", "") or ""
-    if not cedula:
+    if not cedula and proveedor.requiere_cedula_firmante:
         raise ValidationError(
             "Su perfil no tiene cédula registrada. FirmaEC exige la cédula del "
             "firmante para emitir el token."
@@ -302,6 +309,79 @@ def _asentar_firma(solicitud: SolicitudFirma, pdf: bytes, certificado: list) -> 
             "firmante": primero.get("emitidoPara", ""),
             "entidad_certificadora": primero.get("entidadCertificadora", ""),
             "serial": primero.get("serial", ""),
+        },
+    )
+    return solicitud
+
+
+# ============================================================
+# Firma en el computador del profesional
+# ============================================================
+
+# Un informe clínico firmado son cientos de KB, no megas. El tope corta el
+# archivo equivocado antes de cargarlo entero en memoria.
+TAMANO_MAXIMO_PDF = 20 * 1024 * 1024
+
+
+@transaction.atomic
+def asentar_firma_subida(solicitud: SolicitudFirma, pdf: bytes, usuario) -> SolicitudFirma:
+    """
+    Asienta un PDF que el profesional firmó en su computador y volvió a subir.
+
+    SIBU no extrae ni valida el certificado: la criptografía nunca toca el
+    servidor. Por eso el registro queda como firma electrónica simple y no como
+    digital con certificado —decir lo segundo sería afirmar algo que no se
+    comprobó—. Lo que sí se conserva es el hash de lo subido y quién lo subió.
+
+    Subir es opcional: el profesional puede quedarse el documento firmado en su
+    equipo. Esto solo cubre el caso de quien decide dejarlo en el expediente.
+    """
+    if not pdf:
+        raise ValidationError("No se recibió ningún archivo.")
+    if len(pdf) > TAMANO_MAXIMO_PDF:
+        raise ValidationError("El archivo supera el tamaño máximo permitido (20 MB).")
+    if not pdf.startswith(b"%PDF-"):
+        raise ValidationError("El archivo subido no es un PDF.")
+
+    # El bloqueo cierra la carrera de dos subidas simultáneas de la misma
+    # solicitud: sin él, ambas crearían su FirmaDocumento.
+    solicitud = SolicitudFirma.objects.select_for_update().get(pk=solicitud.pk)
+    if solicitud.estado == SolicitudFirma.Estado.FIRMADA:
+        raise ValidationError("Esta solicitud ya tiene un documento firmado.")
+
+    solicitud.pdf_firmado = pdf
+    solicitud.hash_firmado = _sha256(pdf)
+    solicitud.estado = SolicitudFirma.Estado.FIRMADA
+    solicitud.error = ""
+    solicitud.save(
+        update_fields=["pdf_firmado", "hash_firmado", "estado", "error", "actualizado_en"]
+    )
+
+    FirmaDocumento.objects.create(
+        documento_ref_tipo=solicitud.documento_ref_tipo,
+        documento_ref_id=solicitud.documento_ref_id,
+        usuario=usuario,
+        tipo_firma=FirmaDocumento.TipoFirma.ELECTRONICA,
+        hash_documento=solicitud.hash_firmado,
+        solicitud=solicitud,
+        firmante_nombre=usuario.get_full_name()[:200],
+        fecha_firma=timezone.now(),
+        valida=True,
+    )
+
+    LogAuditoria.objects.create(
+        usuario=usuario,
+        accion=LogAuditoria.Accion.SIGN,
+        modulo="firma",
+        entidad="SolicitudFirma",
+        entidad_id=str(solicitud.pk),
+        expediente_id=solicitud.atencion.expediente_id,
+        resultado="ok",
+        detalle={
+            "documento": f"{solicitud.documento_ref_tipo}#{solicitud.documento_ref_id}",
+            "hash_firmado": solicitud.hash_firmado,
+            "origen": "subida manual del profesional",
+            "certificado_verificado": False,
         },
     )
     return solicitud

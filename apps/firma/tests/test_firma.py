@@ -436,18 +436,34 @@ def test_url_de_servicio_no_https_se_rechaza(escenario, settings):
 
 
 @pytest.mark.django_db
-def test_por_defecto_no_hay_firmador(settings):
+def test_por_defecto_se_firma_en_el_computador_del_profesional(settings):
     """
-    Un despliegue recién instalado no firma, y eso está bien.
+    El defecto ya no es "sin firmador", sino el firmador local.
 
-    FirmaEC exige registro ante el MINTEL: hasta que exista, el sistema debe
-    funcionar diciendo que la firma no está disponible, no reventando.
+    Antes era "deshabilitada" porque el único firmador implementado, FirmaEC,
+    exige registro ante el MINTEL. Al descartarse esa vía, el flujo institucional
+    pasa a ser: SIBU genera el PDF, el profesional lo descarga y lo firma en su
+    computador. Eso no depende de ningún servicio externo, así que un despliegue
+    recién instalado ya puede firmar.
+
+    "deshabilitada" sigue existiendo para quien no quiera firma en absoluto.
     """
     from apps.firma.providers import get_provider
 
     del settings.FIRMA_PROVIDER
     proveedor = get_provider()
-    assert proveedor.codigo == "deshabilitada"
+    assert proveedor.codigo == "local"
+    assert proveedor.disponible() is True
+    assert proveedor.externo is False
+
+
+@pytest.mark.django_db
+def test_el_firmador_deshabilitado_sigue_disponible_como_opcion(settings):
+    """Apagar la firma por completo tiene que seguir siendo posible."""
+    from apps.firma.providers import get_provider
+
+    settings.FIRMA_PROVIDER = "deshabilitada"
+    proveedor = get_provider()
     assert proveedor.disponible() is False
     assert "no está habilitada" in proveedor.motivo_no_disponible()
 

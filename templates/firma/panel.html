@@ -16,9 +16,20 @@
   <strong>Documento firmado.</strong>
   {% if firma %}
   <div class="small mt-1">
-    Firmado por {{ firma.firmante_nombre }} ({{ firma.firmante_cedula }})<br>
+    Firmado por {{ firma.firmante_nombre }}{% if firma.firmante_cedula %} ({{ firma.firmante_cedula }}){% endif %}<br>
+    {% if firma.entidad_certificadora %}
     Entidad certificadora: {{ firma.entidad_certificadora }} ·
     Serial: {{ firma.certificado_serial }}<br>
+    {% else %}
+    {% comment %}
+    Firmado fuera de SIBU: el certificado nunca llegó al servidor, así que no
+    hay entidad ni serial que mostrar. Decir lo contrario sería afirmar una
+    verificación que no se hizo.
+    {% endcomment %}
+    <span class="text-muted">
+      Firmado en el computador del profesional; SIBU no verificó el certificado.
+    </span><br>
+    {% endif %}
     Huella SHA-256: <code>{{ solicitud.hash_firmado }}</code>
   </div>
   {% endif %}
@@ -31,6 +42,41 @@
 <div class="alert alert-danger">
   <strong>La firma fue rechazada.</strong>
   <div class="small mt-1">{{ solicitud.error }}</div>
+</div>
+
+{% elif proveedor.codigo == "local" %}
+<div class="card" style="max-width:720px">
+  <div class="card-body">
+    <p class="small text-muted">
+      Descargue el documento y fírmelo en su computador con su certificado.
+      <strong>Ni su clave privada ni su contraseña salen de su equipo</strong>:
+      SIBU no interviene en la firma.
+    </p>
+
+    <a href="{% url 'firma:descargar_original' solicitud.pk %}"
+       class="btn btn-primary btn-lg" target="_blank">
+      <i class="bi bi-download"></i> Descargar el documento
+    </a>
+
+    <hr class="my-4">
+
+    <h6>¿Ya lo firmó?</h6>
+    <p class="small text-muted">
+      Puede subirlo para que quede asentado en el expediente, o quedárselo en su
+      equipo. Es opcional.
+    </p>
+    <form method="post" action="{% url 'firma:subir_firmado' solicitud.pk %}"
+          enctype="multipart/form-data" class="row g-2 align-items-center">
+      {% csrf_token %}
+      <div class="col-auto">
+        <input type="file" name="documento" accept="application/pdf"
+               class="form-control form-control-sm" required>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-outline-primary btn-sm">Subir documento firmado</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 {% elif not firma_disponible %}
