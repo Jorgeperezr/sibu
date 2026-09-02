@@ -43,9 +43,14 @@ def atenciones_por_servicio(desde=None, hasta=None) -> list[dict]:
     return [
         {
             "servicio": f["servicio__nombre"],
-            "total": f["total"],
-            # Pacientes distintos de un servicio confidencial con n pequeño se
-            # suprime: "2 pacientes en psicología en la carrera X" señala.
+            # El total también se suprime bajo el umbral, y no por simetría:
+            # los pacientes distintos nunca superan al total, así que un total
+            # de 2 dice que los pacientes suprimidos son 1 o 2, y un total de 1
+            # los revela exactamente. Publicar el total mientras se suprime el
+            # otro dato dejaba reconstruirlo. Por encima del umbral no hay nada
+            # que deducir y la demanda se ve completa.
+            "total": _suprimir(f["servicio__codigo"], f["total"]),
+            # "2 pacientes en psicología en la carrera X" señala a alguien.
             "pacientes": _suprimir(f["servicio__codigo"], f["pacientes"]),
         }
         for f in filas
@@ -93,8 +98,13 @@ def derivaciones_indicadores() -> dict:
         "por_destino": [
             {
                 "destino": f["servicio_destino__nombre"],
-                "total": f["total"],
-                "atendidas": f["atendidas"],
+                # Mismo criterio que en atenciones_por_servicio: "1 derivación a
+                # Psicología en el periodo" es un conteo pequeño sobre un
+                # servicio confidencial, y cruzado con quién pasó por la Unidad
+                # ese día señala igual que un nombre. El flujo entre servicios
+                # se sigue viendo; lo que se vela es el tramo que identifica.
+                "total": _suprimir(f["servicio_destino__codigo"], f["total"]),
+                "atendidas": _suprimir(f["servicio_destino__codigo"], f["atendidas"]),
             }
             for f in filas
         ],

@@ -64,8 +64,11 @@ def test_conteo_pequeno_de_psicologia_se_suprime(escenario):
     filas = services.atenciones_por_servicio()
     fila = next(f for f in filas if f["servicio"] == escenario["psico"].nombre)
     assert fila["pacientes"] == services.SUPRIMIDO
-    # El total de atenciones sí se muestra: es demanda del servicio, no identidad.
-    assert fila["total"] == 2
+    # El total también se suprime bajo el umbral. Antes se mostraba, con el
+    # argumento de que es demanda y no identidad; pero los pacientes distintos
+    # nunca superan al total, así que un total de 2 dice que los pacientes
+    # suprimidos son 1 o 2, y el velo no velaba nada.
+    assert fila["total"] == services.SUPRIMIDO
 
 
 @pytest.mark.django_db
@@ -178,3 +181,57 @@ def test_tablero_vacio_no_revienta(escenario):
     assert datos["citas"]["ausentismo_pct"] is None
     assert datos["psicopedagogia"]["variacion_promedio"] is None
     assert datos["odontologia"]["promedio"] == 0
+
+
+@pytest.mark.django_db
+def test_por_encima_del_umbral_la_demanda_de_psicologia_se_ve_completa(escenario):
+    """
+    La supresión es para el tramo que identifica, no un velo permanente: la
+    Dirección tiene que poder ver cuánta demanda atiende el servicio.
+    """
+    cedulas = ["1100000007", "1700000001", "1100000015", "1104567894", "1102030408"]
+    _atenciones(escenario, escenario["psico"], escenario["psicologo"], cedulas)
+    filas = services.atenciones_por_servicio()
+    fila = next(f for f in filas if f["servicio"] == escenario["psico"].nombre)
+    assert fila["total"] == 5
+    assert fila["pacientes"] == 5
+
+
+@pytest.mark.django_db
+def test_el_total_no_permite_deducir_los_pacientes_suprimidos(escenario):
+    """
+    El caso que motivó el cambio: una sola atención revelaba que el paciente
+    suprimido era exactamente uno.
+    """
+    _atenciones(escenario, escenario["psico"], escenario["psicologo"], ["1100000007"])
+    fila = next(
+        f for f in services.atenciones_por_servicio() if f["servicio"] == escenario["psico"].nombre
+    )
+    assert fila["total"] == services.SUPRIMIDO
+    assert fila["pacientes"] == services.SUPRIMIDO
+
+
+@pytest.mark.django_db
+def test_una_derivacion_suelta_a_psicologia_no_se_publica(escenario):
+    """
+    Misma fuga por otra puerta: el tablero de derivaciones contaba por servicio
+    destino sin suprimir, y "1 derivación a Psicología" identifica igual que un
+    conteo de 1 paciente.
+    """
+    from apps.derivaciones.models import Derivacion
+
+    exp = crear_expediente(cedula="1100000007")
+    origen = Atencion.objects.create(
+        expediente=exp,
+        servicio=escenario["est"]["medicina"],
+        profesional=escenario["medico"],
+        fecha_hora=timezone.now(),
+    )
+    Derivacion.objects.create(
+        atencion_origen=origen,
+        servicio_destino=escenario["psico"],
+        motivo="prueba",
+    )
+    datos = services.derivaciones_indicadores()
+    fila = next(f for f in datos["por_destino"] if f["destino"] == escenario["psico"].nombre)
+    assert fila["total"] == services.SUPRIMIDO
