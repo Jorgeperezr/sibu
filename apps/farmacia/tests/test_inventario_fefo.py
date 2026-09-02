@@ -378,3 +378,52 @@ def test_no_se_despacha_mas_de_lo_prescrito_aunque_sobre_stock(escenario):
     # Quedan 4 pendientes y stock de sobra: el límite es la receta, no el stock.
     with pytest.raises(ValidationError, match="Solo quedan 4"):
         services.despachar_item(detalle, 6, usuario=escenario["quimico"])
+
+
+# ==========================================================================
+# Coste en consultas: constante, no proporcional al catálogo
+# ==========================================================================
+
+
+@pytest.mark.django_db
+def test_las_alertas_de_stock_no_crecen_con_el_catalogo(escenario, django_assert_num_queries):
+    """
+    Antes se preguntaba el stock medicamento por medicamento: 21 consultas para
+    20 medicamentos, y la farmacia real tiene cientos en cada carga del
+    mostrador. Ahora el agregado se hace en la base.
+    """
+    for i in range(20):
+        Medicamento.objects.create(codigo=f"MED-N{i}", dci=f"Fármaco {i}", stock_minimo=10)
+
+    with django_assert_num_queries(2):
+        services.alertas_stock()
+
+
+@pytest.mark.django_db
+def test_el_estado_de_la_receta_se_recalcula_en_dos_consultas(escenario, django_assert_num_queries):
+    """Se preguntaba dos veces por línea, y esto corre en cada despacho."""
+    items = []
+    for i in range(10):
+        med = Medicamento.objects.create(codigo=f"MED-R{i}", dci=f"Fármaco {i}")
+        items.append({"medicamento_id": med.id, "cantidad_prescrita": 5})
+    receta = services.emitir_receta(escenario["hc"].atencion, items)
+
+    with django_assert_num_queries(2):
+        services._actualizar_estado_receta(receta)
+
+
+@pytest.mark.django_db
+def test_el_agregado_por_medicamento_coincide_con_el_individual(escenario):
+    """
+    La consulta agregada tiene que dar exactamente lo mismo que preguntar uno a
+    uno: mismo filtro de caducidad y de existencias.
+    """
+    otro = Medicamento.objects.create(codigo="MED-OTRO", dci="Otro")
+    services.ingresar_lote(escenario["med"], "L-A", 30, _fecha(365), usuario=escenario["quimico"])
+    services.ingresar_lote(escenario["med"], "L-B", 12, _fecha(30), usuario=escenario["quimico"])
+
+    por_medicamento = services.stock_disponible_por_medicamento()
+    assert por_medicamento[escenario["med"].pk] == services.stock_disponible(escenario["med"])
+    # Sin existencias no aparece en el diccionario: la ausencia vale 0.
+    assert otro.pk not in por_medicamento
+    assert services.stock_disponible(otro) == 0

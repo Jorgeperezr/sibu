@@ -18,6 +18,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.expediente.models import Atencion
@@ -212,11 +213,37 @@ def lotes_fefo(medicamento: Medicamento):
     ).order_by("fecha_caducidad", "id")
 
 
+def stock_disponible_por_medicamento() -> dict[int, int]:
+    """
+    Stock no caducado de todos los medicamentos, en una sola consulta.
+
+    Mismo criterio que `stock_disponible`, pero agregando por medicamento en la
+    base en vez de preguntar uno por uno. Los medicamentos sin existencias no
+    aparecen en el resultado: quien lo consulte debe tratar la ausencia como 0.
+    """
+    filas = (
+        Lote.objects.filter(
+            fecha_caducidad__gt=timezone.localdate(),
+            cantidad_actual__gt=0,
+        )
+        .values("medicamento_id")
+        .annotate(total=Sum("cantidad_actual"))
+    )
+    return {f["medicamento_id"]: f["total"] for f in filas}
+
+
 def alertas_stock():
-    """Medicamentos cuyo stock disponible está por debajo del mínimo."""
+    """
+    Medicamentos cuyo stock disponible está por debajo del mínimo.
+
+    Se resuelve en dos consultas fijas. Antes llamaba a `stock_disponible()`
+    dentro del bucle: una consulta por medicamento del catálogo, que en la
+    farmacia real son cientos en cada carga del mostrador.
+    """
+    disponibles = stock_disponible_por_medicamento()
     alertas = []
     for medicamento in Medicamento.objects.filter(activo=True, stock_minimo__gt=0):
-        disponible = stock_disponible(medicamento)
+        disponible = disponibles.get(medicamento.pk, 0)
         if disponible <= medicamento.stock_minimo:
             alertas.append(
                 {
@@ -374,10 +401,18 @@ def despachar_item(detalle: RecetaDetalle, cantidad: int, *, usuario) -> list[Di
 
 
 def _actualizar_estado_receta(receta: Receta) -> Receta:
-    """Recalcula el estado de la receta a partir de lo despachado."""
-    detalles = receta.detalles.all()
-    pendientes = sum(pendiente_por_despachar(d) for d in detalles)
-    despachado_algo = any(_cantidad_ya_despachada(d) > 0 for d in detalles)
+    """
+    Recalcula el estado de la receta a partir de lo despachado.
+
+    Lo despachado se anota en la misma consulta que trae los detalles. Antes se
+    preguntaba dos veces por línea —una para el pendiente y otra para saber si
+    ya se había entregado algo—, y esto se ejecuta en cada despacho.
+    """
+    detalles = list(
+        receta.detalles.annotate(despachado=Coalesce(Sum("dispensaciones__cantidad_despachada"), 0))
+    )
+    pendientes = sum(max(d.cantidad_prescrita - d.despachado, 0) for d in detalles)
+    despachado_algo = any(d.despachado > 0 for d in detalles)
 
     if pendientes == 0:
         receta.estado = Receta.Estado.DESPACHADA
