@@ -238,10 +238,20 @@ def reprogramar(
     return nueva
 
 
+@transaction.atomic
 def cancelar(cita: Cita, motivo: str = "", usuario=None) -> Cita:
+    """
+    Cancela la cita y deja el motivo en las observaciones.
+
+    El motivo se guarda EXPLÍCITAMENTE: `cambiar_estado` guarda con
+    `update_fields` y `observaciones` no está en esa lista, así que asignarlo
+    antes de llamarlo lo descartaba en silencio. Toda cancelación quedaba sin
+    causa registrada.
+    """
     if cita.estado not in {Cita.Estado.RESERVADA, Cita.Estado.CONFIRMADA, Cita.Estado.EN_ESPERA}:
         raise ValidationError("La cita no se puede cancelar en su estado actual.")
     cita.observaciones = (
         cita.observaciones + "\n" if cita.observaciones else ""
     ) + f"Cancelada: {motivo}"
+    cita.save(update_fields=["observaciones", "actualizado_en"])
     return cambiar_estado(cita, Cita.Estado.CANCELADA, usuario=usuario)
