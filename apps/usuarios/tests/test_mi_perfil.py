@@ -196,3 +196,53 @@ def test_guardar_una_cedula_valida_desde_la_pantalla(escenario):
     assert respuesta.status_code == 200
     escenario["usuario"].refresh_from_db()
     assert escenario["usuario"].cedula == "1107008003"
+
+
+# ---------------------------------------------------- fecha y denominación
+
+
+@pytest.mark.django_db
+def test_guarda_fecha_de_nacimiento_y_denominacion_del_cargo(escenario):
+    from apps.usuarios.services import actualizar_mi_perfil
+
+    actualizar_mi_perfil(
+        escenario["usuario"],
+        {"fecha_nacimiento": "1990-05-14", "denominacion_cargo": "Médico General 1"},
+    )
+    escenario["usuario"].refresh_from_db()
+    escenario["perfil"].refresh_from_db()
+    assert str(escenario["usuario"].fecha_nacimiento) == "1990-05-14"
+    assert escenario["perfil"].denominacion_cargo == "Médico General 1"
+
+
+@pytest.mark.django_db
+def test_una_fecha_de_nacimiento_futura_se_rechaza(escenario):
+    from apps.usuarios.services import actualizar_mi_perfil
+
+    with pytest.raises(ValidationError, match="futura"):
+        actualizar_mi_perfil(escenario["usuario"], {"fecha_nacimiento": "2099-01-01"})
+    escenario["usuario"].refresh_from_db()
+    assert escenario["usuario"].fecha_nacimiento is None
+
+
+@pytest.mark.django_db
+def test_una_fecha_de_nacimiento_mal_escrita_se_rechaza(escenario):
+    from apps.usuarios.services import actualizar_mi_perfil
+
+    with pytest.raises(ValidationError, match="no es válida"):
+        actualizar_mi_perfil(escenario["usuario"], {"fecha_nacimiento": "no-es-una-fecha"})
+
+
+@pytest.mark.django_db
+def test_una_fecha_vacia_borra_la_ya_guardada(escenario):
+    """
+    Igual que la cédula: el formulario reemplaza por completo lo que se envía,
+    y dejar la casilla en blanco significa borrar el dato, no conservarlo.
+    Cadena vacía tampoco intenta parsearse como fecha.
+    """
+    from apps.usuarios.services import actualizar_mi_perfil
+
+    actualizar_mi_perfil(escenario["usuario"], {"fecha_nacimiento": "1990-05-14"})
+    actualizar_mi_perfil(escenario["usuario"], {"fecha_nacimiento": ""})
+    escenario["usuario"].refresh_from_db()
+    assert escenario["usuario"].fecha_nacimiento is None

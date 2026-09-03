@@ -29,8 +29,11 @@ def registrar_break_glass(user, expediente_id, motivo, ip=None, user_agent=""):
 # están aquí `servicios`, `seccion`, `rol_principal` ni `puede_firmar_digital`:
 # de esos depende el RBAC, y quien los editara se ampliaría el acceso a sí
 # mismo. Los asigna quien administra, desde el panel.
-CAMPOS_CUENTA = ("first_name", "last_name", "cedula", "telefono", "email")
-CAMPOS_PERFIL = ("titulo", "registro_profesional")
+CAMPOS_CUENTA = ("first_name", "last_name", "cedula", "telefono", "email", "fecha_nacimiento")
+CAMPOS_PERFIL = ("titulo", "registro_profesional", "denominacion_cargo")
+# `fecha_nacimiento` llega como texto ISO ("YYYY-MM-DD") de un <input
+# type="date">, o cadena vacía: no se le aplica `.strip()` como al resto.
+CAMPOS_FECHA = ("fecha_nacimiento",)
 
 
 def actualizar_mi_perfil(usuario, datos: dict):
@@ -71,13 +74,31 @@ def actualizar_mi_perfil(usuario, datos: dict):
         if ajena:
             raise ValidationError("Esa cédula ya está registrada en otra cuenta.")
 
+    fecha_nacimiento = datos.get("fecha_nacimiento", "")
+    if fecha_nacimiento:
+        from datetime import date
+
+        from django.utils.dateparse import parse_date
+
+        fecha = parse_date(fecha_nacimiento)
+        if fecha is None:
+            raise ValidationError("La fecha de nacimiento no es válida.")
+        if fecha > date.today():
+            raise ValidationError("La fecha de nacimiento no puede ser futura.")
+
     with transaction.atomic():
         for campo in CAMPOS_CUENTA:
             if campo not in datos:
                 continue
-            # `cedula` es única y admite NULL: dejarla en cadena vacía haría
-            # chocar a la segunda cuenta que se guardara sin cédula.
-            valor = (cedula or None) if campo == "cedula" else datos[campo].strip()
+            if campo == "cedula":
+                # Única y admite NULL: dejarla en cadena vacía haría chocar a
+                # la segunda cuenta que se guardara sin cédula.
+                valor = cedula or None
+            elif campo in CAMPOS_FECHA:
+                # DateField.to_python la parsea al guardar; cadena vacía -> None.
+                valor = datos[campo] or None
+            else:
+                valor = datos[campo].strip()
             setattr(usuario, campo, valor)
         usuario.save(update_fields=[c for c in CAMPOS_CUENTA if c in datos])
 
@@ -97,3 +118,54 @@ def actualizar_mi_perfil(usuario, datos: dict):
             detalle={"campos": sorted(set(datos) & set(CAMPOS_CUENTA + CAMPOS_PERFIL))},
         )
     return perfil
+
+
+# ============================================================
+# Actividades esenciales del manual de puestos
+# ============================================================
+
+
+def agregar_actividad(perfil, descripcion: str, actividad_superior=None):
+    """
+    Agrega una actividad esencial al final de su lista.
+
+    Sin `actividad_superior` es una fila de primer nivel (una de las diez a
+    trece del manual). Con ella, es una sub-actividad de las que suelen
+    acumularse bajo la última —"las demás que asigne el jefe inmediato"—; se
+    numera dentro de esa lista propia, no en la general.
+
+    El siguiente `orden` se calcula, no se recibe: quien agrega una actividad
+    no tiene por qué saber cuántas hay ya, y dejarlo a su cargo abriría la
+    puerta a huecos o choques de numeración.
+    """
+    from django.core.exceptions import ValidationError
+
+    from .models import ActividadEsencial
+
+    descripcion = (descripcion or "").strip()
+    if not descripcion:
+        raise ValidationError("La actividad necesita una descripción.")
+
+    if actividad_superior is not None and actividad_superior.perfil_id != perfil.pk:
+        raise ValidationError("Esa actividad superior no pertenece a este perfil.")
+
+    hermanas = ActividadEsencial.objects.filter(
+        perfil=perfil, actividad_superior=actividad_superior
+    )
+    siguiente_orden = (hermanas.order_by("-orden").values_list("orden", flat=True).first() or 0) + 1
+
+    return ActividadEsencial.objects.create(
+        perfil=perfil,
+        actividad_superior=actividad_superior,
+        orden=siguiente_orden,
+        descripcion=descripcion,
+    )
+
+
+def eliminar_actividad(actividad):
+    """
+    Quita una actividad esencial. Si tenía sub-actividades, se van con ella
+    —`on_delete=CASCADE`—: no puede quedar una sub-actividad huérfana de la
+    fila del manual que la contiene.
+    """
+    actividad.delete()
