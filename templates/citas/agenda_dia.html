@@ -37,16 +37,44 @@
           <td>{{ c.servicio.nombre }}<br><small class="text-muted">{{ c.motivo|truncatechars:60 }}</small></td>
           <td><span class="badge bg-secondary">{{ c.get_estado_display }}</span></td>
           <td>
-            <form method="post" action="{% url 'citas:cambiar_estado' c.id %}" class="d-inline">
-              {% csrf_token %}
-              <select name="estado" class="form-select form-select-sm d-inline w-auto"
-                      onchange="this.form.submit()">
-                <option value="">Cambiar…</option>
-                {% for val, lbl in estados %}
-                  {% if val != c.estado %}<option value="{{ val }}">{{ lbl }}</option>{% endif %}
-                {% endfor %}
-              </select>
-            </form>
+            <div class="d-flex gap-1 align-items-center">
+              <form method="post" action="{% url 'citas:cambiar_estado' c.id %}" class="d-inline">
+                {% csrf_token %}
+                <select name="estado" class="form-select form-select-sm d-inline w-auto"
+                        onchange="this.form.submit()">
+                  <option value="">Cambiar…</option>
+                  {% for val, lbl in estados %}
+                    {% if val != c.estado %}<option value="{{ val }}">{{ lbl }}</option>{% endif %}
+                  {% endfor %}
+                </select>
+              </form>
+              {% if c.estado in reprogramables %}
+              <button class="btn btn-sm btn-outline-secondary" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#gestion-{{ c.id }}"
+                      title="Reprogramar o cancelar">
+                <i class="bi bi-calendar-event"></i>
+              </button>
+              {% endif %}
+            </div>
+            {% if c.estado in reprogramables %}
+            <div class="collapse mt-2" id="gestion-{{ c.id }}">
+              <form method="post" action="{% url 'citas:reprogramar' c.id %}"
+                    class="d-flex flex-wrap gap-1 mb-1">
+                {% csrf_token %}
+                <input type="datetime-local" name="fecha_hora" class="form-control form-control-sm w-auto" required>
+                <input name="motivo" class="form-control form-control-sm w-auto" maxlength="120"
+                       placeholder="Motivo">
+                <button class="btn btn-sm btn-outline-primary">Reprogramar</button>
+              </form>
+              <form method="post" action="{% url 'citas:cancelar' c.id %}"
+                    class="d-flex flex-wrap gap-1">
+                {% csrf_token %}
+                <input name="motivo" class="form-control form-control-sm w-auto" maxlength="120"
+                       placeholder="Motivo de la cancelación" required>
+                <button class="btn btn-sm btn-outline-danger">Cancelar cita</button>
+              </form>
+            </div>
+            {% endif %}
           </td>
         </tr>
         {% empty %}

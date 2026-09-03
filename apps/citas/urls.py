@@ -8,6 +8,8 @@ urlpatterns = [
     path("", views.mi_agenda, name="mi_agenda"),
     path("reservar/", views.reservar, name="reservar"),
     path("<int:pk>/estado/", views.cambiar_estado_web, name="cambiar_estado"),
+    path("<int:pk>/cancelar/", views.cancelar, name="cancelar"),
+    path("<int:pk>/reprogramar/", views.reprogramar, name="reprogramar"),
     path("_persona/", views.buscar_persona_json, name="_persona"),
     path("_profesionales/", views.profesionales_json, name="_profesionales"),
 ]

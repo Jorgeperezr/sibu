@@ -1,21 +1,58 @@
-"""Interfaz web del módulo de citas."""
+"""
+Interfaz web del módulo de citas.
+
+Una cita se toca solo desde su propio servicio. `cambiar_estado_web` no lo
+comprobaba: cualquier usuario autenticado cancelaba o marcaba como atendida
+cualquier cita conociendo su id, incluida una de Psicología.
+"""
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from apps.core.models import Servicio
 from apps.expediente.models import Expediente
 from apps.expediente.services import resolver_por_cedula
 from apps.usuarios.models import PerfilProfesional
+from apps.usuarios.rbac import servicios_del_usuario
 
 from . import services
 from .models import Cita
 from .selectors import citas_del_dia
+
+
+def _cita_del_usuario(user, pk) -> Cita:
+    """
+    La cita, si pertenece a un servicio del usuario; si no, 403.
+
+    Se admite a cualquier profesional del servicio, no solo al titular de la
+    agenda: un compañero cubre la consulta y necesita marcar la llegada o
+    cancelar. Fuera del servicio, nadie.
+    """
+    cita = get_object_or_404(Cita.objects.select_related("servicio", "expediente__persona"), pk=pk)
+    if cita.servicio_id not in servicios_del_usuario(user):
+        raise PermissionDenied("Esta cita pertenece a otro servicio.")
+    return cita
+
+
+def _volver(request):
+    """
+    Vuelve a la página de origen, comprobándola.
+
+    `HTTP_REFERER` es una cabecera: redirigir a ella sin validar convierte
+    cualquiera de estas vistas en un salto a un sitio externo.
+    """
+    destino = request.META.get("HTTP_REFERER", "")
+    if destino and url_has_allowed_host_and_scheme(
+        destino, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(destino)
+    return redirect("citas:mi_agenda")
 
 
 @login_required
@@ -25,9 +62,20 @@ def mi_agenda(request):
     fecha_str = request.GET.get("fecha")
     fecha = parse_date(fecha_str) if fecha_str else timezone.localdate()
 
+    # Ver la agenda de otro profesional exige compartir servicio con él. Antes
+    # bastaba `is_staff`, una bandera del panel de administración de Django que
+    # no dice nada sobre el servicio: con ella se leía la agenda de Psicología,
+    # que lista los nombres de los pacientes y el motivo de cada cita.
     profesional_id = request.GET.get("profesional")
-    if profesional_id and (request.user.is_staff or request.user.is_superuser):
-        perfil = PerfilProfesional.objects.filter(pk=profesional_id).first()
+    if profesional_id:
+        mis_servicios = servicios_del_usuario(request.user)
+        perfil = (
+            PerfilProfesional.objects.filter(pk=profesional_id, servicios__in=mis_servicios).first()
+            if mis_servicios
+            else None
+        )
+        if perfil is None:
+            raise PermissionDenied("Ese profesional no comparte servicio con usted.")
 
     citas = citas_del_dia(perfil, fecha) if perfil else []
     return render(
@@ -38,6 +86,9 @@ def mi_agenda(request):
             "fecha": fecha,
             "perfil": perfil,
             "estados": Cita.Estado.choices,
+            # Reprogramar y cancelar solo tienen sentido antes de atender; el
+            # servicio lo valida igual, pero un botón que siempre falla molesta.
+            "reprogramables": {Cita.Estado.RESERVADA, Cita.Estado.CONFIRMADA},
         },
     )
 
@@ -121,11 +172,61 @@ def profesionales_json(request):
 @login_required
 def cambiar_estado_web(request, pk):
     """Cambio de estado desde la agenda (POST simple)."""
-    cita = get_object_or_404(Cita, pk=pk)
+    cita = _cita_del_usuario(request.user, pk)
     nuevo = request.POST.get("estado")
     try:
         services.cambiar_estado(cita, nuevo, usuario=request.user)
         messages.success(request, f"Cita actualizada a '{cita.get_estado_display()}'.")
     except ValidationError as exc:
         messages.error(request, "; ".join(exc.messages))
-    return redirect(request.META.get("HTTP_REFERER", "citas:mi_agenda"))
+    return _volver(request)
+
+
+@login_required
+def cancelar(request, pk):
+    """
+    Cancela una cita con motivo escrito.
+
+    `services.cancelar` existía desde el Sprint 3 sin pantalla que llegara a
+    él: cancelar exigía el shell. El motivo se exige aquí porque el servicio
+    lo admite vacío y una cancelación sin causa no se puede explicar después.
+    """
+    cita = _cita_del_usuario(request.user, pk)
+    motivo = request.POST.get("motivo", "").strip()
+    if not motivo:
+        messages.error(request, "Indique el motivo de la cancelación.")
+        return _volver(request)
+    try:
+        services.cancelar(cita, motivo, usuario=request.user)
+        messages.warning(request, "Cita cancelada.")
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+    return _volver(request)
+
+
+@login_required
+def reprogramar(request, pk):
+    """
+    Mueve la cita a otra hora. La original queda como REPROGRAMADA y la nueva
+    enlaza con ella por `cita_origen`, así que el historial no se pierde.
+    """
+    cita = _cita_del_usuario(request.user, pk)
+    fecha_hora = parse_datetime(request.POST.get("fecha_hora", "") or "")
+    if fecha_hora is None:
+        messages.error(request, "La nueva fecha y hora no son válidas.")
+        return _volver(request)
+    if timezone.is_naive(fecha_hora):
+        fecha_hora = timezone.make_aware(fecha_hora, timezone.get_current_timezone())
+    try:
+        nueva = services.reprogramar(
+            cita,
+            fecha_hora,
+            usuario=request.user,
+            motivo_reprogramacion=request.POST.get("motivo", "").strip(),
+        )
+        messages.success(
+            request, f"Reprogramada para {timezone.localtime(nueva.fecha_hora):%d/%m/%Y %H:%M}."
+        )
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+    return _volver(request)
