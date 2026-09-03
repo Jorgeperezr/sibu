@@ -46,17 +46,6 @@ puede declararse una vez.
     <a class="sibu-marca" href="{% url 'inicio' %}">
       <img src="{% static 'img/unl-horizontal.png' %}"
            alt="Universidad Nacional de Loja">
-      {% comment %}
-      El nombre de la unidad se compone como en los documentos: filete vertical
-      y las tres líneas con la jerarquía tipográfica del manual, no una línea
-      suelta en versalitas. Va bajo el logotipo y no a su lado porque la
-      lateral mide 246 px y el logotipo ya ocupa 178.
-      {% endcomment %}
-      <span class="sibu-unidad">
-        <span class="l1">Unidad de</span>
-        <span class="l2">Bienestar</span>
-        <span class="l3">Universitario</span>
-      </span>
     </a>
     <nav class="sibu-nav flex-grow-1">{% include "_nav_lista.html" %}</nav>
     <div class="sibu-usuario">
@@ -113,8 +102,7 @@ puede declararse una vez.
     </main>
 
     <footer class="sibu-footer">
-      <span>SIBU — Unidad de Bienestar Universitario · Universidad Nacional de Loja</span>
-      <span class="text-muted">Sistema interno · uso institucional</span>
+      <span>Unidad de Bienestar Universitario · Universidad Nacional de Loja</span>
     </footer>
   </div>
 </div>

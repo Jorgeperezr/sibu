@@ -105,34 +105,6 @@ body {
   height: auto;
   display: block;
 }
-/* Nombre de la unidad, compuesto como en los documentos: filete vertical y
-   tres líneas con jerarquía tipográfica. El manual reserva esta forma a las
-   dependencias sin identificador gráfico propio, y prescribe que el nombre
-   lleve la misma jerarquía del logotipo, no una línea suelta de texto.
-   Antes iba en versalitas espaciadas, que es justo lo que el manual no pide.
-   Se coloca bajo el logotipo porque la lateral mide 246 px y el logotipo ya
-   ocupa 178: al costado no cabría sin apretar ninguno de los dos. */
-.sibu-marca .sibu-unidad {
-  display: block;
-  margin-top: 0.7rem;
-  padding-left: 0.55rem;
-  border-left: 1px solid var(--unl-negro);
-  font-size: 0.78rem;
-  line-height: 1.2;
-  color: var(--unl-negro);
-  text-transform: none;
-  letter-spacing: 0;
-}
-.sibu-marca .sibu-unidad span {
-  display: block;
-}
-.sibu-marca .sibu-unidad .l1,
-.sibu-marca .sibu-unidad .l2 {
-  font-weight: 400;
-}
-.sibu-marca .sibu-unidad .l3 {
-  font-weight: 700;
-}
 
 /* ---- Enlaces agrupados ---- */
 .sibu-nav {

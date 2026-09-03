@@ -203,20 +203,25 @@ def test_un_error_se_pinta_con_el_color_de_error(admin):
 
 
 @pytest.mark.django_db
-def test_la_unidad_se_compone_en_tres_lineas_como_el_manual(admin):
+def test_la_marca_es_solo_el_logotipo_de_la_universidad(admin):
     """
-    El manual reserva esta composición a las dependencias sin identificador
-    gráfico propio: filete vertical y el nombre con la misma jerarquía
-    tipográfica del logotipo. Iba como una línea suelta en versalitas
-    espaciadas, que es justo lo que no pide.
-
-    Se fija la composición —las tres líneas y sus clases—, no los colores ni
-    los tamaños, que son decisiones de diseño y pueden ajustarse.
+    En la barra lateral quedó únicamente el logotipo de la UNL. El bloque con
+    el nombre de la unidad se retiró por decisión del responsable del proyecto:
+    apretado en 246 px no se veía bien. En los documentos PDF sí se conserva,
+    donde hay ancho para componerlo como el manual pide.
     """
     cliente = Client()
     cliente.login(username="admin", password=CLAVE)
     cuerpo = cliente.get(reverse("inicio")).content.decode()
-    assert '<span class="l1">Unidad de</span>' in cuerpo
-    assert '<span class="l2">Bienestar</span>' in cuerpo
-    assert '<span class="l3">Universitario</span>' in cuerpo
-    assert "sibu-sistema" not in cuerpo
+    assert "sibu-marca" in cuerpo
+    assert "img/unl-horizontal.png" in cuerpo
+    assert "sibu-unidad" not in cuerpo
+
+
+@pytest.mark.django_db
+def test_el_pie_no_lleva_la_coletilla_de_uso_interno(admin):
+    cliente = Client()
+    cliente.login(username="admin", password=CLAVE)
+    cuerpo = cliente.get(reverse("inicio")).content.decode()
+    assert "sibu-footer" in cuerpo
+    assert "uso institucional" not in cuerpo
