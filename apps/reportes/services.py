@@ -185,7 +185,7 @@ def tablero_general(desde=None, hasta=None) -> dict:
 
 
 # ============================================================
-# Informe demográfico de un servicio (RF nuevo: perfil de la
+# Informe estadístico de un servicio (RF nuevo: perfil de la
 # población atendida, no gestión agregada de la Unidad)
 # ============================================================
 #
@@ -210,6 +210,13 @@ def tablero_general(desde=None, hasta=None) -> dict:
 # ya tiene el resto del sistema (el nombre de un paciente en la línea de
 # tiempo es el actual, no el de cuando se abrió cada atención) — no es una
 # inconsistencia nueva.
+#
+# Cada categoría lleva su porcentaje sobre el TOTAL DE ATENCIONES del rango
+# (no sobre el total de pacientes): con 100 atenciones en el mes y 10 de una
+# categoría, esa categoría es 10 %. Y el informe separa explícitamente
+# atenciones de pacientes distintos, porque no son lo mismo: una persona
+# atendida tres veces en el rango pesa tres atenciones, pero es una sola
+# persona atendida.
 
 SIN_DATO = "Sin dato"
 
@@ -222,25 +229,37 @@ _ALERTA_POR_COLUMNA = {
 }
 
 
-def _conteo(valores) -> list[dict]:
-    """[(etiqueta, valor), ...] → [{etiqueta, total}, ...], de mayor a menor."""
+def _porcentaje(parte: int, total: int) -> float:
+    """Porcentaje a un decimal; 0 si no hay atenciones (evita dividir por 0)."""
+    return round(100 * parte / total, 1) if total else 0.0
+
+
+def _conteo(valores, total: int) -> list[dict]:
+    """
+    [(etiqueta, valor), ...] → [{etiqueta, total, porcentaje}, ...], de mayor
+    a menor. El porcentaje es sobre `total` (las atenciones del rango), no
+    sobre la suma de esta columna —son el mismo número solo porque cada
+    atención aporta exactamente una etiqueta por columna—.
+    """
     from collections import Counter
 
     conteo = Counter(valores)
     return [
-        {"etiqueta": etiqueta, "total": total}
-        for etiqueta, total in sorted(conteo.items(), key=lambda par: -par[1])
+        {"etiqueta": etiqueta, "total": n, "porcentaje": _porcentaje(n, total)}
+        for etiqueta, n in sorted(conteo.items(), key=lambda par: -par[1])
     ]
 
 
-def informe_demografico(servicio, desde=None, hasta=None) -> dict:
+def informe_estadistico(servicio, desde=None, hasta=None) -> dict:
     """
-    Perfil demográfico de las atenciones de un servicio en un rango de fechas.
+    Perfil estadístico de las atenciones de un servicio en un rango de fechas.
 
-    Cuenta ATENCIONES, no pacientes distintos: una persona atendida tres veces
-    en el rango pesa tres veces, igual que en un parte de consulta diario
-    (RDACAA). Cada atención aporta el sexo/género/etnia/discapacidad del
-    paciente y si tenía activa cada alerta al generar el informe.
+    Cuenta ATENCIONES, no pacientes distintos, para las columnas por
+    categoría: una persona atendida tres veces en el rango pesa tres veces,
+    igual que en un parte de consulta diario (RDACAA). `total_pacientes`
+    aparte da la otra cifra —cuántas personas distintas hay detrás de esas
+    atenciones— porque las dos preguntas ("cuánta demanda" y "a cuánta gente")
+    tienen respuestas distintas y ninguna sustituye a la otra.
     """
     from django.utils import timezone as tz
 
@@ -262,6 +281,7 @@ def informe_demografico(servicio, desde=None, hasta=None) -> dict:
         )
     )
     total_atenciones = len(filas)
+    total_pacientes = len({f["expediente_id"] for f in filas})
 
     expediente_ids = {f["expediente_id"] for f in filas}
     alertas_activas = set(
@@ -272,8 +292,9 @@ def informe_demografico(servicio, desde=None, hasta=None) -> dict:
         ).values_list("expediente_id", "tipo")
     )
 
-    def _con_alerta(codigo_tipo: str) -> int:
-        return sum(1 for f in filas if (f["expediente_id"], codigo_tipo) in alertas_activas)
+    def _con_alerta(codigo_tipo: str) -> dict:
+        n = sum(1 for f in filas if (f["expediente_id"], codigo_tipo) in alertas_activas)
+        return {"total": n, "porcentaje": _porcentaje(n, total_atenciones)}
 
     return {
         "servicio": servicio,
@@ -281,16 +302,27 @@ def informe_demografico(servicio, desde=None, hasta=None) -> dict:
         "hasta": hasta,
         "generado_en": tz.now(),
         "total_atenciones": total_atenciones,
-        "sexo": _conteo(f["expediente__persona__sexo"] or SIN_DATO for f in filas),
-        "genero": _conteo(f["expediente__persona__genero"] or SIN_DATO for f in filas),
-        "etnia": _conteo(f["expediente__persona__etnia"] or SIN_DATO for f in filas),
+        "total_pacientes": total_pacientes,
+        "sexo": _conteo(
+            (f["expediente__persona__sexo"] or SIN_DATO for f in filas), total_atenciones
+        ),
+        "genero": _conteo(
+            (f["expediente__persona__genero"] or SIN_DATO for f in filas), total_atenciones
+        ),
+        "etnia": _conteo(
+            (f["expediente__persona__etnia"] or SIN_DATO for f in filas), total_atenciones
+        ),
         "discapacidad": _conteo(
-            ("Con discapacidad" if f["expediente__discapacidad_tipo"] else "Sin discapacidad")
-            for f in filas
+            (
+                ("Con discapacidad" if f["expediente__discapacidad_tipo"] else "Sin discapacidad")
+                for f in filas
+            ),
+            total_atenciones,
         ),
         # Estas cuatro no son un desglose de categorías (como sexo o etnia):
         # son presencia/ausencia de una bandera, así que se resumen como
-        # cuántas atenciones la tenían activa sobre el total.
+        # cuántas atenciones la tenían activa sobre el total, con su
+        # porcentaje igual que las demás columnas.
         "embarazo": _con_alerta("gestacion"),
         "lactancia": _con_alerta("lactancia"),
         "enfermedad_catastrofica": _con_alerta("enf_catastrofica"),

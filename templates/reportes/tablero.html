@@ -26,7 +26,7 @@
       <div class="card-header">Atenciones por servicio</div>
       <div class="card-body p-0">
         <table class="table table-sm mb-0">
-          <thead><tr><th>Servicio</th><th>Atenciones</th><th>Pacientes</th></tr></thead>
+          <thead><tr><th>Servicio</th><th>Atenciones</th><th>Pacientes distintos</th></tr></thead>
           <tbody>
             {% for f in datos.atenciones %}
             <tr><td>{{ f.servicio }}</td><td>{{ f.total }}</td><td>{{ f.pacientes }}</td></tr>

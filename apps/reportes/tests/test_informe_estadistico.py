@@ -1,11 +1,13 @@
 """
-Informe demográfico de un servicio.
+Informe estadístico de un servicio.
 
 Distinto del tablero de la Dirección: aquí no hay K_MÍNIMO porque el
 profesional que lo genera ya ve el contenido clínico completo de esas
 atenciones, una por una. Lo que se prueba es que las ocho columnas pedidas
-cuenten lo correcto, que cada profesional vea solo lo suyo, y que el conteo
-sea por atención y no por paciente distinto.
+cuenten lo correcto con su porcentaje sobre el total de atenciones, que cada
+profesional vea solo lo suyo, y que el informe separe explícitamente
+atenciones de personas atendidas —no son la misma cifra: una persona
+atendida tres veces en el rango pesa tres atenciones y es una sola persona—.
 
 Embarazo, lactancia, enfermedad catastrófica y necesidad educativa especial no
 tenían dónde vivir en el sistema antes de hoy: se resuelven con los tipos de
@@ -70,13 +72,13 @@ def _cliente(usuario):
 
 @pytest.mark.django_db
 def test_cuenta_por_atencion_no_por_paciente(escenario):
-    datos = services.informe_demografico(escenario["est"]["medicina"])
+    datos = services.informe_estadistico(escenario["est"]["medicina"])
     assert datos["total_atenciones"] == 3
 
 
 @pytest.mark.django_db
 def test_sexo_genero_y_etnia_se_desglosan(escenario):
-    datos = services.informe_demografico(escenario["est"]["medicina"])
+    datos = services.informe_estadistico(escenario["est"]["medicina"])
     por_sexo = {f["etiqueta"]: f["total"] for f in datos["sexo"]}
     assert por_sexo == {"mujer": 2, "hombre": 1}
     por_genero = {f["etiqueta"]: f["total"] for f in datos["genero"]}
@@ -87,18 +89,18 @@ def test_sexo_genero_y_etnia_se_desglosan(escenario):
 
 @pytest.mark.django_db
 def test_discapacidad_es_si_o_no(escenario):
-    datos = services.informe_demografico(escenario["est"]["medicina"])
+    datos = services.informe_estadistico(escenario["est"]["medicina"])
     por_discapacidad = {f["etiqueta"]: f["total"] for f in datos["discapacidad"]}
     assert por_discapacidad == {"Sin discapacidad": 2, "Con discapacidad": 1}
 
 
 @pytest.mark.django_db
 def test_embarazo_cuenta_las_atenciones_con_la_alerta_activa(escenario):
-    datos = services.informe_demografico(escenario["est"]["medicina"])
-    assert datos["embarazo"] == 2  # las dos atenciones de exp1
-    assert datos["lactancia"] == 0
-    assert datos["enfermedad_catastrofica"] == 0
-    assert datos["necesidad_educativa_especial"] == 0
+    datos = services.informe_estadistico(escenario["est"]["medicina"])
+    assert datos["embarazo"] == {"total": 2, "porcentaje": 66.7}  # 2 de 3 atenciones
+    assert datos["lactancia"] == {"total": 0, "porcentaje": 0.0}
+    assert datos["enfermedad_catastrofica"] == {"total": 0, "porcentaje": 0.0}
+    assert datos["necesidad_educativa_especial"] == {"total": 0, "porcentaje": 0.0}
 
 
 @pytest.mark.django_db
@@ -107,8 +109,38 @@ def test_una_alerta_desactivada_no_cuenta(escenario):
 
     alerta = AlertaClinica.objects.get(expediente=escenario["exp1"])
     desactivar_alerta(alerta)
-    datos = services.informe_demografico(escenario["est"]["medicina"])
-    assert datos["embarazo"] == 0
+    datos = services.informe_estadistico(escenario["est"]["medicina"])
+    assert datos["embarazo"]["total"] == 0
+
+
+@pytest.mark.django_db
+def test_el_porcentaje_es_sobre_atenciones_no_sobre_personas(escenario):
+    """
+    El ejemplo pedido: si hay 3 atenciones y 2 corresponden a una categoría,
+    el porcentaje es 2/3 —sobre atenciones—, no 2/2 personas ni ninguna otra
+    cuenta. exp1 se atendió dos veces y es "mujer": 2 de 3 atenciones, 66.7 %.
+    """
+    datos = services.informe_estadistico(escenario["est"]["medicina"])
+    fila_mujer = next(f for f in datos["sexo"] if f["etiqueta"] == "mujer")
+    assert fila_mujer == {"etiqueta": "mujer", "total": 2, "porcentaje": 66.7}
+
+
+@pytest.mark.django_db
+def test_sin_atenciones_el_porcentaje_no_revienta(escenario):
+    """División por cero: un servicio sin atenciones no debe fallar, debe dar 0 %."""
+    datos = services.informe_estadistico(escenario["est"]["psicologia"])
+    assert datos["embarazo"] == {"total": 0, "porcentaje": 0.0}
+
+
+@pytest.mark.django_db
+def test_separa_atenciones_de_personas_atendidas(escenario):
+    """
+    exp1 se atendió dos veces, exp2 una: 3 atenciones, pero 2 personas
+    distintas. Es justo la distinción que el informe no puede difuminar.
+    """
+    datos = services.informe_estadistico(escenario["est"]["medicina"])
+    assert datos["total_atenciones"] == 3
+    assert datos["total_pacientes"] == 2
 
 
 @pytest.mark.django_db
@@ -116,7 +148,7 @@ def test_filtra_por_fecha(escenario):
     Atencion.objects.filter(expediente=escenario["exp2"]).update(
         fecha_hora=timezone.now() - timedelta(days=30)
     )
-    datos = services.informe_demografico(
+    datos = services.informe_estadistico(
         escenario["est"]["medicina"], desde=timezone.localdate() - timedelta(days=1)
     )
     assert datos["total_atenciones"] == 2  # solo las de exp1, recientes
@@ -124,7 +156,7 @@ def test_filtra_por_fecha(escenario):
 
 @pytest.mark.django_db
 def test_no_cuenta_atenciones_de_otro_servicio(escenario):
-    datos = services.informe_demografico(escenario["est"]["psicologia"])
+    datos = services.informe_estadistico(escenario["est"]["psicologia"])
     assert datos["total_atenciones"] == 0
 
 
@@ -132,11 +164,14 @@ def test_no_cuenta_atenciones_de_otro_servicio(escenario):
 
 
 @pytest.mark.django_db
-def test_la_pantalla_muestra_los_totales(escenario):
+def test_la_pantalla_muestra_atenciones_y_personas_por_separado(escenario):
     contenido = (
         _cliente(escenario["medico"]).get(reverse("reportes:informe_servicio")).content.decode()
     )
-    assert "3 atención(es)" in contenido
+    assert "Atenciones" in contenido
+    assert "Personas atendidas" in contenido
+    # Django localiza el separador decimal para es-ec: 66.7 se pinta "66,7".
+    assert "66,7%" in contenido  # el porcentaje de "mujer": 2 de 3 atenciones
 
 
 @pytest.mark.django_db

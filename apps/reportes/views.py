@@ -140,7 +140,7 @@ def informe_servicio(request):
         request,
         "reportes/informe_servicio.html",
         {
-            "datos": services.informe_demografico(servicio, desde, hasta),
+            "datos": services.informe_estadistico(servicio, desde, hasta),
             "servicios": mis_servicios,
             "servicio": servicio,
             "desde": desde,
@@ -155,13 +155,13 @@ def informe_servicio_pdf(request):
     mis_servicios = _mis_servicios(request.user)
     servicio = _servicio_o_403(request, mis_servicios)
     desde, hasta = _rango(request)
-    datos = services.informe_demografico(servicio, desde, hasta)
+    datos = services.informe_estadistico(servicio, desde, hasta)
 
     LogAuditoria.objects.create(
         usuario=request.user,
         accion=LogAuditoria.Accion.EXPORT,
         modulo="reportes",
-        entidad="InformeDemografico",
+        entidad="InformeEstadistico",
         entidad_id=servicio.codigo,
         detalle={"desde": str(desde or ""), "hasta": str(hasta or "")},
     )

@@ -57,7 +57,7 @@ MODULOS = [
     # A diferencia del tablero de arriba —Dirección, agregados de TODA la
     # Unidad—, este lo genera cualquier profesional sobre su propio servicio:
     # es el mismo contenido que ya ve atención por atención.
-    Modulo("Informe demográfico", "reportes:informe_servicio", ("tiene_servicio", None), "Gestión"),
+    Modulo("Informe estadístico", "reportes:informe_servicio", ("tiene_servicio", None), "Gestión"),
 ]
 
 # Rutas de módulos que solo se abren desde un expediente/atención concreta. No
