@@ -9,10 +9,6 @@
     el que consta en su matrícula.
   </p>
 
-  {% if messages %}{% for m in messages %}
-  <div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
-  {% endfor %}{% endif %}
-
   {% if pendiente and pendiente.vigente %}
   <div class="card">
     <div class="card-body">

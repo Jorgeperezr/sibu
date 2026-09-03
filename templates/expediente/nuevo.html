@@ -11,10 +11,6 @@
   institucional, búsquela por cédula en lugar de registrarla aquí.
 </p>
 
-{% if messages %}{% for m in messages %}
-<div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
-{% endfor %}{% endif %}
-
 {% if datos.prellenado %}
 <div class="alert alert-info py-2">
   Se completaron los datos que constan en la base institucional para la cédula

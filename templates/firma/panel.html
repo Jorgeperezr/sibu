@@ -7,10 +7,6 @@
   {{ solicitud.atencion.servicio.nombre }} · {{ solicitud.nombre_documento }}
 </p>
 
-{% if messages %}{% for m in messages %}
-<div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
-{% endfor %}{% endif %}
-
 {% if solicitud.estado == "firmada" %}
 <div class="alert alert-success">
   <strong>Documento firmado.</strong>

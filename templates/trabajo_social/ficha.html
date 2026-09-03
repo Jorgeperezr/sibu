@@ -6,10 +6,6 @@
   {{ expediente.persona.nombre_completo }} · Expediente {{ expediente.numero_expediente }}
 </p>
 
-{% if messages %}{% for m in messages %}
-<div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
-{% endfor %}{% endif %}
-
 {% if not vigente %}
 <div class="card">
   <div class="card-body">

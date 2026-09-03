@@ -24,12 +24,6 @@
 </div>
 {% endif %}
 
-{% if messages %}
-  {% for m in messages %}
-    <div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
-  {% endfor %}
-{% endif %}
-
 {% if ficha.atencion.inmutable %}
 <div class="alert alert-secondary py-2">Atención firmada: no admite cambios.</div>
 {% endif %}

@@ -156,3 +156,27 @@ def test_la_tipografia_es_montserrat_y_se_sirve_local(db):
     assert "vendor/montserrat/montserrat.css" in cuerpo
     assert "fonts.googleapis.com" not in cuerpo
     assert "cdn.jsdelivr.net" not in cuerpo
+
+
+@pytest.mark.django_db
+def test_un_mensaje_se_pinta_una_sola_vez(admin):
+    """
+    Cada plantilla traía su propio bloque de mensajes; al centralizarlo en
+    base.html sin quitar los suyos, todo aviso salía DOS veces en pantalla.
+    Se vio en una captura del alta de expediente, no en el HTML.
+    """
+    from django.contrib.messages import get_messages
+
+    cliente = Client()
+    cliente.login(username="admin", password=CLAVE)
+    # El alta rechaza una cédula inválida con un mensaje de error.
+    respuesta = cliente.post(
+        reverse("expediente:nuevo"),
+        {"cedula": "1104567890", "nombres": "Ana", "apellidos": "Prueba"},
+        follow=True,
+    )
+    textos = [str(m) for m in get_messages(respuesta.wsgi_request)]
+    assert textos, "la prueba necesita al menos un mensaje para contar"
+    cuerpo = respuesta.content.decode()
+    for texto in textos:
+        assert cuerpo.count(texto) == 1, f"el mensaje se pinta {cuerpo.count(texto)} veces"

@@ -5,12 +5,6 @@
 <p class="text-muted">Ficha socioeconómica de matrícula (Excel/CSV). Sube el archivo,
 revisa la previsualización y confirma la aplicación.</p>
 
-{% if messages %}
-  {% for m in messages %}
-    <div class="alert alert-{{ m.tags }}">{{ m }}</div>
-  {% endfor %}
-{% endif %}
-
 <div class="card mb-4">
   <div class="card-body">
     <form method="post" enctype="multipart/form-data">

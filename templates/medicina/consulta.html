@@ -14,10 +14,6 @@
      class="btn btn-sm btn-outline-secondary">Expediente</a>
 </div>
 
-{% if messages %}{% for m in messages %}
-  <div class="alert alert-{{ m.tags }}">{{ m }}</div>
-{% endfor %}{% endif %}
-
 {% if triaje %}
 <div class="alert alert-info py-2">
   <strong>Triaje ({{ triaje.fecha_hora|date:"H:i" }}):</strong>

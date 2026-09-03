@@ -83,8 +83,9 @@ puede declararse una vez.
       {% block breadcrumb %}{% endblock %}
 
       {% comment %}
-        Mensajes centralizados: antes cada plantilla repetía este bloque. Las que
-        aún lo traigan seguirán funcionando; las nuevas ya no lo necesitan.
+        Único lugar donde se pintan los mensajes. Mientras las plantillas
+        conservaron su propio bloque, cada aviso salía DOS veces en pantalla.
+        Una plantilla nueva no debe volver a incluirlo.
       {% endcomment %}
       {% if messages %}
       <div class="mb-3">

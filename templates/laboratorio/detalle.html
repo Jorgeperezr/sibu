@@ -13,10 +13,6 @@
   <a href="{% url 'laboratorio:bandeja' %}" class="btn btn-sm btn-outline-secondary">Bandeja</a>
 </div>
 
-{% if messages %}{% for m in messages %}
-  <div class="alert alert-{{ m.tags }}">{{ m }}</div>
-{% endfor %}{% endif %}
-
 {% if orden.diagnostico_presuntivo %}
 <p class="text-muted"><strong>Dx presuntivo:</strong> {{ orden.diagnostico_presuntivo }}</p>
 {% endif %}
