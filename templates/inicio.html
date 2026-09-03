@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}SIBU — Bienestar Universitario UNL{% endblock %}
 {% block content %}
 
@@ -52,9 +53,11 @@
 </div>
 
 {% else %}
-<div class="text-center py-5">
-  <h1 class="h3">Sistema Integral de Bienestar Universitario</h1>
-  <p class="text-muted">Universidad Nacional de Loja</p>
+<div class="text-center py-4">
+  <img src="{% static 'img/unl-horizontal.png' %}" alt="Universidad Nacional de Loja"
+       style="max-width:320px;width:100%;height:auto">
+  <h1 class="h5 mt-4">Sistema Integral de Bienestar Universitario</h1>
+  <p class="text-muted small">Unidad de Bienestar Universitario</p>
   <a href="{% url 'login' %}" class="btn btn-primary mt-2">Ingresar</a>
 </div>
 {% endif %}

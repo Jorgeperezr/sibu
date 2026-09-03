@@ -43,13 +43,17 @@ def test_la_portada_renderiza_con_el_nuevo_base(admin):
 
 
 @pytest.mark.django_db
-def test_el_favicon_inline_evita_el_404(admin):
-    """Antes /favicon.ico daba 404 en cada carga. Ahora hay un icono inline."""
+def test_el_favicon_evita_el_404(admin):
+    """
+    Antes /favicon.ico daba 404 en cada carga; luego se puso un SVG dibujado a
+    mano, y ahora es el escudo de la UNL. Lo que se fija es la garantía —que
+    haya un icono declarado—, no con qué se dibuja.
+    """
     c = Client()
     c.login(username="admin", password=CLAVE)
     cuerpo = c.get(reverse("inicio")).content.decode()
     assert 'rel="icon"' in cuerpo
-    assert "data:image/svg+xml" in cuerpo
+    assert "unl-escudo" in cuerpo
 
 
 @pytest.mark.django_db
@@ -97,3 +101,58 @@ def test_ningun_comentario_de_plantilla_se_filtra_al_html(admin):
     cuerpo = c.get(reverse("inicio")).content.decode()
     for resto in ("{#", "#}", "{% comment", "endcomment", "Mensajes centralizados"):
         assert resto not in cuerpo, f"Se filtró sintaxis de plantilla: {resto!r}"
+
+
+# --------------------------------------------------------------------------
+# Identidad visual de la UNL (Manual Corporativo)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_la_marca_usa_el_logotipo_oficial(admin):
+    """
+    El manual prohíbe recomponer el logotipo: se sirve el archivo tal cual, no
+    un montaje de texto e iconos. Antes la cabecera decía "SIBU · UNL" en
+    tipografía suelta.
+    """
+    c = Client()
+    c.login(username="admin", password=CLAVE)
+    cuerpo = c.get(reverse("inicio")).content.decode()
+    assert "img/unl-horizontal" in cuerpo
+
+
+@pytest.mark.django_db
+def test_los_colores_corporativos_son_los_del_manual(db):
+    """
+    Rojo Pantone 485 C y verde Pantone 355 C, con los valores que el manual
+    declara. Antes había un verde inventado (#1b7f5a) como marcador de posición.
+    """
+    from pathlib import Path
+
+    from django.conf import settings
+
+    css = (Path(settings.BASE_DIR) / "static" / "css" / "sibu.css").read_text()
+    assert "#bf0811" in css.lower()  # rojo corporativo
+    assert "#4f8e3a" in css.lower()  # verde corporativo
+    assert "#211915" in css.lower()  # negro corporativo
+    assert "#1b7f5a" not in css.lower()  # el verde inventado ya no está
+
+
+@pytest.mark.django_db
+def test_la_tipografia_es_montserrat_y_se_sirve_local(db):
+    """
+    Montserrat es la familia principal de la marca. Se sirve desde el propio
+    servidor por lo mismo que Bootstrap: un sistema interno no debe quedarse
+    sin tipografía si la red bloquea Google Fonts.
+    """
+    from pathlib import Path
+
+    from django.conf import settings
+
+    css = (Path(settings.BASE_DIR) / "static" / "css" / "sibu.css").read_text()
+    assert "Montserrat" in css
+
+    cuerpo = Client().get(reverse("login")).content.decode()
+    assert "vendor/montserrat/montserrat.css" in cuerpo
+    assert "fonts.googleapis.com" not in cuerpo
+    assert "cdn.jsdelivr.net" not in cuerpo

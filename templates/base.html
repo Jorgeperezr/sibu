@@ -11,11 +11,11 @@
   interfaz aparecía sin estilos y con el menú móvil desplegado sobre la
   página. WhiteNoise ya sirve los estáticos en producción.
   {% endcomment %}
+  <link href="{% static 'vendor/montserrat/montserrat.css' %}" rel="stylesheet">
   <link href="{% static 'vendor/bootstrap/bootstrap.min.css' %}" rel="stylesheet">
   <link href="{% static 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}" rel="stylesheet">
   <link href="{% static 'css/sibu.css' %}" rel="stylesheet">
-  {# Favicon en línea: evita el 404 de /favicon.ico sin añadir un archivo. #}
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%231b7f5a'/><text x='8' y='12' font-size='10' fill='white' text-anchor='middle' font-family='sans-serif'>S</text></svg>">
+  <link rel="icon" href="{% static 'img/unl-escudo.png' %}">
   {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -38,12 +38,15 @@ puede declararse una vez.
 
   {% if user.is_authenticated %}
   <aside class="sibu-side d-none d-lg-flex flex-column">
+    {% comment %}
+    El logotipo oficial se usa tal cual, en sus colores corporativos: el manual
+    prohíbe recomponerlo, cambiarle la escala relativa o teñirlo. Por eso la
+    lateral es blanca en vez del verde oscuro que tenía antes.
+    {% endcomment %}
     <a class="sibu-marca" href="{% url 'inicio' %}">
-      <span class="sibu-logo">S</span>
-      <span>
-        <strong>SIBU</strong>
-        <small>Bienestar Universitario</small>
-      </span>
+      <img src="{% static 'img/unl-horizontal.png' %}"
+           alt="Universidad Nacional de Loja">
+      <span class="sibu-sistema">Bienestar Universitario</span>
     </a>
     <nav class="sibu-nav flex-grow-1">{% include "_nav_lista.html" %}</nav>
     <div class="sibu-usuario">
@@ -66,7 +69,10 @@ puede declararse una vez.
               data-bs-target="#nav-movil" aria-label="Abrir menú">
         <i class="bi bi-list"></i>
       </button>
-      <a class="sibu-marca-movil" href="{% url 'inicio' %}">SIBU · UNL</a>
+      <a href="{% url 'inicio' %}">
+        <img src="{% static 'img/unl-horizontal.png' %}"
+             alt="Universidad Nacional de Loja">
+      </a>
       <a href="{% url 'logout' %}" class="btn btn-sm btn-light" title="Cerrar sesión">
         <i class="bi bi-box-arrow-right"></i>
       </a>
@@ -104,7 +110,7 @@ puede declararse una vez.
 {% if user.is_authenticated %}
 <div class="offcanvas offcanvas-start sibu-side-movil" tabindex="-1" id="nav-movil">
   <div class="offcanvas-header">
-    <h5 class="offcanvas-title">SIBU · UNL</h5>
+    <h5 class="offcanvas-title">Bienestar Universitario</h5>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
   </div>
   <div class="offcanvas-body sibu-nav">{% include "_nav_lista.html" %}</div>
