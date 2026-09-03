@@ -3,7 +3,100 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-3">
   <h1 class="h4 mb-0">Inventario</h1>
-  <a href="{% url 'farmacia:mostrador' %}" class="btn btn-sm btn-outline-secondary">Mostrador</a>
+  <div class="d-flex gap-2">
+    <form method="post" onsubmit="return confirm('Se dará de baja todo lote caducado con existencias. ¿Continuar?');">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="baja_caducados">
+      <button class="btn btn-sm btn-outline-danger">Dar de baja caducados</button>
+    </form>
+    <a href="{% url 'farmacia:mostrador' %}" class="btn btn-sm btn-outline-secondary">Mostrador</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header">Ingresar mercadería</div>
+      <div class="card-body">
+        <form method="post" class="row g-2">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="ingresar">
+          <div class="col-sm-6">
+            <label class="form-label" for="medicamento">Medicamento</label>
+            <select id="medicamento" name="medicamento" class="form-select" required>
+              <option value="">—</option>
+              {% for m in catalogo %}
+                <option value="{{ m.pk }}">{{ m.dci }} {{ m.concentracion }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label" for="numero_lote">Lote</label>
+            <input id="numero_lote" name="numero_lote" class="form-control" required maxlength="40">
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label" for="cantidad">Cantidad</label>
+            <input id="cantidad" name="cantidad" type="number" min="1" class="form-control" required>
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label" for="fecha_caducidad">Caduca</label>
+            <input id="fecha_caducidad" name="fecha_caducidad" type="date" class="form-control" required>
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label" for="proveedor">Proveedor</label>
+            <input id="proveedor" name="proveedor" class="form-control" maxlength="120">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label" for="referencia_doc">Documento</label>
+            <input id="referencia_doc" name="referencia_doc" class="form-control" maxlength="60"
+                   placeholder="Acta o factura">
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary btn-sm mt-2">Ingresar</button>
+            <span class="form-text ms-2">
+              Si el lote ya existe se suma al saldo. Un lote caducado no se admite.
+            </span>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header">Ajustar por conteo físico</div>
+      <div class="card-body">
+        <form method="post" class="row g-2">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="ajustar">
+          <div class="col-12">
+            <label class="form-label" for="lote">Lote</label>
+            <select id="lote" name="lote" class="form-select" required>
+              <option value="">—</option>
+              {% for l in lotes %}
+                <option value="{{ l.pk }}">
+                  {{ l.medicamento.dci }} · {{ l.numero_lote }} ({{ l.cantidad_actual }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-5">
+            <label class="form-label" for="diferencia">Diferencia</label>
+            <input id="diferencia" name="diferencia" type="number" class="form-control" required
+                   placeholder="-3">
+          </div>
+          <div class="col-7">
+            <label class="form-label" for="motivo">Motivo</label>
+            <input id="motivo" name="motivo" class="form-control" required maxlength="60">
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary btn-sm mt-2">Ajustar</button>
+            <span class="form-text ms-2">Queda como movimiento, con su motivo.</span>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 
 {% if por_caducar %}

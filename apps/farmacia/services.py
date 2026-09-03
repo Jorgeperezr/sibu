@@ -135,6 +135,7 @@ def caducar_recetas_vencidas() -> int:
 
 
 @transaction.atomic
+@transaction.atomic
 def ingresar_lote(
     medicamento: Medicamento,
     numero_lote: str,
@@ -152,6 +153,12 @@ def ingresar_lote(
 
     Todo ingreso deja un MovimientoInventario: el saldo del lote siempre puede
     reconstruirse desde la bitácora (trazabilidad exigida en el informe 6.5).
+
+    Es atómica y bloquea el lote antes de sumar. Sin el bloqueo, dos ingresos
+    simultáneos leían el mismo saldo y el segundo pisaba al primero: entraban
+    200 unidades y quedaban 100, con dos movimientos que ya no cuadraban con el
+    saldo. Fuera de una petición web —un comando, el shell— no había ni
+    transacción que lo salvara.
     """
     if cantidad <= 0:
         raise ValidationError("La cantidad a ingresar debe ser mayor a cero.")
@@ -176,6 +183,7 @@ def ingresar_lote(
             f"Un mismo número de lote no puede tener dos fechas de caducidad."
         )
 
+    lote = Lote.objects.select_for_update().get(pk=lote.pk)
     lote.cantidad_actual += cantidad
     lote.save(update_fields=["cantidad_actual"])
 
@@ -271,6 +279,48 @@ def alertas_caducidad(dias: int = 90):
 
 
 @transaction.atomic
+@transaction.atomic
+def ajustar_lote(lote: Lote, diferencia: int, motivo: str, *, usuario) -> Lote:
+    """
+    Corrige el saldo de un lote tras un conteo físico y deja el movimiento.
+
+    `MovimientoInventario` contemplaba AJUSTE_MAS y AJUSTE_MENOS desde el
+    Sprint 6, pero nada los creaba: cuando la percha no cuadraba con el
+    sistema, la única salida era el shell o el panel de administración, que
+    escribe el saldo sin dejar movimiento y rompe la trazabilidad.
+
+    El motivo es obligatorio: un ajuste sin causa escrita es indistinguible de
+    un descuadre.
+    """
+    if diferencia == 0:
+        raise ValidationError("El ajuste debe ser distinto de cero.")
+    if not motivo.strip():
+        raise ValidationError("Todo ajuste de inventario exige un motivo escrito.")
+
+    lote = Lote.objects.select_for_update().get(pk=lote.pk)
+    if lote.cantidad_actual + diferencia < 0:
+        raise ValidationError(
+            f"El ajuste dejaría el lote {lote.numero_lote} en "
+            f"{lote.cantidad_actual + diferencia}: el saldo no puede ser negativo."
+        )
+
+    lote.cantidad_actual += diferencia
+    lote.save(update_fields=["cantidad_actual"])
+    MovimientoInventario.objects.create(
+        lote=lote,
+        tipo=(
+            MovimientoInventario.Tipo.AJUSTE_MAS
+            if diferencia > 0
+            else MovimientoInventario.Tipo.AJUSTE_MENOS
+        ),
+        cantidad=diferencia,
+        saldo_resultante=lote.cantidad_actual,
+        referencia_doc=motivo.strip()[:60],
+        usuario=usuario,
+    )
+    return lote
+
+
 def dar_de_baja_caducados(usuario) -> int:
     """
     Da de baja los lotes caducados con existencias. Devuelve las unidades
