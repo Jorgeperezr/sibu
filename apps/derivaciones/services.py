@@ -30,8 +30,39 @@ ACUSE_CONFIDENCIAL = (
 )
 
 
+# Una derivación en cualquiera de estos estados sigue viva: el destino aún no
+# la ha cerrado, así que emitir otra al mismo servicio duplicaría el caso.
+ESTADOS_ABIERTOS = (
+    Derivacion.Estado.ENVIADA,
+    Derivacion.Estado.ACEPTADA,
+    Derivacion.Estado.AGENDADA,
+)
+
+
 def _es_confidencial(servicio: Servicio) -> bool:
     return servicio.codigo in SERVICIOS_CONFIDENCIALES
+
+
+def destinos_con_derivacion_abierta(expediente) -> dict[int, str]:
+    """
+    Servicios a los que el paciente ya tiene una derivación viva, por id.
+
+    Es lo que `derivar` rechaza. La pantalla lo consulta antes para no ofrecer
+    un destino que va a fallar, y para decir por qué no lo ofrece.
+
+    No abre rendija en el sello de Psicología: la EXISTENCIA de una derivación
+    ya es visible para quien derivó —la trazabilidad la muestra—; lo que nunca
+    sale del servicio es su contenido clínico, y aquí no se toca.
+    """
+    filas = (
+        Derivacion.objects.filter(
+            atencion_origen__expediente=expediente,
+            estado__in=ESTADOS_ABIERTOS,
+        )
+        .select_related("servicio_destino")
+        .values_list("servicio_destino_id", "servicio_destino__nombre")
+    )
+    return dict(filas)
 
 
 @transaction.atomic
@@ -63,11 +94,7 @@ def derivar(
     abierta = Derivacion.objects.filter(
         atencion_origen__expediente=atencion_origen.expediente,
         servicio_destino=servicio_destino,
-        estado__in=[
-            Derivacion.Estado.ENVIADA,
-            Derivacion.Estado.ACEPTADA,
-            Derivacion.Estado.AGENDADA,
-        ],
+        estado__in=ESTADOS_ABIERTOS,
     ).exists()
     if abierta:
         raise ValidationError(
@@ -89,14 +116,7 @@ def bandeja_entrada(servicio: Servicio):
     from django.db.models import Case, IntegerField, Value, When
 
     return (
-        Derivacion.objects.filter(
-            servicio_destino=servicio,
-            estado__in=[
-                Derivacion.Estado.ENVIADA,
-                Derivacion.Estado.ACEPTADA,
-                Derivacion.Estado.AGENDADA,
-            ],
-        )
+        Derivacion.objects.filter(servicio_destino=servicio, estado__in=ESTADOS_ABIERTOS)
         .select_related("atencion_origen__expediente__persona", "atencion_origen__servicio")
         .annotate(
             _orden=Case(

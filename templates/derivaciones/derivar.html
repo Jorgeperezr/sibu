@@ -1,14 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Derivar — SIBU{% endblock %}
 {% block content %}
-<h2>Derivar paciente</h2>
-<p class="text-muted">
-  {{ atencion.expediente.persona.nombre_completo }} · desde {{ atencion.servicio.nombre }}
-</p>
-
-{% if messages %}{% for m in messages %}
-<div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
-{% endfor %}{% endif %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="h4 mb-0">Derivar paciente</h1>
+    <small class="text-muted">
+      {{ atencion.expediente.persona.nombre_completo }} · desde {{ atencion.servicio.nombre }}
+    </small>
+  </div>
+  <a href="{% url 'expediente:detalle' atencion.expediente_id %}"
+     class="btn btn-sm btn-outline-secondary">Volver al expediente</a>
+</div>
 
 <div class="card" style="max-width:640px">
   <div class="card-body">
@@ -20,6 +22,12 @@
           <option value="">—</option>
           {% for s in servicios %}<option value="{{ s.pk }}">{{ s.nombre }}</option>{% endfor %}
         </select>
+        {% if abiertas %}
+        <div class="form-text">
+          No figuran, porque el paciente ya tiene una derivación en curso a
+          {{ abiertas|join:", " }}.
+        </div>
+        {% endif %}
       </div>
       <div class="mb-3">
         <label class="form-label">Motivo</label>

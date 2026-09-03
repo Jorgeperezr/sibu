@@ -72,12 +72,21 @@ def derivar(request, atencion_id):
             detalle = " ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
             messages.error(request, detalle)
 
+    # Los destinos con una derivación viva se apartan del desplegable: ofrecerlos
+    # solo servía para que `services.derivar` los rechazara después.
+    abiertas = services.destinos_con_derivacion_abierta(atencion.expediente)
+    disponibles = (
+        Servicio.objects.filter(activo=True)
+        .exclude(pk=atencion.servicio_id)
+        .exclude(pk__in=abiertas)
+    )
     return render(
         request,
         "derivaciones/derivar.html",
         {
             "atencion": atencion,
-            "servicios": Servicio.objects.filter(activo=True).exclude(pk=atencion.servicio_id),
+            "servicios": disponibles,
+            "abiertas": sorted(abiertas.values()),
         },
     )
 

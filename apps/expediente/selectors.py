@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from apps.usuarios.rbac import atenciones_visibles
+from apps.usuarios.rbac import atenciones_visibles, servicios_del_usuario
 
 from .models import AlertaClinica, Atencion, Expediente
 
@@ -26,11 +26,18 @@ def alertas_activas(expediente: Expediente):
 
 def resumen_expediente(expediente: Expediente, usuario, break_glass: bool = False):
     """Encabezado + alertas + conteo de atenciones visibles para el usuario."""
-    atenciones = timeline(expediente, usuario, break_glass)
+    atenciones = list(timeline(expediente, usuario, break_glass))
+    # De qué atenciones puede derivar este usuario. Es la misma regla que aplica
+    # `derivaciones.views.derivar` (solo desde un servicio propio): calcularla
+    # aquí evita ofrecer un botón que respondería 403. Ver una atención por
+    # break-glass no habilita derivar desde ella.
+    mis_servicios = servicios_del_usuario(usuario)
+    for atencion in atenciones:
+        atencion.puede_derivar = atencion.servicio_id in mis_servicios
     return {
         "expediente": expediente,
         "persona": expediente.persona,
         "alertas": list(alertas_activas(expediente)),
         "atenciones": atenciones,
-        "total_atenciones": atenciones.count(),
+        "total_atenciones": len(atenciones),
     }
