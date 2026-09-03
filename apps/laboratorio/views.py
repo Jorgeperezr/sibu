@@ -1,17 +1,33 @@
-"""Interfaz web de Laboratorio: bandeja de órdenes y registro de resultados."""
+"""
+Interfaz web de Laboratorio: bandeja de órdenes y registro de resultados.
+
+TODAS las vistas comprueban la pertenencia al servicio. Un resultado de
+laboratorio es contenido clínico: con solo `@login_required`, cualquier
+usuario autenticado leía los de cualquier paciente cambiando el id de la URL,
+y por POST registraba, validaba o publicaba resultados ajenos.
+"""
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core.models import Servicio
+from apps.usuarios.decorators import verificar_es_del_servicio
+
 from . import services
 from .models import OrdenLaboratorio, ParametroExamen
+
+
+def _servicio():
+    """El servicio de Laboratorio Clínico, fuente única del criterio de acceso."""
+    return get_object_or_404(Servicio, codigo="laboratorio-clinico")
 
 
 @login_required
 def bandeja(request):
     """Cola de trabajo del laboratorio (urgentes primero)."""
+    verificar_es_del_servicio(request.user, _servicio())
     return render(
         request,
         "laboratorio/bandeja.html",
@@ -25,6 +41,7 @@ def detalle_orden(request, pk):
     Ficha de la orden: toma de muestra, registro de resultados, validación
     y publicación según el estado.
     """
+    verificar_es_del_servicio(request.user, _servicio())
     orden = get_object_or_404(
         OrdenLaboratorio.objects.select_related("atencion__expediente__persona"), pk=pk
     )
