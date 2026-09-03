@@ -23,36 +23,37 @@ from apps.usuarios.models import Usuario
 # --------------------------------------------------------- clave de desarrollo
 
 
-def test_la_clave_de_desarrollo_se_genera_si_no_hay_ninguna(tmp_path, monkeypatch):
+# Se importa `clave_dev`, no `dev`: importar el módulo de ajustes de desarrollo
+# tiene efectos —inserta el middleware del debug toolbar y dos apps en las
+# listas que comparte con `base.py`—, y hacerlo desde una prueba alteraría los
+# ajustes del resto de la suite. Por eso la función vive en un módulo aparte.
+def test_la_clave_de_desarrollo_se_genera_si_no_hay_ninguna(tmp_path):
     """Sin esto, un `.env` con SECRET_KEY vacía impedía arrancar."""
-    from config.settings import dev
+    from config.settings.clave_dev import clave_de_desarrollo
 
-    monkeypatch.setattr(dev, "BASE_DIR", tmp_path)
-    clave = dev._clave_de_desarrollo()
+    clave = clave_de_desarrollo(tmp_path)
     assert clave
     assert len(clave) >= 32
 
 
-def test_la_clave_de_desarrollo_no_cambia_entre_arranques(tmp_path, monkeypatch):
+def test_la_clave_de_desarrollo_no_cambia_entre_arranques(tmp_path):
     """
     Si cambiara en cada arranque, las sesiones y los tokens CSRF abiertos
     quedarían invalidados y habría que volver a iniciar sesión tras cada
     reinicio del servidor: justo el error que esto viene a quitar.
     """
-    from config.settings import dev
+    from config.settings.clave_dev import clave_de_desarrollo
 
-    monkeypatch.setattr(dev, "BASE_DIR", tmp_path)
-    assert dev._clave_de_desarrollo() == dev._clave_de_desarrollo()
+    assert clave_de_desarrollo(tmp_path) == clave_de_desarrollo(tmp_path)
     assert (tmp_path / ".secret_key_dev").exists()
 
 
-def test_una_clave_guardada_vacia_se_regenera(tmp_path, monkeypatch):
+def test_una_clave_guardada_vacia_se_regenera(tmp_path):
     """Un archivo truncado no puede dejar el sistema sin clave."""
-    from config.settings import dev
+    from config.settings.clave_dev import clave_de_desarrollo
 
-    monkeypatch.setattr(dev, "BASE_DIR", tmp_path)
     (tmp_path / ".secret_key_dev").write_text("   ", encoding="utf-8")
-    assert dev._clave_de_desarrollo().strip()
+    assert clave_de_desarrollo(tmp_path).strip()
 
 
 def test_la_clave_generada_no_se_versiona():
@@ -193,3 +194,33 @@ def test_quien_administra_alcanza_el_padron_y_quien_atiende_no(settings, client)
 
     assert client.login(username="medico", password="sibu-demo-2026")
     assert client.get(reverse("academico:padron")).status_code == 302
+
+
+def test_ninguna_prueba_importa_los_ajustes_de_desarrollo():
+    """
+    Importar `config.settings.dev` desde una prueba inserta el middleware del
+    debug toolbar y dos apps en las listas que ese módulo comparte con
+    `base.py`. Bajo los ajustes de prueba esas listas son las que Django está
+    usando, así que la importación altera la configuración del RESTO de la
+    suite: las pruebas que vinieran después harían peticiones a través de un
+    middleware que no les corresponde, y el fallo aparecería lejos de su causa.
+
+    Esta prueba estuvo a punto de hacer justo eso. Se queda para que la
+    siguiente no lo repita.
+    """
+    import re
+    from pathlib import Path
+
+    # Solo sentencias de importación, no la prosa: este mismo archivo nombra el
+    # módulo al explicar por qué no debe importarse.
+    patron = re.compile(
+        r"^\s*(?:import\s+config\.settings\.dev|from\s+config\.settings(?:\.dev)?\s+import\s+(?:dev\b|\*))",
+        re.MULTILINE,
+    )
+    raiz = Path(__file__).resolve().parents[2]
+    culpables = [
+        str(archivo.relative_to(raiz))
+        for archivo in raiz.rglob("test_*.py")
+        if patron.search(archivo.read_text(encoding="utf-8"))
+    ]
+    assert not culpables, f"importan los ajustes de desarrollo: {culpables}"
