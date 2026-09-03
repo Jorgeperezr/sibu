@@ -30,10 +30,9 @@ class Persona(ModeloBase):
     fecha_nacimiento = models.DateField(null=True, blank=True)
     sexo = models.CharField(max_length=20, blank=True)
     genero = models.CharField(max_length=30, blank=True)
-    # Autoidentificación étnica (categorías del censo INEC): libre y no
-    # obligatoria, igual que sexo/género —la fuente institucional no siempre
-    # la trae, y no es este sistema quien debe inventar una taxonomía cerrada.
-    etnia = models.CharField(max_length=40, blank=True)
+    # Identidad de género y orientación sexual: un solo ítem, no dos campos.
+    # Libre y no obligatorio, igual que sexo/género.
+    identidad_orientacion_sexual = models.CharField(max_length=60, blank=True)
     tipo_vinculo = models.CharField(max_length=20, choices=TipoVinculo.choices)
     correo_institucional = models.EmailField(blank=True)
     correo_personal = models.EmailField(blank=True)

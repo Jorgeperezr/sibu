@@ -195,21 +195,24 @@ def tablero_general(desde=None, hasta=None) -> dict:
 # clínico completo de esos pacientes. No hay rendija que abrir ni celda que
 # suprimir; es el mismo dato que ya ve atención por atención, solo que sumado.
 #
-# Ocho columnas se pidieron: sexo, género, etnia, discapacidad, embarazo,
-# lactancia, enfermedad catastrófica y necesidad educativa especial. Solo las
-# dos primeras y la discapacidad tenían dónde vivir en el modelo; embarazo,
-# lactancia y enfermedad catastrófica no existían en ninguna parte del sistema
-# —ni siquiera la carga académica masiva los guardaba en un campo consultable,
-# se perdían en la fila cruda—. Se resuelven con `AlertaClinica`, que ya existe
-# justo para banderas de este tipo (ver Sprint de hoy: `Tipo.GESTACION`,
-# `Tipo.LACTANCIA`, `Tipo.ENF_CATASTROFICA`) y con `Persona.etnia`, nuevo.
+# Ocho variables: sexo, género, identidad de género u orientación sexual —un
+# solo ítem, no dos—, discapacidad, embarazo, lactancia, enfermedad
+# catastrófica y necesidad educativa especial. Solo sexo y discapacidad
+# tenían dónde vivir en el modelo; embarazo, lactancia y enfermedad
+# catastrófica no existían en ninguna parte del sistema —ni siquiera la carga
+# académica masiva los guardaba en un campo consultable, se perdían en la
+# fila cruda—. Se resuelven con `AlertaClinica`, que ya existe justo para
+# banderas de este tipo (`Tipo.GESTACION`, `Tipo.LACTANCIA`,
+# `Tipo.ENF_CATASTROFICA`) y con `Persona.identidad_orientacion_sexual`,
+# nuevo (reemplaza a `Persona.etnia`, que no era una de las ocho variables
+# pedidas y no tenía ningún otro uso en el sistema: ni el alta la recogía).
 #
 # Todas las columnas leen el estado VIGENTE de la persona/expediente al
 # momento de generar el informe, no un dato histórico por atención: ni sexo,
-# ni etnia, ni una alerta llevan fecha de vigencia. Es la misma limitación que
-# ya tiene el resto del sistema (el nombre de un paciente en la línea de
-# tiempo es el actual, no el de cuando se abrió cada atención) — no es una
-# inconsistencia nueva.
+# ni identidad/orientación sexual, ni una alerta llevan fecha de vigencia. Es
+# la misma limitación que ya tiene el resto del sistema (el nombre de un
+# paciente en la línea de tiempo es el actual, no el de cuando se abrió cada
+# atención) — no es una inconsistencia nueva.
 #
 # Cada categoría lleva su porcentaje sobre el TOTAL DE ATENCIONES del rango
 # (no sobre el total de pacientes): con 100 atenciones en el mes y 10 de una
@@ -276,7 +279,7 @@ def informe_estadistico(servicio, desde=None, hasta=None) -> dict:
             "expediente_id",
             "expediente__persona__sexo",
             "expediente__persona__genero",
-            "expediente__persona__etnia",
+            "expediente__persona__identidad_orientacion_sexual",
             "expediente__discapacidad_tipo",
         )
     )
@@ -309,8 +312,9 @@ def informe_estadistico(servicio, desde=None, hasta=None) -> dict:
         "genero": _conteo(
             (f["expediente__persona__genero"] or SIN_DATO for f in filas), total_atenciones
         ),
-        "etnia": _conteo(
-            (f["expediente__persona__etnia"] or SIN_DATO for f in filas), total_atenciones
+        "identidad_orientacion_sexual": _conteo(
+            (f["expediente__persona__identidad_orientacion_sexual"] or SIN_DATO for f in filas),
+            total_atenciones,
         ),
         "discapacidad": _conteo(
             (
@@ -319,7 +323,8 @@ def informe_estadistico(servicio, desde=None, hasta=None) -> dict:
             ),
             total_atenciones,
         ),
-        # Estas cuatro no son un desglose de categorías (como sexo o etnia):
+        # Estas cuatro no son un desglose de categorías (como sexo o identidad
+        # de género/orientación sexual):
         # son presencia/ausencia de una bandera, así que se resumen como
         # cuántas atenciones la tenían activa sobre el total, con su
         # porcentaje igual que las demás columnas.

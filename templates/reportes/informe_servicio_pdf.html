@@ -49,11 +49,11 @@ atención, solo que sumado.
   </tbody>
 </table>
 
-<h2>Etnia</h2>
+<h2>Identidad u orientación sexual</h2>
 <table>
   <thead><tr><th>Categoría</th><th class="num">Atenciones</th><th class="num">%</th></tr></thead>
   <tbody>
-    {% for f in datos.etnia %}
+    {% for f in datos.identidad_orientacion_sexual %}
     <tr><td>{{ f.etiqueta }}</td><td class="num">{{ f.total }}</td><td class="num">{{ f.porcentaje }}%</td></tr>
     {% endfor %}
   </tbody>
@@ -80,7 +80,7 @@ atención, solo que sumado.
   </tbody>
 </table>
 <div class="nota">
-  Sexo, género, etnia y discapacidad se cuentan por categoría declarada.
+  Sexo, género, identidad u orientación sexual y discapacidad se cuentan por categoría declarada.
   Embarazo, lactancia, enfermedad catastrófica y necesidad educativa especial
   no son categorías sino banderas clínicas: se cuenta cuántas atenciones del
   periodo correspondían a un expediente con esa alerta activa al generar el

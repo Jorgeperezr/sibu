@@ -40,7 +40,7 @@ def escenario(db):
     exp1 = crear_expediente(cedula="1104567894")
     exp1.persona.sexo = "mujer"
     exp1.persona.genero = "femenino"
-    exp1.persona.etnia = "mestiza"
+    exp1.persona.identidad_orientacion_sexual = "heterosexual"
     exp1.persona.save()
     registrar_alerta(exp1, AlertaClinica.Tipo.GESTACION, "Gestación de 20 semanas")
 
@@ -77,14 +77,14 @@ def test_cuenta_por_atencion_no_por_paciente(escenario):
 
 
 @pytest.mark.django_db
-def test_sexo_genero_y_etnia_se_desglosan(escenario):
+def test_sexo_genero_e_identidad_orientacion_sexual_se_desglosan(escenario):
     datos = services.informe_estadistico(escenario["est"]["medicina"])
     por_sexo = {f["etiqueta"]: f["total"] for f in datos["sexo"]}
     assert por_sexo == {"mujer": 2, "hombre": 1}
     por_genero = {f["etiqueta"]: f["total"] for f in datos["genero"]}
     assert por_genero == {"femenino": 2, services.SIN_DATO: 1}
-    por_etnia = {f["etiqueta"]: f["total"] for f in datos["etnia"]}
-    assert por_etnia == {"mestiza": 2, services.SIN_DATO: 1}
+    por_identidad = {f["etiqueta"]: f["total"] for f in datos["identidad_orientacion_sexual"]}
+    assert por_identidad == {"heterosexual": 2, services.SIN_DATO: 1}
 
 
 @pytest.mark.django_db
