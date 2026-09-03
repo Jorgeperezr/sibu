@@ -64,8 +64,8 @@ def firmaec_activo(settings):
 def escenario(db):
     est = crear_estructura()
     u, prof = crear_profesional("medico", est["medicina"], est["salud"])
-    prof.cedula = "1104567894"
-    prof.save()
+    u.cedula = "1104567894"
+    u.save(update_fields=["cedula"])
     exp = crear_expediente(cedula="1712345675")
     atencion = Atencion.objects.create(
         expediente=exp, servicio=est["medicina"], profesional=prof, fecha_hora=timezone.now()
@@ -269,8 +269,9 @@ def test_psicologia_no_sale_a_un_firmador_externo(escenario, settings):
     settings.FIRMAEC_DESCENTRALIZADO_PROPIO = False
     psico = Servicio.objects.get(codigo="psicologia")
     u, prof = crear_profesional("psicologo", psico, psico.seccion)
-    prof.cedula = "1104567894"
-    prof.save()
+    # Cédula distinta de la del médico: `Usuario.cedula` es única.
+    u.cedula = "1101002002"
+    u.save(update_fields=["cedula"])
     atencion = Atencion.objects.create(
         expediente=escenario["exp"], servicio=psico, profesional=prof, fecha_hora=timezone.now()
     )
@@ -290,8 +291,8 @@ def test_psicologia_si_el_firmador_es_de_la_institucion(escenario, settings):
     settings.FIRMAEC_DESCENTRALIZADO_PROPIO = True
     psico = Servicio.objects.get(codigo="psicologia")
     u, prof = crear_profesional("psicologo2", psico, psico.seccion)
-    prof.cedula = "1104567894"
-    prof.save()
+    u.cedula = "1103004006"
+    u.save(update_fields=["cedula"])
     atencion = Atencion.objects.create(
         expediente=escenario["exp"], servicio=psico, profesional=prof, fecha_hora=timezone.now()
     )
@@ -577,3 +578,45 @@ def test_el_rechazo_del_callback_queda_auditado(escenario, settings):
     ).first()
     assert log is not None, "el intento de firma rechazado no quedó auditado"
     assert "no son válidas" in log.detalle["motivo"]
+
+
+@pytest.mark.django_db
+def test_la_cedula_del_firmante_sale_de_la_cuenta(escenario, settings):
+    """
+    Se leía de `solicitante.perfil.cedula`, un campo que NO existe: fuera de
+    las pruebas —que lo tapaban asignando el atributo en memoria— devolvía
+    siempre "" y con FirmaEC la firma no habría arrancado nunca. La cédula del
+    profesional vive en `Usuario.cedula`.
+
+    La cuenta se relee de la base a propósito: un atributo puesto en memoria
+    no sobreviviría al refresh, así que esta prueba no puede pasar por accidente.
+    """
+    est = escenario["est"]
+    u, prof = crear_profesional("medico_cedula", est["medicina"], est["salud"])
+    atencion = Atencion.objects.create(
+        expediente=escenario["exp"],
+        servicio=est["medicina"],
+        profesional=prof,
+        fecha_hora=timezone.now(),
+    )
+    # Sin cédula en la cuenta, FirmaEC no deja preparar la solicitud.
+    with pytest.raises(ValidationError, match="cédula"):
+        services.preparar_solicitud(
+            atencion=atencion,
+            solicitante=u,
+            pdf=PDF,
+            documento_ref_tipo="atencion",
+            documento_ref_id=atencion.pk,
+        )
+
+    u.cedula = "1105006009"
+    u.save(update_fields=["cedula"])
+    u.refresh_from_db()
+    solicitud = services.preparar_solicitud(
+        atencion=atencion,
+        solicitante=u,
+        pdf=PDF,
+        documento_ref_tipo="atencion",
+        documento_ref_id=atencion.pk,
+    )
+    assert solicitud.cedula_solicitante == "1105006009"

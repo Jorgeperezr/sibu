@@ -66,13 +66,13 @@ def preparar_solicitud(
     if len(pdf) > TAM_MAXIMO_PDF:
         raise ValidationError("El documento supera el tamaño máximo admitido (15 MB).")
 
-    # OJO: `PerfilProfesional` NO tiene campo `cedula` —la cédula vive en
-    # `Persona`, y el perfil no enlaza con ella—, así que este getattr devuelve
-    # siempre "" fuera de las pruebas. Con FirmaEC eso significa que la firma
-    # nunca llegaría a arrancar; queda pendiente decidir de dónde sale la cédula
-    # del profesional el día que se active. Lo que sí se corrige aquí es que ese
-    # requisito de FirmaEC bloqueara también al firmador local, que no la usa.
-    cedula = getattr(getattr(solicitante, "perfil", None), "cedula", "") or ""
+    # La cédula del firmante vive en la CUENTA (`Usuario.cedula`), no en el
+    # perfil profesional. Antes se leía de `solicitante.perfil.cedula`, un campo
+    # que no existe: el getattr devolvía "" siempre fuera de las pruebas —que lo
+    # tapaban asignando el atributo en memoria— y con FirmaEC la firma no habría
+    # arrancado nunca. El firmador local no la usa, así que solo la exige quien
+    # la necesita.
+    cedula = (getattr(solicitante, "cedula", "") or "").strip()
     if not cedula and proveedor.requiere_cedula_firmante:
         raise ValidationError(
             "Su perfil no tiene cédula registrada. FirmaEC exige la cédula del "
