@@ -8,10 +8,19 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.core.models import CIE10, Servicio
 from apps.enfermeria.services import ultimo_triaje
 from apps.expediente.models import Atencion, Expediente
+from apps.farmacia import services as farmacia_services
+from apps.farmacia.models import Medicamento
+from apps.laboratorio import services as laboratorio_services
+from apps.laboratorio.models import Examen
 from apps.usuarios.decorators import verificar_acceso_atencion, verificar_es_del_servicio
 
 from . import services
 from .models import AtencionMedicina
+
+
+def _detalle(exc, por_defecto: str) -> str:
+    """El texto de un ValidationError, o un mensaje claro si no lo trae."""
+    return "; ".join(exc.messages) if hasattr(exc, "messages") else por_defecto
 
 
 @login_required
@@ -101,6 +110,44 @@ def consulta(request, pk):
                 )
                 messages.error(request, msg)
 
+        elif accion == "recetar":
+            # Un medicamento por envío: la receta lleva varios y en consulta se
+            # añaden de uno en uno. Si ya hay una receta abierta de esta
+            # atención se le suma; si no, se emite una nueva.
+            try:
+                item = {
+                    "medicamento_id": request.POST["medicamento"],
+                    "cantidad_prescrita": request.POST.get("cantidad", 0),
+                    "dosis": request.POST.get("dosis", ""),
+                    "via": request.POST.get("via", ""),
+                    "frecuencia": request.POST.get("frecuencia", ""),
+                    "duracion": request.POST.get("duracion", ""),
+                }
+                abierta = farmacia_services.receta_abierta(hc.atencion)
+                if abierta:
+                    farmacia_services.agregar_medicamento(abierta, item)
+                    messages.success(request, f"Añadido a la receta {abierta.numero}.")
+                else:
+                    receta = farmacia_services.emitir_receta(
+                        hc.atencion, [item], usuario=request.user
+                    )
+                    messages.success(request, f"Receta {receta.numero} emitida.")
+            except (ValidationError, KeyError, ValueError, Medicamento.DoesNotExist) as exc:
+                messages.error(request, _detalle(exc, "Medicamento no encontrado."))
+
+        elif accion == "examenes":
+            try:
+                orden = laboratorio_services.crear_orden(
+                    hc.atencion,
+                    request.POST.getlist("examenes"),
+                    prioridad=request.POST.get("prioridad", "rutina"),
+                    diagnostico_presuntivo=request.POST.get("diagnostico_presuntivo", ""),
+                    usuario=request.user,
+                )
+                messages.success(request, f"Orden de laboratorio #{orden.pk} creada.")
+            except (ValidationError, Examen.DoesNotExist) as exc:
+                messages.error(request, _detalle(exc, "Examen no encontrado."))
+
         elif accion == "cerrar":
             try:
                 services.cerrar_atencion(hc.atencion, usuario=request.user)
@@ -120,7 +167,14 @@ def consulta(request, pk):
             "persona": hc.atencion.expediente.persona,
             "triaje": ultimo_triaje(hc.atencion.expediente),
             "diagnosticos": hc.atencion.diagnosticos.select_related("cie10"),
-            "recetas": hc.atencion.recetas.all(),
-            "ordenes": hc.atencion.ordenes_lab.all(),
+            "recetas": hc.atencion.recetas.prefetch_related("detalles__medicamento"),
+            "ordenes": hc.atencion.ordenes_lab.prefetch_related("examenes__examen"),
+            # Los catálogos para los formularios. Sin ellos habría que teclear
+            # ids, que es lo que hacía falta antes de tener estas pantallas.
+            "medicamentos": Medicamento.objects.filter(activo=True).order_by("dci"),
+            "examenes_catalogo": Examen.objects.filter(activo=True).order_by("nombre"),
+            # Una atención firmada no admite receta ni orden; el servicio lo
+            # valida igual, pero un formulario que siempre falla estorba.
+            "editable": not hc.atencion.inmutable,
         },
     )

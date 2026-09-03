@@ -120,20 +120,109 @@
     </div>
 
     <div class="card mb-3">
-      <div class="card-header">Recetas y órdenes</div>
+      <div class="card-header">Receta</div>
       <div class="card-body">
-        <p class="mb-1"><strong>{{ recetas.count }}</strong> receta(s) emitida(s)</p>
         {% for r in recetas %}
-          <div class="small text-muted">{{ r.numero }} — {{ r.get_estado_display }}</div>
+          <div class="mb-2">
+            <span class="fw-semibold">{{ r.numero }}</span>
+            <span class="badge bg-secondary">{{ r.get_estado_display }}</span>
+            <ul class="small text-muted mb-0 ps-3">
+              {% for d in r.detalles.all %}
+                <li>{{ d.medicamento }} × {{ d.cantidad_prescrita }}{% if d.dosis %} — {{ d.dosis }}{% endif %}{% if d.frecuencia %}, {{ d.frecuencia }}{% endif %}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% empty %}
+          <p class="text-muted small mb-2">Sin recetas en esta atención.</p>
         {% endfor %}
-        <p class="mb-1 mt-2"><strong>{{ ordenes.count }}</strong> orden(es) de laboratorio</p>
+
+        {% if editable %}
+        {% comment %}
+        Un medicamento por envío: la receta lleva varios y en consulta se añaden
+        de uno en uno. Si ya hay una receta abierta se le suma, y si no se emite
+        una nueva; lo decide la vista, no quien atiende.
+        {% endcomment %}
+        <form method="post" class="row g-2 border-top pt-3">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="recetar">
+          <div class="col-12">
+            <label class="form-label small" for="medicamento">Medicamento</label>
+            <select id="medicamento" name="medicamento" class="form-select form-select-sm" required>
+              <option value="">—</option>
+              {% for m in medicamentos %}
+                <option value="{{ m.pk }}">{{ m.dci }} {{ m.concentracion }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="form-label small" for="cantidad">Cantidad</label>
+            <input id="cantidad" name="cantidad" type="number" min="1"
+                   class="form-control form-control-sm" required>
+          </div>
+          <div class="col-8">
+            <label class="form-label small" for="dosis">Dosis</label>
+            <input id="dosis" name="dosis" class="form-control form-control-sm"
+                   maxlength="120" placeholder="1 tableta">
+          </div>
+          <div class="col-6">
+            <label class="form-label small" for="frecuencia">Frecuencia</label>
+            <input id="frecuencia" name="frecuencia" class="form-control form-control-sm"
+                   maxlength="60" placeholder="cada 8 h">
+          </div>
+          <div class="col-6">
+            <label class="form-label small" for="duracion">Duración</label>
+            <input id="duracion" name="duracion" class="form-control form-control-sm"
+                   maxlength="60" placeholder="5 días">
+          </div>
+          <div class="col-12">
+            <button class="btn btn-sm btn-outline-primary">Añadir a la receta</button>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">Laboratorio</div>
+      <div class="card-body">
         {% for o in ordenes %}
-          <div class="small text-muted">#{{ o.id }} — {{ o.get_estado_display }}</div>
+          <div class="mb-2">
+            <span class="fw-semibold">Orden #{{ o.id }}</span>
+            <span class="badge bg-secondary">{{ o.get_estado_display }}</span>
+            <ul class="small text-muted mb-0 ps-3">
+              {% for oe in o.examenes.all %}<li>{{ oe.examen.nombre }}</li>{% endfor %}
+            </ul>
+          </div>
+        {% empty %}
+          <p class="text-muted small mb-2">Sin órdenes en esta atención.</p>
         {% endfor %}
-        <div class="form-text mt-2">
-          La emisión de recetas y órdenes se realiza vía API
-          (<code>/api/v1/atenciones/medicina/{{ hc.pk }}/receta/</code>).
-        </div>
+
+        {% if editable %}
+        <form method="post" class="row g-2 border-top pt-3">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="examenes">
+          <div class="col-12">
+            <label class="form-label small" for="examenes">Exámenes</label>
+            <select id="examenes" name="examenes" class="form-select form-select-sm"
+                    multiple size="5" required>
+              {% for e in examenes_catalogo %}
+                <option value="{{ e.pk }}">{{ e.nombre }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Ctrl (o ⌘) para elegir varios.</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label small" for="prioridad">Prioridad</label>
+            <select id="prioridad" name="prioridad" class="form-select form-select-sm">
+              <option value="rutina">Rutina</option>
+              <option value="urgente">Urgente</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-sm btn-outline-primary">Solicitar exámenes</button>
+          </div>
+        </form>
+        {% endif %}
       </div>
     </div>
 

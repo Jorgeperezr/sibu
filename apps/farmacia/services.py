@@ -81,6 +81,9 @@ def emitir_receta(atencion: Atencion, items: list[dict], usuario=None) -> Receta
 
     `items`: [{medicamento_id, cantidad_prescrita, dosis, via, frecuencia,
                duracion, indicaciones}]
+
+    Atómica: un ítem inválido a mitad de la lista no puede dejar una receta con
+    el correlativo gastado y solo los medicamentos anteriores.
     """
     if atencion.inmutable:
         raise ValidationError("No se puede emitir una receta sobre una atención firmada.")
@@ -106,6 +109,59 @@ def emitir_receta(atencion: Atencion, items: list[dict], usuario=None) -> Receta
             indicaciones=item.get("indicaciones", ""),
         )
     return receta
+
+
+@transaction.atomic
+def agregar_medicamento(receta: Receta, item: dict) -> RecetaDetalle:
+    """
+    Suma un medicamento a una receta aún sin despachar.
+
+    Una receta lleva varios medicamentos y el profesional los añade de uno en
+    uno; sin esto, cada medicamento exigía emitir una receta aparte, que no es
+    lo que ocurre en consulta.
+
+    Solo mientras nadie haya despachado nada: cambiar lo prescrito después de
+    una entrega dejaría la receta sin corresponder con lo entregado.
+    """
+    if receta.atencion.inmutable:
+        raise ValidationError("No se puede modificar una receta de una atención firmada.")
+    if receta.estado != Receta.Estado.EMITIDA:
+        raise ValidationError(
+            f"La receta está {receta.get_estado_display().lower()}: ya no admite medicamentos."
+        )
+    # Segunda línea: el estado de arriba ya cubre el caso normal —cualquier
+    # despacho mueve la receta fuera de EMITIDA—, pero si ese campo quedara
+    # desfasado, esto sigue impidiendo tocar una receta con entregas.
+    if Dispensacion.objects.filter(receta_detalle__receta=receta).exists():
+        raise ValidationError("La receta ya tiene entregas: no se le pueden añadir medicamentos.")
+
+    medicamento = Medicamento.objects.get(pk=item["medicamento_id"])
+    cantidad = int(item.get("cantidad_prescrita", 0))
+    if cantidad <= 0:
+        raise ValidationError(f"La cantidad prescrita de {medicamento} debe ser mayor a cero.")
+    if receta.detalles.filter(medicamento=medicamento).exists():
+        raise ValidationError(f"{medicamento} ya consta en esta receta.")
+
+    return RecetaDetalle.objects.create(
+        receta=receta,
+        medicamento=medicamento,
+        cantidad_prescrita=cantidad,
+        dosis=item.get("dosis", ""),
+        via=item.get("via", ""),
+        frecuencia=item.get("frecuencia", ""),
+        duracion=item.get("duracion", ""),
+        indicaciones=item.get("indicaciones", ""),
+    )
+
+
+def receta_abierta(atencion: Atencion) -> Receta | None:
+    """La receta de esta atención que todavía admite medicamentos, si la hay."""
+    return (
+        Receta.objects.filter(atencion=atencion, estado=Receta.Estado.EMITIDA)
+        .exclude(detalles__dispensaciones__isnull=False)
+        .order_by("-creado_en")
+        .first()
+    )
 
 
 def recetas_pendientes():
@@ -135,7 +191,6 @@ def caducar_recetas_vencidas() -> int:
 
 
 @transaction.atomic
-@transaction.atomic
 def ingresar_lote(
     medicamento: Medicamento,
     numero_lote: str,
@@ -154,11 +209,10 @@ def ingresar_lote(
     Todo ingreso deja un MovimientoInventario: el saldo del lote siempre puede
     reconstruirse desde la bitácora (trazabilidad exigida en el informe 6.5).
 
-    Es atómica y bloquea el lote antes de sumar. Sin el bloqueo, dos ingresos
-    simultáneos leían el mismo saldo y el segundo pisaba al primero: entraban
-    200 unidades y quedaban 100, con dos movimientos que ya no cuadraban con el
-    saldo. Fuera de una petición web —un comando, el shell— no había ni
-    transacción que lo salvara.
+    Bloquea el lote antes de sumar. La transacción por sí sola no bastaba: en
+    READ COMMITTED dos ingresos simultáneos leen el mismo saldo y el segundo
+    pisa al primero —entran 200 unidades y quedan 100, con dos movimientos que
+    ya no cuadran con el saldo—. Lo que lo impide es `select_for_update`.
     """
     if cantidad <= 0:
         raise ValidationError("La cantidad a ingresar debe ser mayor a cero.")
@@ -278,7 +332,6 @@ def alertas_caducidad(dias: int = 90):
     )
 
 
-@transaction.atomic
 @transaction.atomic
 def ajustar_lote(lote: Lote, diferencia: int, motivo: str, *, usuario) -> Lote:
     """
