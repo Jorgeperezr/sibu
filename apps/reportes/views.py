@@ -10,8 +10,10 @@ from django.shortcuts import render
 from django.utils import timezone
 
 from apps.auditoria.models import LogAuditoria
+from apps.core.models import Servicio
 from apps.core.pdf import render_pdf
 from apps.usuarios.models import Rol
+from apps.usuarios.rbac import servicios_del_usuario
 
 from . import services
 
@@ -103,4 +105,69 @@ def exportar_csv(request):
     w.writerow(["servicio", "atenciones", "pacientes_distintos"])
     for f in filas:
         w.writerow([f["servicio"], f["total"], f["pacientes"]])
+    return respuesta
+
+
+def _mis_servicios(user):
+    """
+    Los servicios del profesional, o 403 si no tiene ninguno.
+
+    El informe demográfico es distinto del tablero: aquí no hace falta ser
+    Dirección, basta con pertenecer al servicio que se va a informar —es el
+    mismo contenido que ya se ve atención por atención, solo que sumado—.
+    """
+    mis = Servicio.objects.filter(pk__in=servicios_del_usuario(user))
+    if not mis:
+        raise PermissionDenied("Su usuario no tiene servicios asignados.")
+    return mis
+
+
+def _servicio_o_403(request, mis_servicios):
+    servicio_id = request.GET.get("servicio") or mis_servicios[0].pk
+    servicio = mis_servicios.filter(pk=servicio_id).first()
+    if servicio is None:
+        raise PermissionDenied("Ese servicio no le corresponde.")
+    return servicio
+
+
+@login_required
+def informe_servicio(request):
+    """Perfil demográfico de las atenciones de un servicio propio, por fechas."""
+    mis_servicios = _mis_servicios(request.user)
+    servicio = _servicio_o_403(request, mis_servicios)
+    desde, hasta = _rango(request)
+    return render(
+        request,
+        "reportes/informe_servicio.html",
+        {
+            "datos": services.informe_demografico(servicio, desde, hasta),
+            "servicios": mis_servicios,
+            "servicio": servicio,
+            "desde": desde,
+            "hasta": hasta,
+        },
+    )
+
+
+@login_required
+def informe_servicio_pdf(request):
+    """El informe demográfico como documento formal, con membrete institucional."""
+    mis_servicios = _mis_servicios(request.user)
+    servicio = _servicio_o_403(request, mis_servicios)
+    desde, hasta = _rango(request)
+    datos = services.informe_demografico(servicio, desde, hasta)
+
+    LogAuditoria.objects.create(
+        usuario=request.user,
+        accion=LogAuditoria.Accion.EXPORT,
+        modulo="reportes",
+        entidad="InformeDemografico",
+        entidad_id=servicio.codigo,
+        detalle={"desde": str(desde or ""), "hasta": str(hasta or "")},
+    )
+
+    pdf = render_pdf("reportes/informe_servicio_pdf.html", {"datos": datos})
+    respuesta = HttpResponse(pdf, content_type="application/pdf")
+    nombre = f"informe-demografico-{servicio.codigo}-{timezone.localdate():%Y%m%d}.pdf"
+    respuesta["Content-Disposition"] = f'attachment; filename="{nombre}"'
     return respuesta

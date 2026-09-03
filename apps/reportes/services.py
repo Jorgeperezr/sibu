@@ -182,3 +182,117 @@ def tablero_general(desde=None, hasta=None) -> dict:
         "becas": becas_resumen(),
         "talleres": talleres_cobertura(),
     }
+
+
+# ============================================================
+# Informe demográfico de un servicio (RF nuevo: perfil de la
+# población atendida, no gestión agregada de la Unidad)
+# ============================================================
+#
+# A diferencia de `tablero_general` —que agrega TODOS los servicios para la
+# Dirección y por eso aplica K_MÍNIMO—, este informe lo genera un profesional
+# sobre SU PROPIO servicio: alguien que ya tiene acceso legítimo al contenido
+# clínico completo de esos pacientes. No hay rendija que abrir ni celda que
+# suprimir; es el mismo dato que ya ve atención por atención, solo que sumado.
+#
+# Ocho columnas se pidieron: sexo, género, etnia, discapacidad, embarazo,
+# lactancia, enfermedad catastrófica y necesidad educativa especial. Solo las
+# dos primeras y la discapacidad tenían dónde vivir en el modelo; embarazo,
+# lactancia y enfermedad catastrófica no existían en ninguna parte del sistema
+# —ni siquiera la carga académica masiva los guardaba en un campo consultable,
+# se perdían en la fila cruda—. Se resuelven con `AlertaClinica`, que ya existe
+# justo para banderas de este tipo (ver Sprint de hoy: `Tipo.GESTACION`,
+# `Tipo.LACTANCIA`, `Tipo.ENF_CATASTROFICA`) y con `Persona.etnia`, nuevo.
+#
+# Todas las columnas leen el estado VIGENTE de la persona/expediente al
+# momento de generar el informe, no un dato histórico por atención: ni sexo,
+# ni etnia, ni una alerta llevan fecha de vigencia. Es la misma limitación que
+# ya tiene el resto del sistema (el nombre de un paciente en la línea de
+# tiempo es el actual, no el de cuando se abrió cada atención) — no es una
+# inconsistencia nueva.
+
+SIN_DATO = "Sin dato"
+
+# Los mismos tres tipos de alerta se consultan para tres columnas distintas.
+_ALERTA_POR_COLUMNA = {
+    "embarazo": "gestacion",
+    "lactancia": "lactancia",
+    "enfermedad_catastrofica": "enf_catastrofica",
+    "necesidad_educativa_especial": "nee",
+}
+
+
+def _conteo(valores) -> list[dict]:
+    """[(etiqueta, valor), ...] → [{etiqueta, total}, ...], de mayor a menor."""
+    from collections import Counter
+
+    conteo = Counter(valores)
+    return [
+        {"etiqueta": etiqueta, "total": total}
+        for etiqueta, total in sorted(conteo.items(), key=lambda par: -par[1])
+    ]
+
+
+def informe_demografico(servicio, desde=None, hasta=None) -> dict:
+    """
+    Perfil demográfico de las atenciones de un servicio en un rango de fechas.
+
+    Cuenta ATENCIONES, no pacientes distintos: una persona atendida tres veces
+    en el rango pesa tres veces, igual que en un parte de consulta diario
+    (RDACAA). Cada atención aporta el sexo/género/etnia/discapacidad del
+    paciente y si tenía activa cada alerta al generar el informe.
+    """
+    from django.utils import timezone as tz
+
+    from apps.expediente.models import AlertaClinica, Atencion
+
+    qs = Atencion.objects.filter(servicio=servicio)
+    if desde:
+        qs = qs.filter(fecha_hora__date__gte=desde)
+    if hasta:
+        qs = qs.filter(fecha_hora__date__lte=hasta)
+
+    filas = list(
+        qs.select_related("expediente__persona", "expediente").values(
+            "expediente_id",
+            "expediente__persona__sexo",
+            "expediente__persona__genero",
+            "expediente__persona__etnia",
+            "expediente__discapacidad_tipo",
+        )
+    )
+    total_atenciones = len(filas)
+
+    expediente_ids = {f["expediente_id"] for f in filas}
+    alertas_activas = set(
+        AlertaClinica.objects.filter(
+            expediente_id__in=expediente_ids,
+            tipo__in=_ALERTA_POR_COLUMNA.values(),
+            activa=True,
+        ).values_list("expediente_id", "tipo")
+    )
+
+    def _con_alerta(codigo_tipo: str) -> int:
+        return sum(1 for f in filas if (f["expediente_id"], codigo_tipo) in alertas_activas)
+
+    return {
+        "servicio": servicio,
+        "desde": desde,
+        "hasta": hasta,
+        "generado_en": tz.now(),
+        "total_atenciones": total_atenciones,
+        "sexo": _conteo(f["expediente__persona__sexo"] or SIN_DATO for f in filas),
+        "genero": _conteo(f["expediente__persona__genero"] or SIN_DATO for f in filas),
+        "etnia": _conteo(f["expediente__persona__etnia"] or SIN_DATO for f in filas),
+        "discapacidad": _conteo(
+            ("Con discapacidad" if f["expediente__discapacidad_tipo"] else "Sin discapacidad")
+            for f in filas
+        ),
+        # Estas cuatro no son un desglose de categorías (como sexo o etnia):
+        # son presencia/ausencia de una bandera, así que se resumen como
+        # cuántas atenciones la tenían activa sobre el total.
+        "embarazo": _con_alerta("gestacion"),
+        "lactancia": _con_alerta("lactancia"),
+        "enfermedad_catastrofica": _con_alerta("enf_catastrofica"),
+        "necesidad_educativa_especial": _con_alerta("nee"),
+    }

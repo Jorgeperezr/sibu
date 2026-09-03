@@ -21,9 +21,10 @@ class Modulo:
     etiqueta: str
     url_name: str  # nombre de URL con namespace; None si la ruta pide un id
     # Cómo se decide si este usuario lo ve. Una de:
-    #   ("servicio", "codigo")   -> tiene ese servicio asignado
-    #   ("roles", {Rol, ...})    -> su rol_principal está en el conjunto
-    #   ("siempre", None)        -> visible para cualquier autenticado
+    #   ("servicio", "codigo")     -> tiene ese servicio asignado
+    #   ("roles", {Rol, ...})      -> su rol_principal está en el conjunto
+    #   ("siempre", None)          -> visible para cualquier autenticado
+    #   ("tiene_servicio", None)   -> tiene AL MENOS un servicio, cualquiera
     regla: tuple
     grupo: str  # para agrupar en la portada
 
@@ -53,6 +54,10 @@ MODULOS = [
         ("roles", {Rol.ADMIN_GENERAL, Rol.DIRECTOR, Rol.COORDINADOR}),
         "Gestión",
     ),
+    # A diferencia del tablero de arriba —Dirección, agregados de TODA la
+    # Unidad—, este lo genera cualquier profesional sobre su propio servicio:
+    # es el mismo contenido que ya ve atención por atención.
+    Modulo("Informe demográfico", "reportes:informe_servicio", ("tiene_servicio", None), "Gestión"),
 ]
 
 # Rutas de módulos que solo se abren desde un expediente/atención concreta. No
@@ -74,6 +79,8 @@ def _ve_modulo(user, modulo: Modulo, servicios_ids: set, codigos_por_id: dict) -
             return True
         codigos = {codigos_por_id.get(sid) for sid in servicios_ids}
         return dato in codigos
+    if tipo == "tiene_servicio":
+        return bool(servicios_ids)
     return False
 
 
