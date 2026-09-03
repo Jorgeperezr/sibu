@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.core.models import CIE10, Servicio
+from apps.core.selectors import diagnosticos_por_servicio
 from apps.enfermeria.services import ultimo_triaje
 from apps.expediente.models import Atencion, Expediente
 from apps.farmacia import services as farmacia_services
@@ -169,6 +170,7 @@ def consulta(request, pk):
             "diagnosticos": hc.atencion.diagnosticos.select_related("cie10"),
             "recetas": hc.atencion.recetas.prefetch_related("detalles__medicamento"),
             "ordenes": hc.atencion.ordenes_lab.prefetch_related("examenes__examen"),
+            "cie10_disponibles": diagnosticos_por_servicio("medicina"),
             # Los catálogos para los formularios. Sin ellos habría que teclear
             # ids, que es lo que hacía falta antes de tener estas pantallas.
             "medicamentos": Medicamento.objects.filter(activo=True).order_by("dci"),

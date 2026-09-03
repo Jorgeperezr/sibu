@@ -12,8 +12,11 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.core.models import Servicio
+from apps.core.models import CIE10, Servicio
+from apps.core.selectors import diagnosticos_por_servicio
 from apps.expediente.models import Expediente
+from apps.medicina.models import Diagnostico
+from apps.medicina.services import agregar_diagnostico
 from apps.usuarios.decorators import verificar_acceso_atencion, verificar_es_del_servicio
 
 from . import services
@@ -107,6 +110,14 @@ def proceso(request, pk):
                     )
                 else:
                     messages.success(request, f"{aplicacion.escala}: {aplicacion.interpretacion}.")
+            elif accion == "diagnostico":
+                agregar_diagnostico(
+                    ficha.atencion,
+                    request.POST["cie10"],
+                    tipo=request.POST.get("tipo", Diagnostico.TipoDx.PRESUNTIVO),
+                    principal=request.POST.get("principal") == "on",
+                )
+                messages.success(request, "Diagnóstico agregado.")
             elif accion == "riesgo":
                 services.marcar_riesgo(ficha, request.POST["nivel"], request.POST.get("nota", ""))
                 messages.success(request, "Nivel de riesgo actualizado.")
@@ -130,6 +141,8 @@ def proceso(request, pk):
             messages.error(request, detalle)
         except EscalaPsicometrica.DoesNotExist:
             messages.error(request, "La escala indicada no existe o está inactiva.")
+        except CIE10.DoesNotExist:
+            messages.error(request, "Código CIE-10 no encontrado.")
         return redirect("psicologia:proceso", pk=pk)
 
     return render(
@@ -148,5 +161,10 @@ def proceso(request, pk):
                 (FichaPsicologica.Estado.DERIVADO, "Derivado a externo"),
             ],
             "es_alto": ficha.riesgo_nivel == FichaPsicologica.Riesgo.ALTO,
+            "diagnosticos": Diagnostico.objects.filter(atencion=ficha.atencion).select_related(
+                "cie10"
+            ),
+            "cie10_disponibles": diagnosticos_por_servicio("psicologia"),
+            "tipos_dx": Diagnostico.TipoDx.choices,
         },
     )

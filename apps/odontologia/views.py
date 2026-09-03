@@ -5,8 +5,11 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.core.models import Servicio
+from apps.core.models import CIE10, Servicio
+from apps.core.selectors import diagnosticos_por_servicio
 from apps.expediente.models import Atencion, Expediente
+from apps.medicina.models import Diagnostico
+from apps.medicina.services import agregar_diagnostico
 from apps.usuarios.decorators import verificar_acceso_atencion, verificar_es_del_servicio
 
 from . import services
@@ -175,6 +178,15 @@ def consulta(request, pk):
                 )
                 messages.success(request, "Procedimiento registrado.")
 
+            elif accion == "diagnostico":
+                agregar_diagnostico(
+                    hc.atencion,
+                    request.POST["cie10"],
+                    tipo=request.POST.get("tipo", Diagnostico.TipoDx.PRESUNTIVO),
+                    principal=request.POST.get("principal") == "on",
+                )
+                messages.success(request, "Diagnóstico agregado.")
+
             elif accion == "guardar":
                 hc.plan_tratamiento = request.POST.get("plan_tratamiento", "")
                 hc.indicaciones = request.POST.get("indicaciones", "")
@@ -186,11 +198,11 @@ def consulta(request, pk):
                 messages.success(request, "Atención cerrada.")
                 return redirect("expediente:detalle", pk=hc.atencion.expediente_id)
 
-        except (ValidationError, CatalogoProcedimiento.DoesNotExist) as exc:
+        except (ValidationError, CatalogoProcedimiento.DoesNotExist, CIE10.DoesNotExist) as exc:
             msg = (
                 "; ".join(exc.messages)
                 if hasattr(exc, "messages")
-                else "Procedimiento no encontrado."
+                else "Procedimiento o código CIE-10 no encontrado."
             )
             messages.error(request, msg)
         return redirect("odontologia:consulta", pk=hc.pk)
@@ -209,5 +221,10 @@ def consulta(request, pk):
             "catalogo": CatalogoProcedimiento.objects.filter(activo=True),
             "procedimientos": hc.atencion.procedimientos_odonto.select_related("catalogo"),
             "indices": services.calcular_indices(hc.atencion.expediente),
+            "diagnosticos": Diagnostico.objects.filter(atencion=hc.atencion).select_related(
+                "cie10"
+            ),
+            "cie10_disponibles": diagnosticos_por_servicio("odontologia"),
+            "tipos_dx": Diagnostico.TipoDx.choices,
         },
     )

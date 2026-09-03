@@ -95,17 +95,31 @@
         <form method="post" class="row g-2">
           {% csrf_token %}
           <input type="hidden" name="accion" value="diagnostico">
-          <div class="col-5">
-            <input name="cie10" class="form-control form-control-sm"
-                   placeholder="Código CIE-10" required>
+          <div class="col-12">
+            {% comment %}
+            En una fila propia: "Código o nombre CIE-10" no cabía legible
+            junto al tipo y al botón en una columna angosta.
+            {% endcomment %}
+            <input name="cie10" list="lista-cie10" class="form-control form-control-sm"
+                   placeholder="Código o nombre CIE-10" required autocomplete="off">
+            {% comment %}
+            El catálogo que ofrece ya viene filtrado a lo que Medicina
+            diagnostica: no hay que elegir a ciegas entre miles de códigos
+            odontológicos o de salud mental que aquí no aplican.
+            {% endcomment %}
+            <datalist id="lista-cie10">
+              {% for c in cie10_disponibles %}
+                <option value="{{ c.codigo }}">{{ c.codigo }} — {{ c.descripcion }}</option>
+              {% endfor %}
+            </datalist>
           </div>
-          <div class="col-4">
+          <div class="col-8">
             <select name="tipo" class="form-select form-select-sm">
               <option value="presuntivo">Presuntivo</option>
               <option value="definitivo">Definitivo</option>
             </select>
           </div>
-          <div class="col-3">
+          <div class="col-4">
             <button class="btn btn-sm btn-outline-primary w-100">Agregar</button>
           </div>
           <div class="col-12">
