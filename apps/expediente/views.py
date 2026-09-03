@@ -14,9 +14,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.core.navegacion import acciones_expediente
 from apps.usuarios import rbac
 
-from .models import Expediente, Persona
+from .models import AlertaClinica, Expediente, Persona
 from .selectors import MINIMO_TEXTO, buscar_personas, resumen_expediente
-from .services import registrar_persona, resolver_por_cedula
+from .services import registrar_alerta, registrar_persona, resolver_por_cedula
 
 # Campos que acepta el alta. Explícito para no volcar el POST entero en el
 # modelo: un campo de más aquí es un dato que nadie validó.
@@ -171,4 +171,32 @@ def detalle(request, pk):
     # Sin esto el expediente era una pantalla de solo lectura: la ficha se veía,
     # pero abrir una consulta exigía teclear la URL a mano.
     contexto["acciones"] = acciones_expediente(request.user)
+    contexto["tipos_alerta"] = AlertaClinica.Tipo.choices
     return render(request, "expediente/detalle.html", contexto)
+
+
+@login_required
+def alertas(request, pk):
+    """
+    Registra una alerta clínica sobre el expediente.
+
+    Mismo criterio de acceso que `detalle`: quien puede abrir el expediente
+    puede marcar una bandera sobre él. `AlertaClinica` es visible en todo el
+    expediente por diseño, así que esto no abre ninguna rendija nueva en el
+    sello de Psicología.
+    """
+    if not rbac.puede_ver_expediente(request.user):
+        raise PermissionDenied("No tiene permisos para registrar alertas.")
+
+    expediente = get_object_or_404(Expediente, pk=pk)
+    try:
+        registrar_alerta(
+            expediente,
+            request.POST.get("tipo", ""),
+            request.POST.get("descripcion", ""),
+            usuario=request.user,
+        )
+        messages.success(request, "Alerta registrada.")
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+    return redirect("expediente:detalle", pk=expediente.pk)

@@ -18,6 +18,45 @@
 </div>
 {% endif %}
 
+{% if tipos_alerta %}
+<div class="card mb-3">
+  <div class="card-header">
+    <a class="text-decoration-none text-body d-block" data-bs-toggle="collapse"
+       href="#form-alerta" role="button">
+      <i class="bi bi-flag"></i> Registrar alerta clínica
+    </a>
+  </div>
+  <div class="collapse" id="form-alerta">
+    <div class="card-body">
+      {% comment %}
+      Visible en todo el expediente por diseño del modelo: una alergia la debe
+      ver Farmacia, una NEE la debe ver Psicopedagogía. No es contenido
+      clínico narrativo —lo que protege el sello de Psicología—, es una
+      bandera, así que registrarla desde cualquier servicio no abre rendija.
+      {% endcomment %}
+      <form method="post" action="{% url 'expediente:alertas' expediente.id %}" class="row g-2">
+        {% csrf_token %}
+        <div class="col-sm-4">
+          <select name="tipo" class="form-select form-select-sm" required>
+            <option value="">Tipo de alerta</option>
+            {% for valor, etiqueta in tipos_alerta %}
+              <option value="{{ valor }}">{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-6">
+          <input name="descripcion" class="form-control form-control-sm" maxlength="255"
+                 placeholder="Descripción" required>
+        </div>
+        <div class="col-sm-2">
+          <button class="btn btn-sm btn-outline-primary w-100">Registrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if acciones %}
 <div class="card mb-3">
   <div class="card-header">Iniciar atención</div>

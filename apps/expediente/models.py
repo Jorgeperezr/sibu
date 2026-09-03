@@ -30,6 +30,10 @@ class Persona(ModeloBase):
     fecha_nacimiento = models.DateField(null=True, blank=True)
     sexo = models.CharField(max_length=20, blank=True)
     genero = models.CharField(max_length=30, blank=True)
+    # Autoidentificación étnica (categorías del censo INEC): libre y no
+    # obligatoria, igual que sexo/género —la fuente institucional no siempre
+    # la trae, y no es este sistema quien debe inventar una taxonomía cerrada.
+    etnia = models.CharField(max_length=40, blank=True)
     tipo_vinculo = models.CharField(max_length=20, choices=TipoVinculo.choices)
     correo_institucional = models.EmailField(blank=True)
     correo_personal = models.EmailField(blank=True)
@@ -110,9 +114,13 @@ class AlertaClinica(ModeloBase):
         RIESGO = "riesgo", "Riesgo clínico"
         SOCIAL = "social", "Alerta social"
         NEE = "nee", "Necesidad educativa especial"
+        GESTACION = "gestacion", "Gestación"
+        LACTANCIA = "lactancia", "Lactancia"
+        ENF_CATASTROFICA = "enf_catastrofica", "Enfermedad catastrófica"
 
     expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE, related_name="alertas")
-    tipo = models.CharField(max_length=12, choices=Tipo.choices)
+    # Se ensancha de 12 a 20: "enf_catastrofica" no cabía en el ancho original.
+    tipo = models.CharField(max_length=20, choices=Tipo.choices)
     descripcion = models.CharField(max_length=255)
     activa = models.BooleanField(default=True)
 

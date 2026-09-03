@@ -14,7 +14,7 @@ from django.db import transaction
 from apps.academico.providers import get_provider
 from apps.academico.validators import normalizar_cedula
 
-from .models import Expediente, Persona
+from .models import AlertaClinica, Expediente, Persona
 
 
 def obtener_o_crear_expediente(persona: Persona, usuario=None) -> Expediente:
@@ -60,6 +60,52 @@ def registrar_persona(datos: dict, usuario=None) -> Expediente:
             creado_por=usuario,
         )
         return obtener_o_crear_expediente(persona, usuario)
+
+
+def registrar_alerta(
+    expediente: Expediente, tipo: str, descripcion: str, *, usuario=None
+) -> AlertaClinica:
+    """
+    Registra (o reactiva) una alerta clínica sobre el expediente.
+
+    Antes solo la crearba la carga académica masiva o el panel de
+    administración: no había manera de que un profesional marcara, por
+    ejemplo, una gestación o una enfermedad catastrófica detectada en consulta.
+
+    `AlertaClinica` es "visible en todo el expediente" por diseño —el modelo
+    ya lo dice—: una alergia debe verla Farmacia, una NEE debe verla
+    Psicopedagogía. No es contenido clínico narrativo, es una bandera, y por
+    eso no compromete el sello de Psicología: lo que el sello protege es la
+    evolución y el contenido de la atención, no la existencia de una bandera.
+
+    Idempotente por (expediente, tipo, descripción): registrar la misma alerta
+    dos veces la reactiva en vez de duplicarla.
+    """
+    tipo_valido = {c for c, _ in AlertaClinica.Tipo.choices}
+    if tipo not in tipo_valido:
+        raise ValidationError(f"Tipo de alerta no reconocido: {tipo}.")
+    descripcion = (descripcion or "").strip()
+    if not descripcion:
+        raise ValidationError("La alerta necesita una descripción.")
+
+    alerta, creada = AlertaClinica.objects.get_or_create(
+        expediente=expediente,
+        tipo=tipo,
+        descripcion=descripcion,
+        defaults={"activa": True, "creado_por": usuario},
+    )
+    if not creada and not alerta.activa:
+        alerta.activa = True
+        alerta.save(update_fields=["activa"])
+    return alerta
+
+
+def desactivar_alerta(alerta: AlertaClinica) -> AlertaClinica:
+    """Retira una alerta de la vista del expediente sin borrar su historial."""
+    if alerta.activa:
+        alerta.activa = False
+        alerta.save(update_fields=["activa"])
+    return alerta
 
 
 def resolver_por_cedula(cedula: str, usuario=None):
