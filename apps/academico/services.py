@@ -193,6 +193,17 @@ class ProcesadorCarga:
         )
 
     def _asegurar_expediente(self, fila, persona):
+        """
+        El expediente de la persona, creándolo si la carga es lo primero que la
+        registra.
+
+        Los datos de `defaults` solo se aplican al crear, y eso dejaba un hueco:
+        si el expediente ya existía —lo abre también la búsqueda por cédula—, el
+        grupo sanguíneo y la discapacidad de la ficha no entraban nunca, y la
+        discapacidad es una de las variables del informe estadístico. Se rellenan
+        después, pero SOLO si están vacíos: lo que un profesional haya escrito en
+        el expediente vale más que lo declarado en matrícula y no se pisa.
+        """
         expediente, _ = Expediente.objects.get_or_create(
             persona=persona,
             defaults={
@@ -201,7 +212,39 @@ class ProcesadorCarga:
                 "discapacidad_tipo": self._get(fila, "discapacidad_tipo") or "",
             },
         )
+        completados = []
+        for columna, campo in mapping.SALUD_EXPEDIENTE.items():
+            valor = self._get(fila, columna)
+            if not valor or getattr(expediente, campo, None):
+                continue
+            valor = self._valor_para_expediente(campo, valor)
+            if valor is None:
+                continue
+            setattr(expediente, campo, valor)
+            completados.append(campo)
+        if completados:
+            expediente.save(update_fields=completados)
         return expediente
+
+    @staticmethod
+    def _valor_para_expediente(campo: str, valor):
+        """
+        Ajusta el valor de la ficha al campo del expediente, o None si no cabe.
+
+        La ficha llega como texto libre desde un Excel: un porcentaje escrito
+        "50%" o "no aplica" reventaría un `PositiveSmallIntegerField`, y un tipo
+        de discapacidad más largo que el campo abortaría la fila entera. Nada de
+        eso debe tumbar una carga de miles de filas por un dato accesorio: lo que
+        no encaja se descarta y la fila cruda lo conserva igual en `ficha_raw`.
+        """
+        if campo == "discapacidad_porcentaje":
+            digitos = "".join(c for c in str(valor) if c.isdigit())
+            if not digitos:
+                return None
+            numero = int(digitos)
+            return numero if 0 <= numero <= 100 else None
+        limites = {"grupo_sanguineo": 5, "discapacidad_tipo": 60}
+        return str(valor).strip()[: limites.get(campo, 255)]
 
     def _prepoblar_ficha(self, fila, expediente):
         """Crea la FichaSocioeconomica (origen=matrícula) si no existe una vigente."""

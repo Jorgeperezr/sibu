@@ -1,1 +1,262 @@
-# apps.academico.selectors
+"""
+Consultas de lectura de la base institucional cargada.
+
+Tres cosas viven aquí:
+
+1. El **diccionario de columnas** que la institución debe entregar, derivado de
+   `mapping` y no de una lista escrita a mano: si mañana se añade una columna al
+   mapeo, aparece sola en la plantilla y en la pantalla del diccionario. Una
+   segunda lista paralela se desincronizaría el día que nadie mire.
+2. El **padrón**: lo que efectivamente quedó cargado, para que quien administra
+   pueda comprobarlo en pantalla en vez de fiarse del resumen de la carga.
+3. El **autocompletado** por cédula o por nombres, que es lo que el profesional
+   usa para no volver a digitar lo que la institución ya sabe.
+
+Nada de lo que sale de aquí es contenido clínico: son datos de identificación y
+matrícula. En particular, ninguna consulta revela qué servicio atiende a una
+persona, porque eso delataría el paso por un servicio confidencial.
+"""
+
+from __future__ import annotations
+
+from django.db.models import Q
+
+from . import mapping
+
+# Grupos del archivo, en el orden en que se esperan las columnas. Cada fila es
+# (nombre del grupo, a dónde va el dato, columnas). El orden importa: es el de
+# la plantilla CSV que se descarga, y coincidir con él le ahorra a quien prepara
+# el archivo tener que reordenar nada.
+GRUPOS = [
+    ("Identificación", "Persona", list(mapping.IDENTIFICACION)),
+    ("Datos académicos", "Dato académico", list(mapping.ACADEMICO)),
+    ("Identidad (sensible)", "Persona (cifrado)", list(mapping.IDENTIDAD_SENSIBLE)),
+    ("Salud básica", "Expediente", list(mapping.SALUD_EXPEDIENTE)),
+    ("Procedencia", "Persona (JSON)", mapping.PERSONA_JSONB["procedencia"]),
+    ("Residencia actual", "Persona (JSON)", mapping.PERSONA_JSONB["residencia_actual"]),
+    ("Contacto de referencia", "Persona (JSON)", mapping.PERSONA_JSONB["contacto_referencia"]),
+    ("Situación laboral", "Ficha socioeconómica", mapping.FICHA_JSONB["situacion_laboral"]),
+    ("Grupo familiar", "Ficha socioeconómica", mapping.FICHA_JSONB["grupo_familiar"]),
+    ("Convivencia", "Ficha socioeconómica", mapping.FICHA_JSONB["convivencia"]),
+    ("Vivienda del estudiante", "Ficha socioeconómica", mapping.FICHA_JSONB["vivienda_estudiante"]),
+    ("Vivienda familiar", "Ficha socioeconómica", mapping.FICHA_JSONB["vivienda_familiar"]),
+    ("Salud familiar", "Ficha socioeconómica", mapping.FICHA_JSONB["salud_familiar"]),
+    ("Salud del estudiante", "Ficha socioeconómica", mapping.FICHA_JSONB["salud_estudiante"]),
+    ("Bienes y negocio", "Ficha socioeconómica", mapping.FICHA_JSONB["bienes_negocio"]),
+    ("Ingresos", "Ficha socioeconómica", mapping.FICHA_JSONB["ingresos"]),
+    ("Egresos", "Ficha socioeconómica", mapping.FICHA_JSONB["egresos"]),
+    ("Situaciones sensibles", "Ficha socioeconómica (cifrado)", mapping.FICHA_SENSIBLE),
+    ("Datos bancarios de beca", "Beca (cifrado)", mapping.DATOS_BANCARIOS),
+    ("Control del formulario", "solo la fila cruda", mapping.CONTROL),
+]
+
+# Columnas que disparan una alerta hacia un servicio al cargarse.
+COLUMNAS_CON_ALERTA = set(mapping.REGLAS_ALERTA)
+
+
+def columnas_ordenadas() -> list[str]:
+    """
+    Los encabezados del archivo, en el orden de `GRUPOS` y sin repetir.
+
+    Tres columnas viven en dos grupos a la vez —`pais_procedencia`,
+    `discapacidad_tipo` y `discapacidad_porcentaje`, que alimentan dos destinos
+    distintos—. En el archivo van una sola vez: quien lo prepara escribe el dato
+    una vez y el sistema lo reparte.
+    """
+    vistas: list[str] = []
+    conocidas: set[str] = set()
+    for _grupo, _destino, columnas in GRUPOS:
+        for columna in columnas:
+            if columna not in conocidas:
+                conocidas.add(columna)
+                vistas.append(columna)
+    return vistas
+
+
+def diccionario() -> list[dict]:
+    """
+    El diccionario de columnas, grupo por grupo, para mostrarlo en pantalla.
+
+    Cada columna se lista una sola vez, en el primer grupo donde aparece: es el
+    mismo criterio que `columnas_ordenadas()`, así que lo que se ve en pantalla
+    y lo que trae la plantilla descargada no pueden discrepar.
+    """
+    ya_listadas: set[str] = set()
+    filas = []
+    for grupo, destino, columnas in GRUPOS:
+        propias = []
+        for columna in columnas:
+            if columna in ya_listadas:
+                continue
+            ya_listadas.add(columna)
+            propias.append(
+                {
+                    "nombre": columna,
+                    "obligatoria": columna in mapping.COLUMNAS_OBLIGATORIAS,
+                    "alerta": columna in COLUMNAS_CON_ALERTA,
+                }
+            )
+        if propias:
+            filas.append({"grupo": grupo, "destino": destino, "columnas": propias})
+    return filas
+
+
+def total_columnas() -> int:
+    """Cuántas columnas distintas espera el archivo."""
+    return len(columnas_ordenadas())
+
+
+# Fila de ejemplo de la plantilla. Solo se llenan las columnas que ilustran algo
+# —lo obligatorio, un formato de fecha, un sí/no—; el resto va en blanco a
+# propósito, porque una plantilla con 157 valores inventados se copia tal cual.
+# La cédula es válida según el módulo 10: una de ejemplo que no lo fuera haría
+# que la primera prueba de carga de quien lea esto fallara sin motivo.
+EJEMPLO = {
+    "tipo_documento": "cedula",
+    "cedula": "1104567894",
+    "nombres": "María José",
+    "apellidos": "Pérez Ríos",
+    "fecha_nacimiento": "2003-03-15",
+    "sexo": "Mujer",
+    "genero": "Femenino",
+    "celular": "0991234567",
+    "facultad": "Facultad de la Salud Humana",
+    "carrera": "Medicina",
+    "nivel": "Tercero",
+    "modalidad": "Presencial",
+    "ciclo": "3",
+    "estado": "Matriculado",
+    "paralelo": "A",
+    "jornada": "Matutina",
+    "email_institucional": "mjperez@unl.edu.ec",
+    "orientacion_sexual": "Heterosexual",
+    "tipo_sangre": "O+",
+    "discapacidad": "No",
+    "estudiante_gestacion": "No",
+    "estudiante_lactancia": "No",
+    "estudiante_necesidades_educativas_especiales": "No",
+    "ingreso_mensual": "450.00",
+    "gastos_mensual_familia": "500.00",
+}
+
+
+def plantilla_csv() -> str:
+    """
+    La plantilla del archivo: encabezados canónicos y una fila de ejemplo.
+
+    Se genera, no se guarda como archivo estático, para que no pueda quedarse
+    atrás del mapeo. Separador coma y codificación UTF-8, que es lo que el
+    lector espera; el BOM lo añade la vista, porque lo necesita Excel y no el
+    lector.
+    """
+    import csv
+    import io
+
+    columnas = columnas_ordenadas()
+    buffer = io.StringIO()
+    escritor = csv.DictWriter(buffer, fieldnames=columnas, extrasaction="ignore")
+    escritor.writeheader()
+    escritor.writerow({c: EJEMPLO.get(c, "") for c in columnas})
+    return buffer.getvalue()
+
+
+# ---------------------------------------------------------------- el padrón
+
+
+def padron(texto: str = "", periodo_id=None):
+    """
+    Lo que quedó cargado, con su persona y su período.
+
+    Busca por cédula, nombres, apellidos, facultad o carrera. Sin texto devuelve
+    todo: aquí sí es lo correcto —quien administra necesita ver la carga
+    completa—, y la vista lo pagina.
+    """
+    from .models import DatoAcademico
+
+    consulta = DatoAcademico.objects.select_related("persona", "periodo", "carga").order_by(
+        "persona__apellidos", "persona__nombres"
+    )
+    if periodo_id:
+        consulta = consulta.filter(periodo_id=periodo_id)
+
+    texto = (texto or "").strip()
+    if texto:
+        for palabra in texto.split():
+            consulta = consulta.filter(
+                Q(persona__cedula__icontains=palabra)
+                | Q(persona__nombres__icontains=palabra)
+                | Q(persona__apellidos__icontains=palabra)
+                | Q(facultad__icontains=palabra)
+                | Q(carrera__icontains=palabra)
+            )
+    return consulta
+
+
+# ------------------------------------------------------------ autocompletado
+
+# Con menos de tres caracteres la búsqueda por nombre devuelve medio padrón. La
+# cédula se exceptúa más abajo: se busca completa o no se busca.
+MINIMO_TEXTO = 3
+LIMITE_SUGERENCIAS = 10
+
+
+def sugerencias(texto: str, limite: int = LIMITE_SUGERENCIAS) -> list[dict]:
+    """
+    Candidatos para autocompletar, por cédula o por nombres.
+
+    Si el texto son solo dígitos se trata como cédula y se busca por prefijo;
+    si no, como nombre, exigiendo TODAS las palabras. Devuelve identificación y
+    matrícula, jamás nada clínico ni el servicio que atiende a la persona.
+
+    A diferencia de `resolver_por_cedula`, esto no escribe: teclear en una caja
+    de autocompletado no puede abrirle expediente a nadie.
+    """
+    from apps.expediente.models import Persona
+
+    texto = (texto or "").strip()
+    if len(texto) < MINIMO_TEXTO:
+        return []
+
+    consulta = Persona.objects.all()
+    if texto.replace("-", "").isdigit():
+        consulta = consulta.filter(cedula__startswith=texto.replace("-", ""))
+    else:
+        for palabra in texto.split():
+            consulta = consulta.filter(
+                Q(nombres__icontains=palabra) | Q(apellidos__icontains=palabra)
+            )
+
+    consulta = consulta.prefetch_related("datos_academicos__periodo").order_by(
+        "apellidos", "nombres"
+    )[:limite]
+
+    resultados = []
+    for persona in consulta:
+        # El más reciente por fecha de inicio del período: una persona puede
+        # tener varias matrículas y la vigente es la que interesa precargar.
+        dato = max(
+            persona.datos_academicos.all(),
+            key=lambda d: d.periodo.fecha_inicio,
+            default=None,
+        )
+        resultados.append(
+            {
+                "cedula": persona.cedula,
+                "nombres": persona.nombres,
+                "apellidos": persona.apellidos,
+                "nombre_completo": f"{persona.apellidos} {persona.nombres}".strip(),
+                "fecha_nacimiento": (
+                    persona.fecha_nacimiento.isoformat() if persona.fecha_nacimiento else ""
+                ),
+                "sexo": persona.sexo,
+                "genero": persona.genero,
+                "celular": persona.celular,
+                "correo_institucional": persona.correo_institucional,
+                "facultad": getattr(dato, "facultad", ""),
+                "carrera": getattr(dato, "carrera", ""),
+                "ciclo": getattr(dato, "ciclo", ""),
+                "estado": getattr(dato, "estado", ""),
+                "periodo": getattr(getattr(dato, "periodo", None), "codigo", ""),
+            }
+        )
+    return resultados

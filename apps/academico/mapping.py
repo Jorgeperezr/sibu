@@ -230,7 +230,11 @@ REGLAS_ALERTA = {
         "Necesidad educativa especial declarada",
     ),
     "discapacidad": ("riesgo", "medicina", "Discapacidad declarada: {valor}"),
-    "estudiante_gestacion": ("riesgo", "medicina", "Estado de gestación declarado"),
+    # `gestacion` y `lactancia` eran ambas "riesgo" o no existían. El informe
+    # estadístico cuenta por TIPO de alerta, así que una gestación declarada en
+    # matrícula quedaba fuera del conteo aunque el dato estuviera cargado.
+    "estudiante_gestacion": ("gestacion", "medicina", "Estado de gestación declarado"),
+    "estudiante_lactancia": ("lactancia", "medicina", "Lactancia declarada en matrícula"),
     "droga_consume": ("riesgo", "psicologia", "Consumo declarado en matrícula"),
 }
 

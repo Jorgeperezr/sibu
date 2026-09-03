@@ -58,6 +58,10 @@ MODULOS = [
     # Unidad—, este lo genera cualquier profesional sobre su propio servicio:
     # es el mismo contenido que ya ve atención por atención.
     Modulo("Informe estadístico", "reportes:informe_servicio", ("tiene_servicio", None), "Gestión"),
+    # El asistente de carga existía desde el Sprint 2 sin ninguna entrada de
+    # menú: se llegaba escribiendo la URL a mano. `padron` es la puerta —desde
+    # ahí se cargan archivos, se descarga la plantilla y se ve lo cargado—.
+    Modulo("Base institucional", "academico:padron", ("roles", {Rol.ADMIN_GENERAL}), "Gestión"),
 ]
 
 # Rutas de módulos que solo se abren desde un expediente/atención concreta. No
