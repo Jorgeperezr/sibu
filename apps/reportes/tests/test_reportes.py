@@ -297,3 +297,25 @@ def test_un_profesional_no_descarga_el_reporte(escenario):
     c = Client()
     c.login(username="psi_pdf", password=CLAVE)
     assert c.get("/reportes/exportar/pdf/").status_code == 403
+
+
+@pytest.mark.django_db
+def test_el_membrete_nombra_la_unidad_con_la_jerarquia_del_manual(escenario):
+    """
+    El nombre de la unidad se compone junto al logotipo, con el filete y la
+    jerarquía tipográfica que el manual reserva para las dependencias sin
+    identificador gráfico propio. No es una línea de texto suelta.
+    """
+    pdfminer = pytest.importorskip("pdfminer.high_level", reason="sin extractor de PDF")
+
+    Usuario.objects.create_user(username="dir_memb", password=CLAVE, rol_principal=Rol.DIRECTOR)
+    c = Client()
+    c.login(username="dir_memb", password=CLAVE)
+
+    import io
+
+    texto = pdfminer.extract_text(io.BytesIO(c.get("/reportes/exportar/pdf/").content))
+    # Las tres líneas del bloque, cada una por separado.
+    assert "Unidad de" in texto
+    assert "Bienestar" in texto
+    assert "Universitario" in texto

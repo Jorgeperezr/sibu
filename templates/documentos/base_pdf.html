@@ -43,20 +43,38 @@
       line-height: 1.45;
     }
 
-    /* ---- Membrete ---- */
+    /* ---- Membrete ----
+       Logotipo a la izquierda y el nombre de la unidad a la derecha, separados
+       por un filete vertical. Es la composición que el manual reserva para las
+       dependencias sin identificador gráfico propio ("Interacciones con
+       nombres departamentales"): el nombre se escribe con la misma jerarquía
+       tipográfica del logotipo, no como una línea suelta de texto.
+       Se maqueta con tabla y no con flex porque WeasyPrint la compone de forma
+       predecible en todos los tamaños de página. */
     .membrete {
+      width: 100%;
       border-bottom: 2pt solid #bf0811;
-      padding-bottom: 6pt;
+      padding-bottom: 7pt;
       margin-bottom: 14pt;
     }
-    .membrete img { height: 46pt; }
-    .membrete .unidad {
-      font-size: 7.5pt;
-      letter-spacing: 0.09em;
-      text-transform: uppercase;
-      color: #6b6560;
-      margin-top: 4pt;
+    .membrete td {
+      border: 0;
+      padding: 0;
+      vertical-align: middle;
     }
+    .membrete img { height: 44pt; }
+    .membrete .unidad {
+      border-left: .75pt solid #211915;
+      padding-left: 8pt;
+      font-size: 9pt;
+      line-height: 1.22;
+      color: #211915;
+      /* El bloque se pega al margen derecho, como en el manual. */
+      float: right;
+    }
+    .membrete .unidad .l1 { font-weight: 400; }
+    .membrete .unidad .l2 { font-weight: 400; }
+    .membrete .unidad .l3 { font-weight: 700; }
 
     h1 {
       font-size: 13pt;
@@ -123,10 +141,18 @@
 </head>
 <body>
 
-  <div class="membrete">
-    {% if logo_unl %}<img src="{{ logo_unl }}" alt="{{ institucion }}">{% endif %}
-    <div class="unidad">{{ unidad }}</div>
-  </div>
+  <table class="membrete">
+    <tr>
+      <td>{% if logo_unl %}<img src="{{ logo_unl }}" alt="{{ institucion }}">{% endif %}</td>
+      <td>
+        <div class="unidad">
+          <div class="l1">Unidad de</div>
+          <div class="l2">Bienestar</div>
+          <div class="l3">Universitario</div>
+        </div>
+      </td>
+    </tr>
+  </table>
 
   <h1>{% block titulo %}{% endblock %}</h1>
   <div class="subtitulo">{% block subtitulo %}{% endblock %}</div>
