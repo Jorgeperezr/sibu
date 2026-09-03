@@ -9,16 +9,32 @@ from apps.core.models import Servicio
 from apps.expediente.models import Expediente
 from apps.usuarios.decorators import verificar_es_del_servicio
 
-from . import services
+from . import campos, services
+from .models import FichaSocioeconomica
 
 
-def _campos_json(post, prefijo):
-    """Reconstruye un dict desde campos del formulario tipo `prefijo-clave`."""
-    datos = {}
-    for clave, valor in post.items():
-        if clave.startswith(f"{prefijo}-") and valor.strip():
-            datos[clave.removeprefix(f"{prefijo}-")] = valor.strip()
-    return datos
+def _fusionar(actual: dict, post, claves, prefijo: str) -> dict:
+    """
+    Combina lo que la pantalla muestra con lo que no.
+
+    Antes se reconstruía el diccionario entero desde el formulario, y eso hacía
+    dos daños a la vez. Las casillas salían vacías, así que pulsar «Registrar
+    verificación» sin tocar nada dejaba los ingresos en `{}`: el puntaje caía a
+    cero y el estudiante pasaba a «Extrema vulnerabilidad» sin que nadie hubiera
+    afirmado tal cosa. Y las claves que la ficha de matrícula trae pero la
+    pantalla no dibuja —«quién financia sus estudios», el detalle de una deuda—
+    desaparecían sin dejar rastro.
+
+    Ahora las casillas llegan rellenas: lo que se ve es lo que se guarda, y
+    vaciar una sigue significando borrar ese dato, que es lo que el profesional
+    esperaría. Lo que no se dibuja, se conserva.
+    """
+    resultado = {k: v for k, v in (actual or {}).items() if k not in claves}
+    for clave in claves:
+        valor = (post.get(f"{prefijo}-{clave}") or "").strip()
+        if valor:
+            resultado[clave] = valor
+    return resultado
 
 
 @login_required
@@ -37,10 +53,22 @@ def ficha(request, expediente_id):
                 services.prepoblar_desde_matricula(expediente, usuario=request.user)
                 messages.success(request, "Ficha v1 creada con los datos declarados en matrícula.")
             else:
+                vigente = services.ficha_vigente(expediente)
+                actual = vigente or FichaSocioeconomica()
                 datos = {
-                    "ingresos": _campos_json(request.POST, "ingreso"),
-                    "egresos": _campos_json(request.POST, "egreso"),
-                    "convivencia": {"numero_miembros": request.POST.get("numero_miembros", "1")},
+                    "ingresos": _fusionar(
+                        actual.ingresos, request.POST, [c for c, _ in campos.INGRESOS], "ingreso"
+                    ),
+                    "egresos": _fusionar(
+                        actual.egresos, request.POST, [c for c, _ in campos.EGRESOS], "egreso"
+                    ),
+                    # `convivencia` trae de matrícula lo declarado sobre necesidad
+                    # educativa especial y maltrato. Reemplazarla entera por el
+                    # número de miembros borraba justamente eso.
+                    "convivencia": {
+                        **(actual.convivencia or {}),
+                        "numero_miembros": request.POST.get("numero_miembros", "1"),
+                    },
                 }
                 nueva = services.verificar_ficha(
                     expediente, datos, profesional=perfil, usuario=request.user
@@ -63,5 +91,41 @@ def ficha(request, expediente_id):
             "expediente": expediente,
             "vigente": vigente,
             "historial": services.historial_fichas(expediente),
+            "ingresos": _casillas(vigente, "ingresos", campos.INGRESOS),
+            "egresos": _casillas(vigente, "egresos", campos.EGRESOS),
+            "informativos": _informativos(vigente),
         },
     )
+
+
+def _casillas(ficha, atributo: str, catalogo) -> list[dict]:
+    """Las casillas del formulario, cada una con el valor que hoy tiene."""
+    guardado = getattr(ficha, atributo, None) or {}
+    return [
+        {"clave": clave, "etiqueta": etiqueta, "valor": guardado.get(clave, "")}
+        for clave, etiqueta in catalogo
+    ]
+
+
+def _informativos(ficha) -> list[dict]:
+    """
+    Lo que el estudiante declaró en matrícula y aquí solo se lee.
+
+    Estaba guardado desde la carga y no se mostraba en ninguna pantalla, así que
+    en la práctica el profesional volvía a preguntar lo ya preguntado.
+    """
+    if ficha is None:
+        return []
+    grupos = []
+    for atributo, titulo in campos.GRUPOS_INFORMATIVOS:
+        contenido = getattr(ficha, atributo, None) or {}
+        filas = [
+            {"etiqueta": campos.rotular(clave), "valor": valor}
+            for clave, valor in contenido.items()
+            # `numero_miembros` tiene su propia casilla editable arriba: repetirlo
+            # aquí como dato de solo lectura haría dudar de cuál manda.
+            if valor not in (None, "", {}) and clave != "numero_miembros"
+        ]
+        if filas:
+            grupos.append({"titulo": titulo, "filas": filas})
+    return grupos

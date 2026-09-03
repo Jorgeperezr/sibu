@@ -73,11 +73,22 @@ def prepoblar_desde_matricula(expediente: Expediente, usuario=None) -> FichaSoci
 
 
 def calcular_totales(ingresos: dict, egresos: dict) -> tuple[Decimal, Decimal]:
-    """Suma los valores numéricos de los diccionarios de ingresos y egresos."""
+    """
+    Suma los valores numéricos de los diccionarios de ingresos y egresos.
+
+    Se excluyen los totales que el propio estudiante declaró en matrícula
+    (`ingreso_mensual`, `gastos_mensual_familia`): no son una línea más del
+    desglose sino su suma, y contarlos junto a sus componentes duplicaba el
+    ingreso del hogar. El puntaje resultante orienta la asignación de una beca,
+    así que ese duplicado no era un redondeo: movía de estrato.
+    """
+    from .campos import TOTALES_DECLARADOS
 
     def _suma(d: dict) -> Decimal:
         total = Decimal("0")
-        for valor in (d or {}).values():
+        for clave, valor in (d or {}).items():
+            if clave in TOTALES_DECLARADOS:
+                continue
             try:
                 total += Decimal(str(valor))
             except (TypeError, ValueError, ArithmeticError):
