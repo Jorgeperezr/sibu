@@ -180,3 +180,23 @@ def test_un_mensaje_se_pinta_una_sola_vez(admin):
     cuerpo = respuesta.content.decode()
     for texto in textos:
         assert cuerpo.count(texto) == 1, f"el mensaje se pinta {cuerpo.count(texto)} veces"
+
+
+@pytest.mark.django_db
+def test_un_error_se_pinta_con_el_color_de_error(admin):
+    """
+    Django etiqueta los errores como "error" y Bootstrap solo define
+    `alert-danger`: `alert-{{ m.tags }}` producía `alert-error`, una clase
+    inexistente, y el aviso salía sin color, igual que uno informativo. Se vio
+    en una captura, no en el HTML.
+    """
+    cliente = Client()
+    cliente.login(username="admin", password=CLAVE)
+    respuesta = cliente.post(
+        reverse("expediente:nuevo"),
+        {"cedula": "1104567890", "nombres": "Ana", "apellidos": "Prueba"},
+        follow=True,
+    )
+    cuerpo = respuesta.content.decode()
+    assert "alert-danger" in cuerpo
+    assert "alert-error" not in cuerpo

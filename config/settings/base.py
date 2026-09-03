@@ -6,6 +6,7 @@ Ajustes compartidos por todos los ambientes. Ver dev.py y prod.py.
 from pathlib import Path
 
 import environ
+from django.contrib.messages import constants as niveles_mensaje
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -146,6 +147,12 @@ AUTH_PASSWORD_VALIDATORS = [
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "inicio"
 LOGOUT_REDIRECT_URL = "login"
+
+# Django etiqueta los errores como "error"; Bootstrap solo define
+# `alert-danger`. Sin esta traducción, `alert-{{ m.tags }}` producía
+# `alert-error`, una clase que no existe: el aviso de error salía sin color,
+# indistinguible de uno informativo.
+MESSAGE_TAGS = {niveles_mensaje.ERROR: "danger"}
 
 # ---------------------------------------------------------------------------
 # Internacionalización (UNL - Ecuador)
