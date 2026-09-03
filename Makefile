@@ -1,4 +1,4 @@
-.PHONY: install migrate run up worker perfil demo seed setup test lint fmt help
+.PHONY: install migrate run up preparar cuentas worker perfil demo seed setup test lint fmt help
 
 help:         ## Mostrar esta ayuda
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -12,8 +12,14 @@ migrate:      ## Aplicar migraciones
 run:          ## Servidor de desarrollo (sin derivar variables de Codespaces)
 	python manage.py runserver 0.0.0.0:8000
 
-up:           ## Arranque completo: variables + BD + migraciones + servidor
+up:           ## ARRANQUE. Prepara la base si hace falta y levanta el servidor
 	bash scripts/dev.sh
+
+preparar:     ## Migraciones + datos base + RBAC + CIE-10 + cuentas de prueba
+	python manage.py preparar
+
+cuentas:      ## Recordar con qué usuario y contraseña iniciar sesión
+	python manage.py cuentas
 
 worker:       ## Worker + beat de Celery
 	celery -A config worker -B -l info
@@ -27,13 +33,8 @@ perfil:       ## Dar al superusuario un perfil de dev con todos los servicios
 demo:         ## Sembrar usuarios, pacientes y actividad para probar el sistema
 	python manage.py datos_demo
 
-setup:        ## Primera vez: migraciones + datos base + RBAC
-	python manage.py migrate
-	python manage.py seed_inicial
-	python manage.py configurar_rbac
-	@echo ""
-	@echo "Listo. Cree un superusuario con 'python manage.py createsuperuser',"
-	@echo "asígnele perfil con 'make perfil' y arranque con 'make up'."
+setup:        ## Alias de 'preparar' (se conserva por costumbre)
+	python manage.py preparar
 
 test:         ## Ejecutar pruebas con cobertura
 	pytest --cov=apps

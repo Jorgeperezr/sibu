@@ -260,6 +260,30 @@ class Command(BaseCommand):
         perfil.servicios.set(Servicio.objects.all())
         self.admin = admin
 
+        # Cuenta de Administrador General, aparte y a propósito.
+        #
+        # La de arriba tiene rol PROFESIONAL para poder ver contenido clínico;
+        # con eso, ningún usuario sembrado llegaba a lo que sí es propio de
+        # quien administra —cargar la base institucional, ver el padrón—, porque
+        # esas pantallas piden ADMIN_GENERAL. Y no se podía dar ese rol a la
+        # cuenta de arriba sin dejarla ciega ante las atenciones.
+        #
+        # Que sean dos cuentas no es un rodeo del entorno de prueba: es la
+        # separación de funciones real. Quien administra el sistema no lee
+        # historias clínicas, y esta cuenta lo demuestra en vez de contarlo.
+        administrador, _ = Usuario.objects.get_or_create(
+            username="administrador",
+            defaults={"email": "administracion@unl.edu.ec"},
+        )
+        administrador.first_name = "Ana"
+        administrador.last_name = "Ordóñez"
+        administrador.rol_principal = Rol.ADMIN_GENERAL
+        administrador.is_staff = True
+        administrador.is_superuser = False
+        administrador.set_password(CLAVE)
+        administrador.save()
+        administrador.user_permissions.set(Permission.objects.all())
+
     # ------------------------------------------------------------- por módulo
 
     def _vincular_portal(self, usuario, expediente):
@@ -539,6 +563,9 @@ class Command(BaseCommand):
         for username, _n, _a, codigo, _rol in PROFESIONALES:
             if codigo in self.perfiles:
                 self.stdout.write(f"  {username:<15} su servicio ({codigo})")
+        self.stdout.write(
+            f"  {'administrador':<15} base institucional y gestión, sin contenido clínico"
+        )
         self.stdout.write(f"  {'director':<15} tablero de gestión, sin contenido clínico")
         self.stdout.write(f"  {'estudiante':<15} portal del paciente (/portal/)")
         self.stdout.write("")

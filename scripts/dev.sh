@@ -35,10 +35,28 @@ if ! python -c "import django; django.setup(); from django.db import connection;
 fi
 echo "base de datos: OK"
 
-# --- 3. Migraciones pendientes: aplicarlas, no fallar en silencio -----------
-if ! python manage.py migrate --check >/dev/null 2>&1; then
-  echo "Aplicando migraciones pendientes..."
-  python manage.py migrate --noinput
+# --- 3. ¿La base está vacía? Prepararla entera ------------------------------
+# Un servidor arrancado sobre una base sin preparar levanta bien y luego
+# rechaza cualquier usuario que se escriba en la pantalla de inicio de sesión,
+# porque no hay ninguna cuenta creada. Ese es el "error al iniciar sesión" que
+# no se explica solo. Si no hay servicios ni cuentas, se prepara todo aquí.
+VACIA=$(python -c "
+import django; django.setup()
+from apps.core.models import Servicio
+from apps.usuarios.models import Usuario
+print('si' if not (Servicio.objects.exists() and Usuario.objects.exists()) else 'no')
+" 2>/dev/null || echo "si")
+
+if [ "$VACIA" = "si" ]; then
+  echo "Base sin preparar: creando estructura, permisos y cuentas de prueba..."
+  echo ""
+  python manage.py preparar
+else
+  # Ya preparada: solo hace falta que no queden migraciones pendientes.
+  if ! python manage.py migrate --check >/dev/null 2>&1; then
+    echo "Aplicando migraciones pendientes..."
+    python manage.py migrate --noinput
+  fi
 fi
 
 # --- 4. ¿Ya hay un servidor escuchando? -------------------------------------
@@ -53,6 +71,14 @@ fi
 
 echo ""
 echo "SIBU en marcha -> ${URL}"
-echo "Abra esa URL, o el puerto 8000 en la pestaña Ports de VS Code."
+echo ""
+echo "  Abra esa URL, o el puerto 8000 en la pestaña PORTS de VS Code."
+if [ -n "${CODESPACE_NAME:-}" ]; then
+  echo "  Si el navegador muestra 'Not Found' o pide iniciar sesión en GitHub,"
+  echo "  ponga el puerto 8000 en Public: pestaña PORTS, clic derecho sobre el"
+  echo "  puerto -> Port Visibility -> Public."
+fi
+echo ""
+echo "  Para ver o recordar las credenciales:  make cuentas"
 echo ""
 exec python manage.py runserver 0.0.0.0:8000

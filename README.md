@@ -15,30 +15,85 @@ Psicopedagogía, Trabajo Social y Becas.
 - **Asíncrono:** Celery + Redis
 - **Entorno de desarrollo:** GitHub Codespaces → macOS Intel (dev container)
 
-## Arranque rápido (Codespaces o VS Code + Dev Containers)
+## Arranque en Codespaces: un solo comando
 
-1. Abrir el repositorio en un Codespace (o *Reopen in Container* en VS Code).
-2. El contenedor instala dependencias y aplica migraciones automáticamente.
-3. Copiar variables: `cp .env.example .env` y ajustar lo necesario.
-4. Cargar datos base y crear un administrador:
+Abrir el repositorio en un Codespace y, cuando la terminal esté lista, escribir:
 
-   ```bash
-   python manage.py seed_inicial
-   python manage.py createsuperuser
-   python manage.py runserver 0.0.0.0:8000
-   ```
+```bash
+make up
+```
 
-5. Abrir el puerto 8000 reenviado. API: `/api/docs/` · Admin: `/admin/`.
+Eso es todo. No hace falta `cp .env.example .env`, ni `createsuperuser`, ni
+`runserver`, ni exportar variables.
+
+`make up` hace por su cuenta lo que antes había que recordar: deriva el dominio
+que Codespaces asigna al puerto 8000 (sin eso, todos los formularios fallan con
+un error de CSRF), comprueba que PostgreSQL responda, aplica las migraciones
+pendientes y —si la base todavía está vacía— crea la estructura, los permisos,
+el catálogo CIE-10 y las cuentas de prueba. La primera vez tarda un minuto; las
+siguientes, segundos.
+
+Al terminar imprime la URL. Púlsela, o abra el puerto 8000 en la pestaña
+**PORTS** de VS Code.
+
+### Con qué usuario entrar
+
+`make up` imprime las credenciales la primera vez. Para volver a verlas:
+
+```bash
+make cuentas
+```
+
+| Usuario | Ve |
+|---|---|
+| `jorge.perez@unl.edu.ec` / `Jorge2025` | Los nueve servicios y `/admin/` |
+| `medico`, `psicologo`, `trabajadora`, … / `sibu-demo-2026` | Solo su servicio |
+| `administrador` / `sibu-demo-2026` | Base institucional y gestión, sin contenido clínico |
+| `director` / `sibu-demo-2026` | Tablero de gestión, sin contenido clínico |
+| `estudiante` / `sibu-demo-2026` | Portal del paciente (`/portal/`) |
+
+Cada profesional ve **solo su servicio**: no es una limitación del entorno de
+prueba, es el comportamiento real del sistema.
+
+### Si algo falla
+
+| Lo que ve | Qué pasa |
+|---|---|
+| El navegador dice *Not Found* o pide iniciar sesión en GitHub | El puerto está privado. Pestaña **PORTS** → clic derecho en el 8000 → *Port Visibility* → **Public**. |
+| *That port is already in use* | Quedó vivo un servidor anterior: `kill $(lsof -ti:8000)` y repita `make up`. |
+| El usuario y la contraseña no son aceptados | Compruebe cuáles existen con `make cuentas`. Si la lista sale vacía, `make preparar`. |
+| *CSRF verification failed* al enviar un formulario | Arrancó con `make run` en vez de `make up`. Use `make up`. |
+| *sin conexión a la base de datos* | El contenedor `db` aún no levantó. Espere unos segundos y repita, o *Rebuild Container*. |
+
+> **`.env` no se usa en desarrollo.** `.env.example` es una plantilla de
+> **producción**: trae `SECRET_KEY` vacía y `DEBUG=False`. Copiarla a `.env`
+> para trabajar en Codespaces no hace falta y solo estorba.
 
 ## Comandos útiles (Makefile)
 
-| Comando        | Acción                                   |
-|----------------|------------------------------------------|
-| `make run`     | Servidor de desarrollo                   |
-| `make worker`  | Celery worker + beat                     |
-| `make test`    | Pruebas con cobertura                    |
-| `make lint`    | Ruff + Bandit                            |
-| `make seed`    | Secciones, servicios y roles iniciales   |
+| Comando        | Acción                                            |
+|----------------|---------------------------------------------------|
+| `make up`      | **Arranque.** Prepara la base si hace falta y sirve |
+| `make cuentas` | Recordar con qué usuario iniciar sesión           |
+| `make preparar`| Rehacer estructura, permisos, CIE-10 y cuentas    |
+| `make perfil`  | Dar a una cuenta acceso a todos los servicios     |
+| `make test`    | Pruebas con cobertura                             |
+| `make lint`    | Ruff + Bandit                                     |
+| `make worker`  | Celery worker + beat                              |
+
+## Despliegue en un servidor real
+
+Ahí sí hace falta `.env`, y ahí `SECRET_KEY` vacía debe seguir abortando el
+arranque: una clave adivinable firma sesiones reales. El procedimiento completo
+está en `docs/DESPLIEGUE.md`; en resumen:
+
+```bash
+cp .env.example .env      # y completarlo: SECRET_KEY, ALLOWED_HOSTS, DATABASE_URL...
+python -c "import secrets; print(secrets.token_urlsafe(64))"   # para SECRET_KEY
+python manage.py check --deploy
+python manage.py preparar --sin-demo   # sin cuentas ni pacientes ficticios
+python manage.py createsuperuser
+```
 
 ## Estructura
 
