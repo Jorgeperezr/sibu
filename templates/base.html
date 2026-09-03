@@ -51,10 +51,11 @@ puede declararse una vez.
     <nav class="sibu-nav flex-grow-1">{% include "_nav_lista.html" %}</nav>
     <div class="sibu-usuario">
       <div class="sibu-avatar">{{ user.get_full_name|default:user.username|slice:":1"|upper }}</div>
-      <div class="sibu-usuario-datos">
+      <a class="sibu-usuario-datos" href="{% url 'usuarios:mi_perfil' %}"
+         title="Mis datos">
         <span>{{ user.get_full_name|default:user.username }}</span>
         <small>{{ user.get_rol_principal_display }}</small>
-      </div>
+      </a>
       <a href="{% url 'logout' %}" title="Cerrar sesión" class="sibu-salir">
         <i class="bi bi-box-arrow-right"></i>
       </a>

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Mis datos · SIBU{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <h1 class="h4 mb-0">Mis datos</h1>
+  <small class="text-muted">
+    Lo que le identifica al atender y al firmar un documento.
+  </small>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">Ficha profesional</div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <label class="form-label" for="first_name">Nombres</label>
+              <input id="first_name" name="first_name" class="form-control"
+                     value="{{ user.first_name }}" maxlength="150">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="last_name">Apellidos</label>
+              <input id="last_name" name="last_name" class="form-control"
+                     value="{{ user.last_name }}" maxlength="150">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="cedula">Cédula</label>
+              <input id="cedula" name="cedula" class="form-control"
+                     value="{{ user.cedula|default:'' }}" maxlength="13" inputmode="numeric">
+              <div class="form-text">
+                Identifica al firmante. Se valida con el módulo 10.
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="telefono">Teléfono</label>
+              <input id="telefono" name="telefono" class="form-control"
+                     value="{{ user.telefono }}" maxlength="20">
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="email">Correo institucional</label>
+              <input id="email" name="email" type="email" class="form-control"
+                     value="{{ user.email }}" maxlength="254">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="titulo">Título</label>
+              <input id="titulo" name="titulo" class="form-control"
+                     value="{{ perfil.titulo|default:'' }}" maxlength="120"
+                     placeholder="Médico General">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="registro_profesional">Registro profesional</label>
+              <input id="registro_profesional" name="registro_profesional" class="form-control"
+                     value="{{ perfil.registro_profesional|default:'' }}" maxlength="60"
+                     placeholder="ACESS / SENESCYT">
+            </div>
+          </div>
+          <button class="btn btn-primary mt-3">Guardar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">Acceso asignado</div>
+      <div class="card-body">
+        {% comment %}
+        Solo lectura, y a propósito: de estos campos depende el RBAC. Se
+        muestran para que el profesional sepa con qué permisos trabaja, no
+        para que se los cambie.
+        {% endcomment %}
+        <dl class="row mb-0 small">
+          <dt class="col-5">Rol</dt>
+          <dd class="col-7">{{ user.get_rol_principal_display }}</dd>
+          <dt class="col-5">Sección</dt>
+          <dd class="col-7">{{ perfil.seccion.nombre|default:"—" }}</dd>
+          <dt class="col-5">Servicios</dt>
+          <dd class="col-7">
+            {% for s in servicios %}
+              <span class="badge bg-light text-dark border">{{ s.nombre }}</span>
+            {% empty %}—{% endfor %}
+          </dd>
+          <dt class="col-5">Usuario</dt>
+          <dd class="col-7">{{ user.username }}</dd>
+        </dl>
+        <p class="small text-muted mt-3 mb-0">
+          El rol, la sección y los servicios los asigna la administración de la
+          Unidad. Si alguno no corresponde, solicítelo por ahí.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

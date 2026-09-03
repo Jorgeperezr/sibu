@@ -175,6 +175,13 @@ body {
 .sibu-usuario-datos {
   min-width: 0;
   flex: 1 1 auto;
+  /* Es un enlace a la ficha propia: sin el reset heredaría el azul y el
+     subrayado de Bootstrap, que es lo que ya afeó el logotipo una vez. */
+  color: inherit;
+  text-decoration: none;
+}
+.sibu-usuario-datos:hover span {
+  color: var(--unl-verde);
 }
 .sibu-usuario-datos span {
   display: block;
