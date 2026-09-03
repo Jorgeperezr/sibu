@@ -7,8 +7,10 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import render
+from django.utils import timezone
 
 from apps.auditoria.models import LogAuditoria
+from apps.core.pdf import render_pdf
 from apps.usuarios.models import Rol
 
 from . import services
@@ -42,6 +44,42 @@ def tablero(request):
         "reportes/tablero.html",
         {"datos": services.tablero_general(desde, hasta), "desde": desde, "hasta": hasta},
     )
+
+
+@login_required
+def exportar_pdf(request):
+    """
+    El tablero como documento formal, con el membrete institucional.
+
+    El CSV sirve para seguir trabajando los datos; este PDF es el que se
+    archiva o se entrega. Los conteos llegan ya suprimidos desde `services`, así
+    que el documento no puede publicar una cifra que la pantalla oculta.
+    """
+    _solo_directivos(request.user)
+    desde, hasta = _rango(request)
+
+    LogAuditoria.objects.create(
+        usuario=request.user,
+        accion=LogAuditoria.Accion.EXPORT,
+        modulo="reportes",
+        entidad="TableroGeneral",
+        entidad_id="pdf",
+        detalle={"desde": str(desde or ""), "hasta": str(hasta or "")},
+    )
+
+    pdf = render_pdf(
+        "reportes/tablero_pdf.html",
+        {
+            "datos": services.tablero_general(desde, hasta),
+            "desde": desde,
+            "hasta": hasta,
+            "k_minimo": services.K_MINIMO,
+        },
+    )
+    respuesta = HttpResponse(pdf, content_type="application/pdf")
+    nombre = f"reporte-gestion-{timezone.localdate():%Y%m%d}.pdf"
+    respuesta["Content-Disposition"] = f'attachment; filename="{nombre}"'
+    return respuesta
 
 
 @login_required

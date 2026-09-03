@@ -7,6 +7,8 @@ búsqueda incluso ofrecía "puede registrarla como persona externa" sin dar por
 dónde hacerlo.
 """
 
+from datetime import date
+
 import pytest
 from django.core.exceptions import ValidationError
 from django.test import Client
@@ -136,3 +138,49 @@ def test_un_usuario_del_portal_no_registra_expedientes(escenario):
     )
     assert r.status_code == 302
     assert not Expediente.objects.exists()
+
+
+@pytest.mark.django_db
+def test_el_alta_precarga_lo_que_ya_sabe_la_institucion(escenario):
+    """
+    Hacer teclear de nuevo lo que la Universidad ya sabe invita a escribirlo
+    distinto y a partir en dos la identidad de la persona.
+    """
+    from apps.academico.models import DatoAcademico
+    from apps.core.models import PeriodoAcademico
+
+    periodo, _ = PeriodoAcademico.objects.get_or_create(
+        codigo="2026-1",
+        defaults={
+            "nombre": "Abril–Agosto 2026",
+            "fecha_inicio": date(2026, 4, 1),
+            "fecha_fin": date(2026, 8, 31),
+            "vigente": True,
+        },
+    )
+    persona = Persona.objects.create(
+        cedula="1104567894",
+        nombres="Ana Lucía",
+        apellidos="Prueba Ríos",
+        tipo_vinculo=Persona.TipoVinculo.ESTUDIANTE,
+    )
+    DatoAcademico.objects.create(
+        persona=persona, periodo=periodo, email_institucional="ana.prueba@unl.edu.ec"
+    )
+
+    c = Client()
+    c.login(username="medico_alta", password=CLAVE)
+    cuerpo = c.get("/expediente/nuevo/?cedula=1104567894").content.decode()
+    assert "Ana Lucía" in cuerpo
+    assert "Prueba Ríos" in cuerpo
+    assert "Se completaron los datos" in cuerpo
+
+
+@pytest.mark.django_db
+def test_una_cedula_desconocida_deja_el_formulario_en_blanco(escenario):
+    """Sin fuente que consultar no se inventa nada: solo la cédula tecleada."""
+    c = Client()
+    c.login(username="medico_alta", password=CLAVE)
+    cuerpo = c.get("/expediente/nuevo/?cedula=1104567894").content.decode()
+    assert "Se completaron los datos" not in cuerpo
+    assert 'value="1104567894"' in cuerpo

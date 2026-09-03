@@ -11,7 +11,6 @@ import logging
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.template.loader import render_to_string
 from django.utils import timezone
 
 from apps.auditoria.models import LogAuditoria
@@ -31,15 +30,15 @@ def _sha256(datos: bytes) -> str:
 
 def generar_pdf(plantilla: str, contexto: dict) -> bytes:
     """
-    Renderiza una plantilla HTML a PDF con WeasyPrint.
+    Renderiza una plantilla a PDF con el membrete institucional.
 
-    Importación diferida: WeasyPrint arrastra librerías del sistema y no debe
-    exigirse para correr las pruebas que no generan PDFs.
+    Delega en `apps.core.pdf`, que es donde vive la línea gráfica de la UNL:
+    antes este informe salía con tipografía genérica y sin marca, distinto de
+    los reportes de gestión.
     """
-    from weasyprint import HTML
+    from apps.core.pdf import render_pdf
 
-    html = render_to_string(plantilla, contexto)
-    return HTML(string=html).write_pdf()
+    return render_pdf(plantilla, contexto)
 
 
 @transaction.atomic

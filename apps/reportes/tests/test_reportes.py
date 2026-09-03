@@ -235,3 +235,65 @@ def test_una_derivacion_suelta_a_psicologia_no_se_publica(escenario):
     datos = services.derivaciones_indicadores()
     fila = next(f for f in datos["por_destino"] if f["destino"] == escenario["psico"].nombre)
     assert fila["total"] == services.SUPRIMIDO
+
+
+# --------------------------------------------------------------------------
+# Reporte en PDF
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_el_reporte_pdf_se_genera_y_queda_auditado(escenario):
+    """El documento que se archiva o se entrega, con el membrete institucional."""
+    from apps.auditoria.models import LogAuditoria
+
+    _atenciones(escenario, escenario["est"]["medicina"], escenario["medico"], ["1100000007"])
+    u = Usuario.objects.create_user(username="dir_pdf", password=CLAVE, rol_principal=Rol.DIRECTOR)
+    c = Client()
+    c.login(username="dir_pdf", password=CLAVE)
+
+    r = c.get("/reportes/exportar/pdf/")
+    assert r.status_code == 200
+    assert r["Content-Type"] == "application/pdf"
+    assert r.content.startswith(b"%PDF-")
+
+    log = LogAuditoria.objects.filter(modulo="reportes", entidad_id="pdf").first()
+    assert log is not None
+    assert log.usuario == u
+
+
+@pytest.mark.django_db
+def test_el_reporte_pdf_no_contiene_identidades(escenario):
+    """
+    Misma regla que el tablero en pantalla: el documento informa de gestión.
+
+    Un PDF circula más que una pantalla —se adjunta, se imprime, se reenvía—,
+    así que la comprobación se hace sobre el texto extraído del documento y no
+    solo sobre el HTML.
+    """
+    pdftotext = pytest.importorskip("pdfminer.high_level", reason="sin extractor de PDF")
+
+    _atenciones(escenario, escenario["psico"], escenario["psicologo"], ["1100000007"])
+    Usuario.objects.create_user(username="dir_pdf2", password=CLAVE, rol_principal=Rol.DIRECTOR)
+    c = Client()
+    c.login(username="dir_pdf2", password=CLAVE)
+    r = c.get("/reportes/exportar/pdf/")
+
+    import io
+
+    texto = pdftotext.extract_text(io.BytesIO(r.content))
+    assert "1100000007" not in texto
+    assert "Paciente" not in texto  # apellido de las personas de factory
+    assert services.SUPRIMIDO in texto  # el conteo pequeño va velado
+
+
+@pytest.mark.django_db
+def test_un_profesional_no_descarga_el_reporte(escenario):
+    """El tablero, y su PDF, son de la Dirección."""
+    lab = Servicio.objects.get(codigo="psicologia")
+    u, _ = crear_profesional("psi_pdf", lab, lab.seccion)
+    u.set_password(CLAVE)
+    u.save()
+    c = Client()
+    c.login(username="psi_pdf", password=CLAVE)
+    assert c.get("/reportes/exportar/pdf/").status_code == 403

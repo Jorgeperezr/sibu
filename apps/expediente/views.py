@@ -70,6 +70,23 @@ def buscar(request):
     return render(request, "expediente/buscar.html", contexto)
 
 
+def _datos_institucionales(cedula: str) -> dict:
+    """Lo que la fuente académica sepa de esa cédula, para precargar el alta."""
+    from apps.academico.providers import get_provider
+    from apps.academico.validators import normalizar_cedula
+
+    ficha = get_provider().consultar_persona(normalizar_cedula(cedula)) or {}
+    if not ficha:
+        return {}
+    return {
+        "nombres": ficha.get("nombres", ""),
+        "apellidos": ficha.get("apellidos", ""),
+        "correo_institucional": ficha.get("email_institucional", ""),
+        "tipo_vinculo": ficha.get("tipo_vinculo", ""),
+        "prellenado": True,
+    }
+
+
 @login_required
 def nuevo(request):
     """
@@ -84,6 +101,11 @@ def nuevo(request):
         return redirect("expediente:buscar")
 
     datos = {"cedula": (request.GET.get("cedula") or "").strip()}
+    # Si la cédula ya consta en la fuente institucional, sus datos se traen
+    # solos: hacer teclear de nuevo lo que la Universidad ya sabe invita a
+    # escribirlo distinto y a partir en dos la identidad de la persona.
+    if datos["cedula"] and request.method == "GET":
+        datos.update(_datos_institucionales(datos["cedula"]))
 
     if request.method == "POST":
         datos = {campo: (request.POST.get(campo) or "").strip() for campo in CAMPOS_ALTA}

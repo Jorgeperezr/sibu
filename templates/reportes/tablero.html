@@ -9,6 +9,10 @@
     <button class="btn btn-sm btn-outline-primary">Filtrar</button>
     <a href="{% url 'reportes:exportar' %}?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}"
        class="btn btn-sm btn-outline-secondary">CSV</a>
+  <a href="{% url 'reportes:exportar_pdf' %}{% if desde or hasta %}?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}{% endif %}"
+     class="btn btn-sm btn-primary">
+    <i class="bi bi-file-earmark-pdf"></i> Reporte en PDF
+  </a>
   </form>
 </div>
 <p class="small text-muted">

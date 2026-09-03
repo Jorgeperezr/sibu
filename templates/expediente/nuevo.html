@@ -15,6 +15,13 @@
 <div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
 {% endfor %}{% endif %}
 
+{% if datos.prellenado %}
+<div class="alert alert-info py-2">
+  Se completaron los datos que constan en la base institucional para la cédula
+  {{ datos.cedula }}. Revíselos antes de guardar.
+</div>
+{% endif %}
+
 <form method="post" class="card" style="max-width:820px">
   {% csrf_token %}
   <div class="card-body">
