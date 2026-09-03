@@ -114,7 +114,6 @@ def calcular_puntaje(ficha: FichaSocioeconomica) -> tuple[Decimal, str]:
 
 
 @transaction.atomic
-@transaction.atomic
 def verificar_ficha(
     expediente: Expediente, datos: dict, *, profesional: PerfilProfesional, usuario=None
 ) -> FichaSocioeconomica:
