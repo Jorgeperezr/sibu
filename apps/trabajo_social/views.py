@@ -1,4 +1,4 @@
-"""Interfaz web de Trabajo Social: ficha socioeconómica versionada."""
+"""Interfaz web de Trabajo Social: bandeja del servicio y ficha versionada."""
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -9,7 +9,7 @@ from apps.core.models import Servicio
 from apps.expediente.models import Expediente
 from apps.usuarios.decorators import verificar_es_del_servicio
 
-from . import campos, services
+from . import campos, selectors, services
 from .models import FichaSocioeconomica
 
 
@@ -35,6 +35,39 @@ def _fusionar(actual: dict, post, claves, prefijo: str) -> dict:
         if valor:
             resultado[clave] = valor
     return resultado
+
+
+@login_required
+def bandeja(request):
+    """
+    Los casos del servicio: qué expedientes tienen ficha y en qué estrato.
+
+    Trabajo Social era el único de los nueve servicios sin bandeja. Su
+    profesional iniciaba sesión y no tenía por dónde entrar a lo suyo: se
+    llegaba a una ficha solo desde el expediente abierto en otro módulo, o
+    tecleando la URL con el id a mano.
+    """
+    from django.core.paginator import Paginator
+
+    servicio = get_object_or_404(Servicio, codigo="trabajo-social")
+    verificar_es_del_servicio(request.user, servicio)
+
+    texto = (request.GET.get("q") or "").strip()
+    estrato = (request.GET.get("estrato") or "").strip()
+    consulta = selectors.casos(texto, estrato)
+    return render(
+        request,
+        "trabajo_social/bandeja.html",
+        {
+            "pagina": Paginator(consulta, 40).get_page(request.GET.get("pagina")),
+            "q": texto,
+            "estrato": estrato,
+            "estratos": selectors.ESTRATOS,
+            "resumen": selectors.resumen_por_estrato(),
+            "total": consulta.count(),
+            "minimo_texto": selectors.MINIMO_TEXTO,
+        },
+    )
 
 
 @login_required

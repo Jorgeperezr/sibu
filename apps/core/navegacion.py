@@ -45,6 +45,14 @@ MODULOS = [
         ("servicio", "psicopedagogia"),
         "Psicopedagógica",
     ),
+    # Trabajo Social era el único de los nueve servicios sin entrada: su
+    # profesional iniciaba sesión y no tenía por dónde entrar a lo suyo.
+    Modulo(
+        "Trabajo Social",
+        "trabajo_social:bandeja",
+        ("servicio", "trabajo-social"),
+        "Trabajo Social",
+    ),
     Modulo("Derivaciones", "derivaciones:bandeja", ("siempre", None), "General"),
     Modulo("Becas", "becas:bandeja", ("servicio", "becas-y-ayudas-economicas"), "Becas"),
     Modulo("Talleres", "talleres:bandeja", ("siempre", None), "General"),
