@@ -200,3 +200,23 @@ def test_un_error_se_pinta_con_el_color_de_error(admin):
     cuerpo = respuesta.content.decode()
     assert "alert-danger" in cuerpo
     assert "alert-error" not in cuerpo
+
+
+@pytest.mark.django_db
+def test_la_unidad_se_compone_en_tres_lineas_como_el_manual(admin):
+    """
+    El manual reserva esta composición a las dependencias sin identificador
+    gráfico propio: filete vertical y el nombre con la misma jerarquía
+    tipográfica del logotipo. Iba como una línea suelta en versalitas
+    espaciadas, que es justo lo que no pide.
+
+    Se fija la composición —las tres líneas y sus clases—, no los colores ni
+    los tamaños, que son decisiones de diseño y pueden ajustarse.
+    """
+    cliente = Client()
+    cliente.login(username="admin", password=CLAVE)
+    cuerpo = cliente.get(reverse("inicio")).content.decode()
+    assert '<span class="l1">Unidad de</span>' in cuerpo
+    assert '<span class="l2">Bienestar</span>' in cuerpo
+    assert '<span class="l3">Universitario</span>' in cuerpo
+    assert "sibu-sistema" not in cuerpo
