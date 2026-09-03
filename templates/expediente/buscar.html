@@ -2,21 +2,75 @@
 {% block title %}Buscar expediente · SIBU{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h3 mb-0">Buscar por cédula</h1>
+  <h1 class="h4 mb-0">Buscar expediente</h1>
   <a href="{% url 'expediente:nuevo' %}" class="btn btn-sm btn-outline-primary">
     <i class="bi bi-person-plus"></i> Registrar persona
   </a>
 </div>
 
-<form method="get" class="row g-2 mb-4">
-  <div class="col-auto">
-    <input type="text" name="cedula" value="{{ cedula|default:'' }}"
-           class="form-control" placeholder="Número de cédula" maxlength="13" autofocus>
+{% comment %}
+Dos formularios y no uno con adivinanza: la cédula resuelve contra la base
+institucional —y abre expediente si hace falta—, el nombre solo consulta lo ya
+registrado. No hacen lo mismo, así que no se piden en la misma casilla.
+{% endcomment %}
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <form method="get" class="card h-100">
+      <div class="card-body">
+        <label class="form-label" for="cedula">Por cédula</label>
+        <div class="d-flex gap-2">
+          <input id="cedula" type="text" name="cedula" value="{{ cedula|default:'' }}"
+                 class="form-control" placeholder="1104567894" maxlength="13" autofocus>
+          <button class="btn btn-primary">Buscar</button>
+        </div>
+        <div class="form-text">Consulta la base institucional y abre el expediente.</div>
+      </div>
+    </form>
   </div>
-  <div class="col-auto">
-    <button class="btn btn-primary">Buscar</button>
+  <div class="col-md-6">
+    <form method="get" class="card h-100">
+      <div class="card-body">
+        <label class="form-label" for="nombre">Por nombre o apellido</label>
+        <div class="d-flex gap-2">
+          <input id="nombre" type="text" name="nombre" value="{{ nombre|default:'' }}"
+                 class="form-control" placeholder="Jaramillo Ochoa" maxlength="120">
+          <button class="btn btn-outline-primary">Buscar</button>
+        </div>
+        <div class="form-text">Solo entre las personas ya registradas.</div>
+      </div>
+    </form>
   </div>
-</form>
+</div>
+
+{% if resultados %}
+<div class="card mb-4">
+  <div class="card-header">Coincidencias con «{{ nombre }}»</div>
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead class="table-light">
+        <tr><th>Persona</th><th>Cédula</th><th>Vínculo</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in resultados %}
+        <tr>
+          <td>{{ p.nombre_completo }}</td>
+          <td>{{ p.cedula }}</td>
+          <td><span class="badge bg-light text-dark border">{{ p.get_tipo_vinculo_display }}</span></td>
+          <td class="text-end">
+            {% if p.expediente %}
+              <a href="{% url 'expediente:detalle' p.expediente.id %}"
+                 class="btn btn-sm btn-outline-primary">Abrir expediente</a>
+            {% else %}
+              <span class="text-muted small">Sin expediente</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 
 {% if cedula and not persona %}
 {% comment %}

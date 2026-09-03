@@ -8,14 +8,14 @@ verificación con semáforo de matrícula y enlaza al expediente único.
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.core.navegacion import acciones_expediente
 from apps.usuarios import rbac
 
 from .models import Expediente, Persona
-from .selectors import resumen_expediente
+from .selectors import MINIMO_TEXTO, buscar_personas, resumen_expediente
 from .services import registrar_persona, resolver_por_cedula
 
 # Campos que acepta el alta. Explícito para no volcar el POST entero en el
@@ -37,8 +37,34 @@ CAMPOS_ALTA = (
 
 @login_required
 def buscar(request):
-    """Busca una persona por cédula y ofrece abrir su expediente."""
+    """
+    Busca por cédula exacta o por nombre y ofrece abrir el expediente.
+
+    Solo la cédula resuelve contra la fuente institucional, porque esa consulta
+    CREA la persona y su expediente si no existían. La búsqueda por nombre no
+    escribe nada: lee el padrón local y ya.
+
+    Ninguna de las dos revela qué servicio atiende a la persona; eso delataría
+    un paso por un servicio confidencial. El contenido clínico sigue filtrándose
+    en la línea de tiempo del expediente.
+    """
+    # `nuevo` y `detalle` ya exigían este permiso; `buscar` no, y era la puerta
+    # de las tres: un estudiante consultaba cualquier cédula, veía nombre,
+    # vínculo, facultad, carrera y estado de matrícula, y de paso la consulta
+    # le abría un expediente a esa persona.
+    if not rbac.puede_ver_expediente(request.user):
+        raise PermissionDenied("No tiene permisos para consultar expedientes.")
+
     contexto = {}
+    nombre = (request.GET.get("nombre") or "").strip()
+    if nombre:
+        contexto["nombre"] = nombre
+        contexto["resultados"] = buscar_personas(nombre)
+        if len(nombre) < MINIMO_TEXTO:
+            messages.info(request, f"Escriba al menos {MINIMO_TEXTO} letras para buscar.")
+        elif not contexto["resultados"]:
+            messages.warning(request, f"Ninguna persona registrada coincide con «{nombre}».")
+
     cedula = (request.GET.get("cedula") or "").strip()
     if cedula:
         resultado = resolver_por_cedula(cedula, usuario=request.user)
