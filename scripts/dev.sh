@@ -14,14 +14,19 @@ export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-config.settings.dev}"
 # Sin CSRF_TRUSTED_ORIGINS la página carga pero TODOS los formularios fallan
 # con un error de CSRF que no explica su causa. Por eso se define aquí y no se
 # deja al olvido.
+# `localhost:8000` va en la lista incluso dentro de Codespaces, y no sobra: su
+# reenvío de puertos presenta ese Origin aunque el navegador muestre el dominio
+# *.app.github.dev. Sin él la pantalla de inicio de sesión carga y luego
+# responde 403 "La verificación CSRF ha fallado" al enviar el formulario.
+LOCALES="https://localhost:8000,http://localhost:8000,https://127.0.0.1:8000,http://127.0.0.1:8000"
 if [ -n "${CODESPACE_NAME:-}" ]; then
   DOM="${CODESPACE_NAME}-8000.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
   export ALLOWED_HOSTS="localhost,127.0.0.1,${DOM}"
-  export CSRF_TRUSTED_ORIGINS="https://${DOM}"
+  export CSRF_TRUSTED_ORIGINS="https://${DOM},${LOCALES}"
   URL="https://${DOM}/"
 else
   export ALLOWED_HOSTS="localhost,127.0.0.1"
-  export CSRF_TRUSTED_ORIGINS="http://localhost:8000,http://127.0.0.1:8000"
+  export CSRF_TRUSTED_ORIGINS="${LOCALES}"
   URL="http://localhost:8000/"
 fi
 

@@ -62,7 +62,7 @@ prueba, es el comportamiento real del sistema.
 | El navegador dice *Not Found* o pide iniciar sesión en GitHub | El puerto está privado. Pestaña **PORTS** → clic derecho en el 8000 → *Port Visibility* → **Public**. |
 | *That port is already in use* | Quedó vivo un servidor anterior: `kill $(lsof -ti:8000)` y repita `make up`. |
 | El usuario y la contraseña no son aceptados | Compruebe cuáles existen con `make cuentas`. Si la lista sale vacía, `make preparar`. |
-| *CSRF verification failed* al enviar un formulario | Arrancó con `make run` en vez de `make up`. Use `make up`. |
+| *La verificación CSRF ha fallado* al iniciar sesión | Arrancó con `make run` en vez de `make up`. Use `make up`, que deriva los orígenes de confianza. Si ya usaba `make up`, actualice: hasta hace poco `dev.py` ignoraba lo que el script calculaba. |
 | *sin conexión a la base de datos* | El contenedor `db` aún no levantó. Espere unos segundos y repita, o *Rebuild Container*. |
 
 > **`.env` no se usa en desarrollo.** `.env.example` es una plantilla de

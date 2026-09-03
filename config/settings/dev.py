@@ -1,8 +1,11 @@
 """Ajustes de desarrollo (Codespaces / macOS Intel). Nunca usar en producción."""
 
+import os
+
 from .base import *  # noqa
 from .base import BASE_DIR, env  # explícito: evita la ambigüedad del star-import
 from .clave_dev import clave_de_desarrollo
+from .origenes_dev import origenes_confiables
 
 DEBUG = True
 ALLOWED_HOSTS = ["*"]  # Codespaces asigna hosts dinámicos
@@ -17,8 +20,10 @@ INTERNAL_IPS = ["127.0.0.1"]
 # Correo por consola en desarrollo (no se envía nada real)
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
-# CSRF: Codespaces expone la app en *.app.github.dev
-CSRF_TRUSTED_ORIGINS = ["https://*.app.github.dev", "https://*.githubpreview.dev"]
+# CSRF. Se lee del entorno y se completa con lo inevitable: el dominio que
+# Codespaces asigna al puerto y, sobre todo, `https://localhost:8000`, que es el
+# Origin que presenta su reenvío de puertos aunque el navegador muestre otro.
+CSRF_TRUSTED_ORIGINS = origenes_confiables(os.environ)
 
 # En desarrollo se relajan controles que solo aplican tras HTTPS
 AXES_ENABLED = env.bool("AXES_ENABLED", default=False)  # noqa
