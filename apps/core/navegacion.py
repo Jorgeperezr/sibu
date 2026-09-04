@@ -203,3 +203,21 @@ def navegacion(request):
         "nav_modulos": modulos_visibles(request.user),
         "nav_grupos": modulos_por_grupo(request.user),
     }
+
+
+def entorno(request):
+    """
+    Expone si esto es un entorno de desarrollo.
+
+    Sirve para que ciertas pantallas den una pista que en el servidor real
+    sería una filtración: la de inicio de sesión, por ejemplo, puede recordar
+    que las credenciales se consultan con `make cuentas`.
+
+    Se lee de `settings.DEBUG` y no de `django.template.context_processors.debug`,
+    que solo define `debug` cuando la IP del cliente está en `INTERNAL_IPS`: en
+    Codespaces la petición llega desde el reenvío de puertos y no lo está, así
+    que aquella variable saldría vacía justo donde hace falta.
+    """
+    from django.conf import settings
+
+    return {"es_desarrollo": bool(settings.DEBUG)}

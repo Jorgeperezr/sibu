@@ -62,5 +62,11 @@ class Command(BaseCommand):
         self.stdout.write(f"    {'las demás':<26} {CLAVE}")
         self.stdout.write("")
         self.stdout.write("  Si una cuenta no está en esa siembra, su contraseña no se puede")
-        self.stdout.write("  mostrar: está cifrada. Cámbiela con 'manage.py changepassword'.")
+        self.stdout.write("  mostrar: está cifrada. Hay dos salidas:")
+        self.stdout.write(
+            "    make demo                       recrea las de prueba con clave conocida"
+        )
+        self.stdout.write(
+            "    manage.py changepassword <usuario>   cambia la de una cuenta concreta"
+        )
         self.stdout.write("")

@@ -70,7 +70,7 @@ prueba, es el comportamiento real del sistema.
 |---|---|
 | El navegador dice *Not Found* o pide iniciar sesión en GitHub | El puerto está privado. Pestaña **PORTS** → clic derecho en el 8000 → *Port Visibility* → **Public**. |
 | *That port is already in use* | Quedó vivo un servidor anterior: `kill $(lsof -ti:8000)` y repita `make up`. |
-| El usuario y la contraseña no son aceptados | Compruebe cuáles existen con `make cuentas`. Si la lista sale vacía, `make preparar`. |
+| El usuario y la contraseña no son aceptados | La propia pantalla lo dice ahora. Compruebe cuáles existen con `make cuentas`. Si su base ya tenía datos de antes, `make up` no la prepara —y hace bien, no pisa lo existente—, así que las cuentas de prueba se recrean con `make demo`. |
 | *La verificación CSRF ha fallado* al iniciar sesión | La propia pantalla lo explica ahora: dice qué Origin llegó, cuáles acepta el servidor y qué hacer. Lo más común: arrancó con `make run` en vez de `make up`, o está en una rama que no trae el arreglo (`git branch --show-current`). |
 | *sin conexión a la base de datos* | El contenedor `db` aún no levantó. Espere unos segundos y repita, o *Rebuild Container*. |
 
