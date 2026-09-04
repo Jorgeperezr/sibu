@@ -1,4 +1,5 @@
 {% load static %}
+{% load estaticos %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -11,10 +12,10 @@
   interfaz aparecía sin estilos y con el menú móvil desplegado sobre la
   página. WhiteNoise ya sirve los estáticos en producción.
   {% endcomment %}
-  <link href="{% static 'vendor/montserrat/montserrat.css' %}" rel="stylesheet">
-  <link href="{% static 'vendor/bootstrap/bootstrap.min.css' %}" rel="stylesheet">
-  <link href="{% static 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}" rel="stylesheet">
-  <link href="{% static 'css/sibu.css' %}" rel="stylesheet">
+  <link href="{% estatico 'vendor/montserrat/montserrat.css' %}" rel="stylesheet">
+  <link href="{% estatico 'vendor/bootstrap/bootstrap.min.css' %}" rel="stylesheet">
+  <link href="{% estatico 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}" rel="stylesheet">
+  <link href="{% estatico 'css/sibu.css' %}" rel="stylesheet">
   <link rel="icon" href="{% static 'img/unl-escudo.png' %}">
   {% block extra_head %}{% endblock %}
 </head>
@@ -117,7 +118,7 @@ puede declararse una vez.
 </div>
 {% endif %}
 
-<script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+<script src="{% estatico 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>
