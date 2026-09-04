@@ -253,8 +253,10 @@ def padron(
     ensancharlo.
 
     `filtros` acota por columna exacta, que es otra cosa: el texto explora, el
-    filtro delimita. Sin nada devuelve todo —quien administra necesita ver la
-    carga completa— y la vista lo pagina.
+    filtro delimita. Cada clave admite VARIOS valores: dentro de una columna son
+    alternativas —«Energía o Salud Humana»—, y entre columnas se acumulan. Sin
+    nada devuelve todo —quien administra necesita ver la carga completa— y la
+    vista lo pagina.
     """
     from .models import DatoAcademico
 
@@ -264,10 +266,18 @@ def padron(
     if periodo_id:
         consulta = consulta.filter(periodo_id=periodo_id)
 
-    for clave, valor in (filtros or {}).items():
+    for clave, valores in (filtros or {}).items():
         campo = FILTROS.get(clave)
-        if campo and valor:
-            consulta = consulta.filter(**{campo: valor})
+        if not campo or not valores:
+            continue
+        # Varios valores de la MISMA columna son alternativas: «Energía o
+        # Salud Humana». Columnas distintas se acumulan y estrechan. Es lo que
+        # se espera al marcar dos casillas en la misma lista y una en otra.
+        if isinstance(valores, str):
+            valores = [valores]
+        valores = [v for v in valores if v]
+        if valores:
+            consulta = consulta.filter(**{f"{campo}__in": valores})
 
     texto = (texto or "").strip()
     if texto:

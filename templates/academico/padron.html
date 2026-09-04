@@ -48,6 +48,7 @@
   filtro delimita. Las opciones salen de lo que EXISTE en lo cargado: un
   desplegable con facultades que nadie cargó ofrece búsquedas vacías.
   {% endcomment %}
+  {% if hay_opciones %}
   <div class="col-12">
     <details {% if activos %}open{% endif %}>
       <summary class="fw-semibold">
@@ -56,26 +57,57 @@
       </summary>
       <div class="row g-2 mt-1">
         {% for clave, titulo in etiquetas_filtro %}
+        {% if opciones|dictkey:clave %}
         <div class="col-6 col-md-3">
-          <label class="form-label small mb-0" for="f-{{ clave }}">{{ titulo }}</label>
-          <select name="{{ clave }}" id="f-{{ clave }}" class="form-select form-select-sm">
-            <option value="">Todos</option>
+          <label class="form-label small mb-0" for="f-{{ clave }}">
+            {{ titulo }}
+            {% with n=activos|dictkey:clave %}
+              {% if n %}<span class="badge bg-primary">{{ n|length }}</span>{% endif %}
+            {% endwith %}
+          </label>
+          {% comment %}
+          `multiple`: se pueden marcar varios de la misma columna, y son
+          alternativas entre sí. Es un <select> nativo y no una lista de
+          casillas porque «carrera» puede tener sesenta valores y sesenta
+          casillas son un muro; y no depende de JavaScript, así que no puede
+          quedarse a medias si el script no carga.
+          {% endcomment %}
+          <select name="{{ clave }}" id="f-{{ clave }}" multiple size="4"
+                  class="form-select form-select-sm">
             {% for v in opciones|dictkey:clave %}
-            <option value="{{ v }}" {% if activos|dictkey:clave == v %}selected{% endif %}>{{ v }}</option>
+            {# `title`: en una columna estrecha «Facultad de la Educación...» se corta. #}
+            <option value="{{ v }}" title="{{ v }}"
+                    {% if v in activos|dictkey:clave %}selected{% endif %}>{{ v }}</option>
             {% endfor %}
           </select>
         </div>
+        {% endif %}
         {% endfor %}
+        {% comment %}
+        El botón se repite aquí abajo a propósito. El «Buscar» de la cabecera
+        envía este mismo formulario, pero en un teléfono queda fuera de la
+        pantalla en cuanto se despliegan los filtros: habría que marcar,
+        desplazarse hacia arriba y buscar el botón.
+        {% endcomment %}
+        <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+          <button class="btn btn-sm btn-primary">Aplicar filtros</button>
+          {% if hay_filtro %}
+          <a href="{% url 'academico:padron' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-x-lg"></i> Quitar filtros
+          </a>
+          {% endif %}
+          <p class="small text-muted mb-0">
+            Varios de la misma lista son alternativas entre sí; listas distintas
+            se acumulan. En el ordenador se marca más de uno con Ctrl (Cmd en
+            Mac); en el teléfono, tocando cada uno.
+          </p>
+        </div>
       </div>
     </details>
   </div>
+  {% endif %}
 </form>
 
-{% if hay_filtro %}
-<a href="{% url 'academico:padron' %}" class="btn btn-sm btn-outline-secondary mb-3">
-  <i class="bi bi-x-lg"></i> Quitar filtros
-</a>
-{% endif %}
 
 <p class="text-muted small">
   {{ total }} registro{{ total|pluralize:"s" }}

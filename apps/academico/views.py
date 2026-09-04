@@ -136,10 +136,14 @@ def padron(request):
         orden = selectors.ORDEN_POR_DEFECTO
     descendente = request.GET.get("dir") == "desc"
 
-    filtros = {c: (request.GET.get(c) or "").strip() for c in selectors.FILTROS}
+    # `getlist`: cada filtro admite varios valores marcados a la vez.
+    filtros = {
+        c: [v.strip() for v in request.GET.getlist(c) if v.strip()] for c in selectors.FILTROS
+    }
     filtros = {c: v for c, v in filtros.items() if v}
     consulta = consultar_padron(texto, periodo_id, orden, descendente, filtros)
     pagina = Paginator(consulta, 50).get_page(request.GET.get("pagina"))
+    opciones = selectors.opciones_de_filtro()
     return render(
         request,
         "academico/padron.html",
@@ -160,14 +164,19 @@ def padron(request):
                 ("periodo", "Período"),
             ],
             # Lo que hay que arrastrar al cambiar de orden o de página, para no
-            # perder el filtro por el camino.
-            # Lo que hay que arrastrar al cambiar de orden o de página, para no
             # perder la búsqueda ni los filtros por el camino.
+            # `doseq`: sin esto una lista de valores se codificaría como
+            # "['a', 'b']" y al volver del enlace no filtraría por nada.
             "filtros": urlencode(
-                {k: v for k, v in ({"q": texto, "periodo": periodo_id} | filtros).items() if v}
+                {k: v for k, v in ({"q": texto, "periodo": periodo_id} | filtros).items() if v},
+                doseq=True,
             ),
             "activos": filtros,
-            "opciones": selectors.opciones_de_filtro(),
+            "opciones": opciones,
+            # Con la base todavía vacía no hay ninguna opción que ofrecer, y un
+            # panel de filtros con nueve listas en blanco es peor que ninguno:
+            # parece roto.
+            "hay_opciones": any(opciones.values()),
             "etiquetas_filtro": [
                 ("facultad", "Facultad"),
                 ("carrera", "Carrera"),

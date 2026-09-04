@@ -429,7 +429,7 @@ def test_la_pantalla_filtra_y_ofrece_quitar_los_filtros(cargado):
     contenido = respuesta.content.decode()
     assert "Torres Ochoa" in contenido
     assert "Pérez Ríos" not in contenido
-    assert respuesta.context["activos"] == {"facultad": "Facultad de Energía"}
+    assert respuesta.context["activos"] == {"facultad": ["Facultad de Energía"]}
     assert "Quitar filtros" in contenido
 
 
@@ -442,3 +442,130 @@ def test_ordenar_conserva_los_filtros_de_columna(cargado):
     # Los enlaces de las cabeceras arrastran el filtro; si no, ordenar
     # devolvería la tabla entera y el filtro se perdería sin avisar.
     assert "facultad=Facultad" in respuesta.content.decode()
+
+
+# ------------------------------------------------- varios valores por filtro
+
+
+@pytest.fixture
+def tres_facultades(cargado):
+    """Una tercera fila, para que «dos de tres» no sea lo mismo que «todo»."""
+    persona = Persona.objects.create(
+        cedula="1100000007",
+        nombres="Ana Lucía",
+        apellidos="Jaramillo Vega",
+        tipo_vinculo=Persona.TipoVinculo.ESTUDIANTE,
+    )
+    DatoAcademico.objects.create(
+        persona=persona,
+        periodo=cargado,
+        carrera="Derecho",
+        facultad="Facultad Jurídica",
+        ciclo="1",
+        estado="Matriculado",
+    )
+    return cargado
+
+
+@pytest.mark.django_db
+def test_dos_valores_de_la_misma_columna_son_alternativas(tres_facultades):
+    """
+    Marcar Energía y Salud Humana debe traer las dos, no cero. Con `filter()`
+    encadenado por valor —una llamada por cada uno— la consulta pediría que la
+    misma fila tuviera dos facultades a la vez y no devolvería ninguna.
+    """
+    from apps.academico.selectors import padron
+
+    cedulas = {
+        d.persona.cedula
+        for d in padron(
+            filtros={"facultad": ["Facultad de Energía", "Facultad de la Salud Humana"]}
+        )
+    }
+    assert cedulas == {"1101002002", "1104567894"}
+
+
+@pytest.mark.django_db
+def test_dos_valores_siguen_dejando_fuera_al_tercero(tres_facultades):
+    """Que traiga varias no puede degenerar en que las traiga todas."""
+    from apps.academico.selectors import padron
+
+    consulta = padron(filtros={"facultad": ["Facultad de Energía", "Facultad de la Salud Humana"]})
+    assert consulta.count() == 2
+    assert "1100000007" not in {d.persona.cedula for d in consulta}
+
+
+@pytest.mark.django_db
+def test_columnas_distintas_se_siguen_acumulando(tres_facultades):
+    """Dentro de una columna, «o»; entre columnas, «y». Las dos a la vez."""
+    from apps.academico.selectors import padron
+
+    consulta = padron(
+        filtros={
+            "facultad": ["Facultad de Energía", "Facultad de la Salud Humana"],
+            "carrera": ["Computación"],
+        }
+    )
+    assert [d.persona.cedula for d in consulta] == ["1101002002"]
+
+
+@pytest.mark.django_db
+def test_un_solo_valor_en_texto_sigue_valiendo(tres_facultades):
+    """
+    Un enlace viejo o una llamada desde código pasa una cadena, no una lista.
+    Sin esto, `__in` sobre una cadena la recorrería letra a letra.
+    """
+    from apps.academico.selectors import padron
+
+    assert [d.persona.cedula for d in padron(filtros={"facultad": "Facultad Jurídica"})] == [
+        "1100000007"
+    ]
+
+
+@pytest.mark.django_db
+def test_la_pantalla_admite_varios_valores_del_mismo_filtro(tres_facultades):
+    _, cliente = _cuenta("admin_multi", Rol.ADMIN_GENERAL)
+    respuesta = cliente.get(
+        reverse("academico:padron"),
+        {"facultad": ["Facultad de Energía", "Facultad de la Salud Humana"]},
+    )
+    contenido = respuesta.content.decode()
+    assert "Torres Ochoa" in contenido
+    assert "Pérez Ríos" in contenido
+    assert "Jaramillo Vega" not in contenido
+    assert respuesta.context["activos"]["facultad"] == [
+        "Facultad de Energía",
+        "Facultad de la Salud Humana",
+    ]
+
+
+@pytest.mark.django_db
+def test_ordenar_arrastra_los_dos_valores_marcados(tres_facultades):
+    """
+    Lo que se pierde sin `doseq`: la lista se codificaría como una sola cadena
+    "['a', 'b']" y al pulsar una cabecera el filtro dejaría de existir.
+    """
+    _, cliente = _cuenta("admin_multi_orden", Rol.ADMIN_GENERAL)
+    respuesta = cliente.get(
+        reverse("academico:padron"),
+        {"facultad": ["Facultad de Energía", "Facultad de la Salud Humana"]},
+    )
+    arrastre = respuesta.context["filtros"]
+    assert arrastre.count("facultad=") == 2
+    assert "%5B" not in arrastre  # ningún "[" codificado: no es una lista impresa
+
+
+@pytest.mark.django_db
+def test_las_casillas_marcadas_se_ven_marcadas_al_volver(tres_facultades):
+    """Sin esto la tabla sale filtrada y el panel de filtros aparece en blanco."""
+    _, cliente = _cuenta("admin_multi_marcado", Rol.ADMIN_GENERAL)
+    contenido = (
+        cliente.get(
+            reverse("academico:padron"),
+            {"facultad": ["Facultad de Energía", "Facultad de la Salud Humana"]},
+        )
+        .content.decode()
+        .replace("\n", " ")
+    )
+    assert contenido.count("selected") >= 2
+    assert "multiple" in contenido
