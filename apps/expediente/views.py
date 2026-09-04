@@ -16,7 +16,13 @@ from apps.usuarios import rbac
 
 from .models import AlertaClinica, Expediente, Persona
 from .selectors import MINIMO_TEXTO, buscar_personas, resumen_expediente
-from .services import registrar_alerta, registrar_persona, resolver_por_cedula
+from .services import (
+    MAXIMO_POR_LOTE,
+    registrar_alerta,
+    registrar_lote_de_cedulas,
+    registrar_persona,
+    resolver_por_cedula,
+)
 
 # Campos que acepta el alta. Explícito para no volcar el POST entero en el
 # modelo: un campo de más aquí es un dato que nadie validó.
@@ -200,3 +206,40 @@ def alertas(request, pk):
     except ValidationError as exc:
         messages.error(request, " ".join(exc.messages))
     return redirect("expediente:detalle", pk=expediente.pk)
+
+
+@login_required
+def alta_masiva(request):
+    """
+    Abre expedientes para varias cédulas de una vez.
+
+    Hasta ahora la búsqueda resolvía una cédula por vez, y preparar una jornada
+    —una brigada de salud, un taller, la lista de un curso— obligaba a repetir
+    la misma pantalla decenas de veces.
+
+    Exige el mismo permiso que la búsqueda, y por el mismo motivo: esto
+    consulta el padrón institucional y abre expedientes. La versión de una en
+    una ya estaba abierta a cualquier autenticado y hubo que cerrarla; abrir
+    aquí una puerta de doscientas a la vez habría sido peor.
+    """
+    if not rbac.puede_ver_expediente(request.user):
+        raise PermissionDenied("No tiene permisos para registrar expedientes.")
+
+    contexto = {"maximo": MAXIMO_POR_LOTE}
+    if request.method == "POST":
+        texto = request.POST.get("cedulas", "")
+        contexto["cedulas"] = texto
+        try:
+            contexto["resultado"] = registrar_lote_de_cedulas(texto, usuario=request.user)
+        except ValidationError as exc:
+            messages.error(request, " ".join(exc.messages))
+        else:
+            resumen = contexto["resultado"]["resumen"]
+            messages.success(
+                request,
+                f"{resumen['abierto']} expediente(s) abierto(s), "
+                f"{resumen['existente']} ya existía(n), "
+                f"{resumen['invalida']} cédula(s) inválida(s), "
+                f"{resumen['desconocida']} sin datos institucionales.",
+            )
+    return render(request, "expediente/alta_masiva.html", contexto)

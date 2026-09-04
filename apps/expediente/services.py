@@ -153,3 +153,132 @@ def construir_snapshot(persona: Persona) -> dict:
         "periodo": datos.get("periodo", ""),
         "tipo_vinculo": persona.tipo_vinculo,
     }
+
+
+# ============================================================
+# Alta en lote por cédulas
+# ============================================================
+
+# Lo que separa una cédula de la siguiente cuando se pegan varias: salto de
+# línea, coma, punto y coma, tabulador o espacio. Se aceptan todas a la vez
+# porque quien pega una lista la trae de donde la trae —una columna de Excel,
+# un correo, un oficio— y no tiene por qué reformatearla.
+SEPARADORES = "\n\r\t,;. "
+
+# Cota del lote. No es un capricho: cada cédula consulta el padrón y puede
+# abrir un expediente, y una petición web que haga eso diez mil veces se cae
+# por tiempo dejando el trabajo a medias y sin decir por dónde iba.
+MAXIMO_POR_LOTE = 300
+
+
+def separar_cedulas(texto: str) -> list[str]:
+    """
+    Parte un bloque de texto en cédulas, conservando el orden y sin repetir.
+
+    Se conserva el orden porque el informe de resultados se lee contra la lista
+    que la persona pegó: reordenarlo obligaría a buscar cada línea. Y no se
+    repiten porque la misma cédula dos veces es un error de copiado, no una
+    orden de registrar a alguien dos veces.
+    """
+    if not texto:
+        return []
+    for separador in SEPARADORES:
+        texto = texto.replace(separador, "\n")
+    vistas: set[str] = set()
+    ordenadas = []
+    for parte in texto.split("\n"):
+        parte = parte.strip()
+        if parte and parte not in vistas:
+            vistas.add(parte)
+            ordenadas.append(parte)
+    return ordenadas
+
+
+def registrar_lote_de_cedulas(texto: str, usuario=None) -> dict:
+    """
+    Resuelve una lista de cédulas de una vez y devuelve qué pasó con cada una.
+
+    Cada cédula se procesa por separado y a propósito: una mal digitada en
+    medio de doscientas no puede tumbar el lote entero ni dejarlo a medias sin
+    decir dónde se cortó. Por eso aquí NO hay una transacción que envuelva todo.
+
+    Se admiten nueve o diez dígitos. Con nueve se antepone el cero que Excel
+    suele comerse al tratar la cédula como número —lo hace `normalizar_cedula`,
+    que ya existía—, y el resultado se informa para que quien lo lea vea en qué
+    se convirtió lo que pegó.
+
+    Estados posibles por cédula:
+
+    - `abierto`     el expediente se creó ahora.
+    - `existente`   ya lo tenía; no se toca nada.
+    - `invalida`    no pasa el módulo 10 ecuatoriano.
+    - `desconocida` válida, pero no está en la base institucional.
+
+    Una cédula desconocida NO se registra con nombre en blanco. Un expediente
+    sin nombre no identifica a nadie y ensucia el padrón para siempre; se
+    informa con un enlace para completar el alta a mano. Es la misma regla de
+    siempre: ausencia de dato no es prueba de ausencia, y tampoco licencia para
+    inventarlo.
+    """
+    from apps.academico.validators import validar_cedula_ecuatoriana
+
+    entradas = separar_cedulas(texto)
+    if not entradas:
+        raise ValidationError("No se reconoció ninguna cédula en lo que escribió.")
+    if len(entradas) > MAXIMO_POR_LOTE:
+        raise ValidationError(
+            f"El lote trae {len(entradas)} cédulas y el máximo por tanda es "
+            f"{MAXIMO_POR_LOTE}. Divídalo y repita."
+        )
+
+    filas = []
+    for original in entradas:
+        cedula = normalizar_cedula(original)
+        fila = {"original": original, "cedula": cedula, "expediente": None, "persona": None}
+
+        if not validar_cedula_ecuatoriana(cedula):
+            fila["estado"] = "invalida"
+            fila["detalle"] = (
+                "No pasa el módulo 10 ecuatoriano."
+                if cedula.isdigit()
+                else "No es un número de cédula."
+            )
+            filas.append(fila)
+            continue
+
+        # Antes de resolver, porque `resolver_por_cedula` crea el expediente si
+        # falta: preguntar después ya no distinguiría lo que había de lo nuevo.
+        ya_tenia = Expediente.objects.filter(persona__cedula=cedula).exists()
+        resultado = resolver_por_cedula(cedula, usuario=usuario)
+
+        if resultado is None:
+            fila["estado"] = "desconocida"
+            fila["detalle"] = "No consta en la base institucional; regístrela a mano."
+        else:
+            fila["persona"] = resultado["persona"]
+            fila["expediente"] = resultado["expediente"]
+            fila["estado"] = "existente" if ya_tenia else "abierto"
+            fila["detalle"] = ""
+        filas.append(fila)
+
+    resumen = {estado: 0 for estado in ("abierto", "existente", "invalida", "desconocida")}
+    for fila in filas:
+        resumen[fila["estado"]] += 1
+
+    # Fuera de cualquier bloque atómico y después del trabajo, no antes:
+    # registrar y luego abortar dentro de la misma transacción revierte el
+    # propio registro. Ya nos costó caro dos veces (firma, portal).
+    if usuario is not None and usuario.is_authenticated:
+        from apps.auditoria.models import LogAuditoria
+
+        LogAuditoria.objects.create(
+            usuario=usuario,
+            rol_activo=getattr(usuario, "rol_principal", ""),
+            accion=LogAuditoria.Accion.CREATE,
+            modulo="expediente",
+            entidad="Expediente",
+            entidad_id="lote",
+            detalle={"total": len(filas), **resumen},
+        )
+
+    return {"filas": filas, "resumen": resumen, "total": len(filas)}

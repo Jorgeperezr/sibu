@@ -12,6 +12,7 @@ urlpatterns = [
     ),
     path("buscar/", views.buscar, name="buscar"),
     path("nuevo/", views.nuevo, name="nuevo"),
+    path("lote/", views.alta_masiva, name="alta_masiva"),
     path("<int:pk>/", views.detalle, name="detalle"),
     path("<int:pk>/alertas/", views.alertas, name="alertas"),
 ]
