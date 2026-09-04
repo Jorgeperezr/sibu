@@ -244,3 +244,81 @@ def alta_masiva(request):
                 f"{resumen['desconocida']} sin datos institucionales.",
             )
     return render(request, "expediente/alta_masiva.html", contexto)
+
+
+def _ficha_institucional(cedula: str) -> dict:
+    """La matrícula tal como la conoce el proveedor académico, o vacío."""
+    from apps.academico.providers import get_provider
+    from apps.academico.validators import normalizar_cedula
+
+    return get_provider().consultar_persona(normalizar_cedula(cedula)) or {}
+
+
+@login_required
+def datos(request, pk):
+    """
+    Los datos de la persona vistos desde MI servicio, y su ajuste.
+
+    La base institucional es la foto del día de la matrícula. Un servicio
+    encuentra otra realidad —la ficha dice que no hay embarazo y en consulta se
+    registra uno— y necesita anotarlo sin reescribir esa base, que es la fuente
+    para todo el sistema.
+
+    Se muestran los dos valores, el institucional y el del servicio, porque un
+    dato corregido sin poder ver contra qué se corrigió no se puede revisar.
+    """
+    from apps.core.models import Servicio
+
+    from .selectors import valores_efectivos
+    from .services import NO_AJUSTABLES, quitar_ajuste, registrar_ajuste
+
+    if not rbac.puede_ver_expediente(request.user):
+        raise PermissionDenied("No tiene permisos para ver expedientes.")
+
+    expediente = get_object_or_404(Expediente.objects.select_related("persona"), pk=pk)
+
+    # Solo se ajusta desde un servicio propio: el ajuste vale dentro de ese
+    # servicio, así que ajustarlo desde fuera no significaría nada.
+    mis_servicios = Servicio.objects.filter(pk__in=rbac.servicios_del_usuario(request.user))
+    elegido = request.GET.get("servicio") or request.POST.get("servicio") or ""
+    servicio = mis_servicios.filter(codigo=elegido).first() or mis_servicios.first()
+
+    if request.method == "POST":
+        if servicio is None:
+            raise PermissionDenied("Su usuario no tiene ningún servicio asignado.")
+        try:
+            if request.POST.get("accion") == "quitar":
+                quitar_ajuste(
+                    expediente, servicio, request.POST.get("variable", ""), usuario=request.user
+                )
+                messages.success(request, "Ajuste retirado; vuelve el dato de matrícula.")
+            else:
+                registrar_ajuste(
+                    expediente,
+                    servicio,
+                    request.POST.get("variable", ""),
+                    request.POST.get("valor", ""),
+                    usuario=request.user,
+                    nota=request.POST.get("nota", ""),
+                )
+                messages.success(request, f"Dato ajustado para {servicio.nombre}.")
+        except ValidationError as exc:
+            messages.error(request, " ".join(exc.messages))
+        return redirect(f"{request.path}?servicio={servicio.codigo}")
+
+    return render(
+        request,
+        "expediente/datos.html",
+        {
+            "expediente": expediente,
+            "persona": expediente.persona,
+            "servicio": servicio,
+            "mis_servicios": mis_servicios,
+            "filas": valores_efectivos(expediente, servicio),
+            "no_ajustables": NO_AJUSTABLES,
+            # Del proveedor y no de `_datos_institucionales`, que solo devuelve
+            # lo que hace falta para prellenar un alta: aquí se quiere la
+            # matrícula completa (facultad, carrera, ciclo, estado).
+            "institucional": _ficha_institucional(expediente.persona.cedula),
+        },
+    )

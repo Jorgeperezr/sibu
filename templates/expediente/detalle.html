@@ -7,7 +7,12 @@
     <small class="text-muted">Expediente {{ expediente.numero_expediente }} ·
       {{ persona.cedula }} · {{ persona.get_tipo_vinculo_display }}</small>
   </div>
-  <a href="{% url 'expediente:buscar' %}" class="btn btn-sm btn-outline-secondary">Nueva búsqueda</a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'expediente:datos' expediente.pk %}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-sliders"></i> Datos y ajustes
+    </a>
+    <a href="{% url 'expediente:buscar' %}" class="btn btn-sm btn-outline-secondary">Nueva búsqueda</a>
+  </div>
 </div>
 
 {% if alertas %}

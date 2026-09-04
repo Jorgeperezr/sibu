@@ -295,8 +295,32 @@ def informe_estadistico(servicio, desde=None, hasta=None) -> dict:
         ).values_list("expediente_id", "tipo")
     )
 
+    # Lo que ESTE servicio comprobó en consulta, que puede contradecir a la
+    # matrícula: la ficha decía que no había embarazo y aquí se registró uno.
+    # Sin esto el informe contaría la foto del día de la matrícula y no lo que
+    # el servicio sabe. Los ajustes de otros servicios no cuentan: cada uno
+    # reporta lo que él comprobó.
+    from apps.expediente.selectors import expedientes_con_ajuste
+
+    ajustados_si = {
+        tipo: expedientes_con_ajuste(servicio, tipo, "Sí") for tipo in _ALERTA_POR_COLUMNA.values()
+    }
+    ajustados_no = {
+        tipo: expedientes_con_ajuste(servicio, tipo, "No") for tipo in _ALERTA_POR_COLUMNA.values()
+    }
+
+    def _tiene(expediente_id: int, codigo_tipo: str) -> bool:
+        """El ajuste del servicio manda; si no lo hay, la alerta institucional."""
+        if expediente_id in ajustados_si[codigo_tipo]:
+            return True
+        if expediente_id in ajustados_no[codigo_tipo]:
+            # Un «No» del servicio también manda: si aquí se comprobó que la
+            # gestación terminó, contarla seguiría inflando el informe.
+            return False
+        return (expediente_id, codigo_tipo) in alertas_activas
+
     def _con_alerta(codigo_tipo: str) -> dict:
-        n = sum(1 for f in filas if (f["expediente_id"], codigo_tipo) in alertas_activas)
+        n = sum(1 for f in filas if _tiene(f["expediente_id"], codigo_tipo))
         return {"total": n, "porcentaje": _porcentaje(n, total_atenciones)}
 
     return {

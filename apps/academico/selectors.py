@@ -197,13 +197,64 @@ def campos_de_orden(orden: str, descendente: bool) -> list[str]:
     return [f"-{campos[0]}", *campos[1:]]
 
 
-def padron(texto: str = "", periodo_id=None, orden: str = ORDEN_POR_DEFECTO, descendente=False):
+# Filtros de columna exacta que ofrece la pantalla. Clave del formulario ->
+# campo. Lista blanca, igual que el orden: lo que no esté aquí no llega a la
+# consulta.
+FILTROS = {
+    "facultad": "facultad",
+    "carrera": "carrera",
+    "nivel": "nivel",
+    "modalidad": "modalidad",
+    "jornada": "jornada",
+    "estado": "estado",
+    "ciclo": "ciclo",
+    "paralelo": "paralelo",
+    "sexo": "persona__sexo",
+    "vinculo": "persona__tipo_vinculo",
+}
+
+
+def opciones_de_filtro() -> dict[str, list[str]]:
+    """
+    Los valores que EXISTEN en lo cargado, para cada filtro.
+
+    Salen de la propia base y no de una lista escrita a mano: un desplegable con
+    facultades que nadie cargó ofrece búsquedas que no devuelven nada, y omite
+    las que sí están porque el archivo del período traía otro nombre.
+    """
+    from .models import DatoAcademico
+
+    opciones = {}
+    for clave, campo in FILTROS.items():
+        valores = (
+            DatoAcademico.objects.exclude(**{f"{campo}__in": ["", None]})
+            .values_list(campo, flat=True)
+            .distinct()
+            .order_by(campo)
+        )
+        opciones[clave] = [v for v in valores if v]
+    return opciones
+
+
+def padron(
+    texto: str = "",
+    periodo_id=None,
+    orden: str = ORDEN_POR_DEFECTO,
+    descendente=False,
+    filtros: dict | None = None,
+):
     """
     Lo que quedó cargado, con su persona y su período.
 
-    Busca por cédula, nombres, apellidos, facultad o carrera. Sin texto devuelve
-    todo: aquí sí es lo correcto —quien administra necesita ver la carga
-    completa—, y la vista lo pagina.
+    El texto busca a la vez en cédula, nombres, apellidos, correo, facultad,
+    carrera, nivel, modalidad, jornada, estado y paralelo: quien busca «Medicina
+    matutina» no tiene por qué saber en qué columna vive cada palabra. Se exigen
+    TODAS las palabras, así que añadir una estrecha el resultado en vez de
+    ensancharlo.
+
+    `filtros` acota por columna exacta, que es otra cosa: el texto explora, el
+    filtro delimita. Sin nada devuelve todo —quien administra necesita ver la
+    carga completa— y la vista lo pagina.
     """
     from .models import DatoAcademico
 
@@ -213,6 +264,11 @@ def padron(texto: str = "", periodo_id=None, orden: str = ORDEN_POR_DEFECTO, des
     if periodo_id:
         consulta = consulta.filter(periodo_id=periodo_id)
 
+    for clave, valor in (filtros or {}).items():
+        campo = FILTROS.get(clave)
+        if campo and valor:
+            consulta = consulta.filter(**{campo: valor})
+
     texto = (texto or "").strip()
     if texto:
         for palabra in texto.split():
@@ -220,8 +276,14 @@ def padron(texto: str = "", periodo_id=None, orden: str = ORDEN_POR_DEFECTO, des
                 Q(persona__cedula__icontains=palabra)
                 | Q(persona__nombres__icontains=palabra)
                 | Q(persona__apellidos__icontains=palabra)
+                | Q(email_institucional__icontains=palabra)
                 | Q(facultad__icontains=palabra)
                 | Q(carrera__icontains=palabra)
+                | Q(nivel__icontains=palabra)
+                | Q(modalidad__icontains=palabra)
+                | Q(jornada__icontains=palabra)
+                | Q(estado__icontains=palabra)
+                | Q(paralelo__icontains=palabra)
             )
     return consulta
 

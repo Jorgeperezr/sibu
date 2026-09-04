@@ -136,7 +136,9 @@ def padron(request):
         orden = selectors.ORDEN_POR_DEFECTO
     descendente = request.GET.get("dir") == "desc"
 
-    consulta = consultar_padron(texto, periodo_id, orden, descendente)
+    filtros = {c: (request.GET.get(c) or "").strip() for c in selectors.FILTROS}
+    filtros = {c: v for c, v in filtros.items() if v}
+    consulta = consultar_padron(texto, periodo_id, orden, descendente, filtros)
     pagina = Paginator(consulta, 50).get_page(request.GET.get("pagina"))
     return render(
         request,
@@ -159,7 +161,26 @@ def padron(request):
             ],
             # Lo que hay que arrastrar al cambiar de orden o de página, para no
             # perder el filtro por el camino.
-            "filtros": urlencode({k: v for k, v in (("q", texto), ("periodo", periodo_id)) if v}),
+            # Lo que hay que arrastrar al cambiar de orden o de página, para no
+            # perder la búsqueda ni los filtros por el camino.
+            "filtros": urlencode(
+                {k: v for k, v in ({"q": texto, "periodo": periodo_id} | filtros).items() if v}
+            ),
+            "activos": filtros,
+            "opciones": selectors.opciones_de_filtro(),
+            "etiquetas_filtro": [
+                ("facultad", "Facultad"),
+                ("carrera", "Carrera"),
+                ("nivel", "Nivel"),
+                ("modalidad", "Modalidad"),
+                ("jornada", "Jornada"),
+                ("estado", "Estado"),
+                ("ciclo", "Ciclo"),
+                ("paralelo", "Paralelo"),
+                ("sexo", "Sexo"),
+                ("vinculo", "Vínculo"),
+            ],
+            "hay_filtro": bool(texto or periodo_id or filtros),
             "periodos": PeriodoAcademico.objects.all(),
             "total": consulta.count(),
             "cargas": CargaInstitucional.objects.select_related("periodo")[:10],

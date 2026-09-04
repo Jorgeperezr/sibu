@@ -69,3 +69,93 @@ def resumen_expediente(expediente: Expediente, usuario, break_glass: bool = Fals
         "atenciones": atenciones,
         "total_atenciones": len(atenciones),
     }
+
+
+# ============================================================
+# Valores efectivos: lo institucional, con los ajustes del servicio encima
+# ============================================================
+
+
+def _valor_institucional(expediente, variable: str) -> str:
+    """
+    Lo que dice la matrícula sobre esa variable, como texto.
+
+    Las cuatro condiciones —gestación, lactancia, enfermedad catastrófica y
+    necesidad educativa especial— no son campos sino banderas: existen como
+    `AlertaClinica` activa o no existen. Se traducen a «Sí»/«No» para poder
+    compararlas con un ajuste, que sí es texto.
+    """
+    from .models import AjusteDeServicio, AlertaClinica
+
+    V = AjusteDeServicio.Variable
+    if variable == V.SEXO:
+        return expediente.persona.sexo or ""
+    if variable == V.GRUPO_SANGUINEO:
+        return expediente.grupo_sanguineo or ""
+    if variable == V.DISCAPACIDAD_TIPO:
+        return expediente.discapacidad_tipo or ""
+    if variable == V.DISCAPACIDAD_PORCENTAJE:
+        porcentaje = expediente.discapacidad_porcentaje
+        return "" if porcentaje is None else str(porcentaje)
+
+    tipos = {V.GESTACION, V.LACTANCIA, V.ENF_CATASTROFICA, V.NEE}
+    if variable in tipos:
+        hay = AlertaClinica.objects.filter(
+            expediente=expediente, tipo=variable, activa=True
+        ).exists()
+        return "Sí" if hay else "No"
+    return ""
+
+
+def valores_efectivos(expediente, servicio) -> list[dict]:
+    """
+    Cada variable ajustable con el valor que este servicio debe usar.
+
+    El valor institucional salvo que el servicio haya anotado otro. Se devuelven
+    los dos —`institucional` y `valor`— y de dónde sale cada uno, porque un
+    dato corregido sin poder ver contra qué se corrigió no se puede revisar.
+
+    Sin `servicio` (o desde uno que no ajustó nada) sale la foto de la
+    matrícula tal cual.
+    """
+    from .models import AjusteDeServicio
+
+    ajustes = {}
+    if servicio is not None:
+        ajustes = {
+            a.variable: a
+            for a in AjusteDeServicio.objects.filter(expediente=expediente, servicio=servicio)
+        }
+
+    filas = []
+    for codigo, etiqueta in AjusteDeServicio.Variable.choices:
+        institucional = _valor_institucional(expediente, codigo)
+        ajuste = ajustes.get(codigo)
+        filas.append(
+            {
+                "variable": codigo,
+                "etiqueta": etiqueta,
+                "institucional": institucional,
+                "valor": ajuste.valor if ajuste else institucional,
+                "ajustado": ajuste is not None,
+                "nota": ajuste.nota if ajuste else "",
+                "ajuste": ajuste,
+            }
+        )
+    return filas
+
+
+def expedientes_con_ajuste(servicio, variable: str, valor: str) -> set[int]:
+    """
+    Qué expedientes ajustó este servicio para esa variable con ese valor.
+
+    Lo usa el informe estadístico: contar «embarazo» tiene que incluir lo que el
+    servicio comprobó en consulta, no solo lo que se declaró al matricularse.
+    """
+    from .models import AjusteDeServicio
+
+    return set(
+        AjusteDeServicio.objects.filter(
+            servicio=servicio, variable=variable, valor__iexact=valor
+        ).values_list("expediente_id", flat=True)
+    )

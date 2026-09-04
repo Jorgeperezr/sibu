@@ -346,3 +346,99 @@ def test_ordenar_no_pierde_el_filtro(cargado):
     assert "Torres Ochoa" in contenido
     assert "Pérez Ríos" not in contenido
     assert "q=Torres" in contenido  # los enlaces de cabecera lo conservan
+
+
+# ----------------------------------------------------------------- filtros
+
+
+@pytest.mark.django_db
+def test_filtra_por_columna_exacta(cargado):
+    from apps.academico.selectors import padron
+
+    solo_energia = padron(filtros={"facultad": "Facultad de Energía"})
+    assert [d.persona.cedula for d in solo_energia] == ["1101002002"]
+
+
+@pytest.mark.django_db
+def test_los_filtros_se_acumulan(cargado):
+    """Cada filtro estrecha: dos que no coinciden no devuelven nada."""
+    from apps.academico.selectors import padron
+
+    assert padron(filtros={"facultad": "Facultad de Energía", "carrera": "Medicina"}).count() == 0
+    assert (
+        padron(filtros={"facultad": "Facultad de Energía", "carrera": "Computación"}).count() == 1
+    )
+
+
+@pytest.mark.django_db
+def test_un_filtro_inventado_no_llega_a_la_consulta(cargado):
+    """
+    Lista blanca, igual que el orden: `filter()` acepta cualquier cadena,
+    incluida la que recorra una relación hasta donde no debería llegarse.
+    """
+    from django.core.exceptions import FieldError
+
+    from apps.academico.selectors import padron
+
+    try:
+        assert padron(filtros={"persona__creado_por__password": "x"}).count() == 2
+    except FieldError:  # pragma: no cover
+        pytest.fail("un filtro inventado llegó hasta la consulta")
+
+
+@pytest.mark.django_db
+def test_las_opciones_salen_de_lo_cargado(cargado):
+    """
+    Un desplegable con facultades que nadie cargó ofrece búsquedas vacías, y
+    omite las que sí están porque el archivo traía otro nombre.
+    """
+    from apps.academico.selectors import opciones_de_filtro
+
+    opciones = opciones_de_filtro()
+    assert set(opciones["facultad"]) == {"Facultad de la Salud Humana", "Facultad de Energía"}
+    assert set(opciones["carrera"]) == {"Medicina", "Computación"}
+    # Sin valores vacíos: no son una opción, son un dato que falta.
+    assert "" not in opciones["facultad"]
+
+
+@pytest.mark.django_db
+def test_el_texto_busca_en_todas_las_columnas(cargado):
+    """
+    Quien busca «Matriculado» o una modalidad no tiene por qué saber en qué
+    columna vive esa palabra.
+    """
+    from apps.academico.selectors import padron
+
+    assert padron("Computación").count() == 1
+    assert padron("Matriculado").count() == 2
+
+
+@pytest.mark.django_db
+def test_cada_palabra_estrecha_la_busqueda(cargado):
+    """Se exigen TODAS: añadir una palabra no puede ensanchar el resultado."""
+    from apps.academico.selectors import padron
+
+    assert padron("Energía").count() == 1
+    assert padron("Energía Medicina").count() == 0
+
+
+@pytest.mark.django_db
+def test_la_pantalla_filtra_y_ofrece_quitar_los_filtros(cargado):
+    _, cliente = _cuenta("admin_filtros", Rol.ADMIN_GENERAL)
+    respuesta = cliente.get(reverse("academico:padron"), {"facultad": "Facultad de Energía"})
+    contenido = respuesta.content.decode()
+    assert "Torres Ochoa" in contenido
+    assert "Pérez Ríos" not in contenido
+    assert respuesta.context["activos"] == {"facultad": "Facultad de Energía"}
+    assert "Quitar filtros" in contenido
+
+
+@pytest.mark.django_db
+def test_ordenar_conserva_los_filtros_de_columna(cargado):
+    _, cliente = _cuenta("admin_orden_filtro", Rol.ADMIN_GENERAL)
+    respuesta = cliente.get(
+        reverse("academico:padron"), {"facultad": "Facultad de Energía", "orden": "carrera"}
+    )
+    # Los enlaces de las cabeceras arrastran el filtro; si no, ordenar
+    # devolvería la tabla entera y el filtro se perdería sin avisar.
+    assert "facultad=Facultad" in respuesta.content.decode()

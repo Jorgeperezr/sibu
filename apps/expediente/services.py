@@ -349,3 +349,99 @@ def registrar_lote_de_cedulas(texto: str, usuario=None) -> dict:
         )
 
     return {"filas": filas, "resumen": resumen, "total": len(filas)}
+
+
+# ============================================================
+# Ajustes por servicio
+# ============================================================
+
+# Las que un servicio NO puede ajustar, y por qué. Se nombran aquí para que el
+# mensaje de rechazo diga la razón y no solo que no se puede.
+NO_AJUSTABLES = {
+    "genero": "el género",
+    "identidad_orientacion_sexual": "la identidad u orientación sexual",
+}
+
+
+def registrar_ajuste(expediente, servicio, variable: str, valor: str, *, usuario=None, nota=""):
+    """
+    Anota, para ESTE servicio, un valor distinto del que trae la matrícula.
+
+    No toca la base institucional: es la fuente para el resto del sistema y
+    nadie autorizó a reescribirla desde una consulta. Lo que cambia es lo que
+    este servicio ve y reporta.
+
+    Se rechaza el ajuste del género y de la identidad u orientación sexual: son
+    declaraciones de la persona sobre sí misma, y que un servicio las
+    «corrigiera» sería asignarle una identidad. Se cambian donde se declaran.
+
+    Idempotente por (expediente, servicio, variable): volver a ajustar la misma
+    variable reemplaza el valor, no acumula filas.
+    """
+    from apps.auditoria.models import LogAuditoria
+
+    from .models import AjusteDeServicio
+
+    if variable in NO_AJUSTABLES:
+        raise ValidationError(
+            f"No se puede ajustar {NO_AJUSTABLES[variable]} desde un servicio: "
+            "lo declara la propia persona. Corríjalo en su ficha o en el portal."
+        )
+    if variable not in {c for c, _ in AjusteDeServicio.Variable.choices}:
+        raise ValidationError(f"Variable no ajustable: {variable}.")
+
+    valor = (valor or "").strip()
+    if not valor:
+        raise ValidationError("El ajuste necesita un valor.")
+
+    if variable == AjusteDeServicio.Variable.DISCAPACIDAD_PORCENTAJE:
+        # Mismo criterio que el alta: un porcentaje ilegible se rechaza aquí y
+        # no en forma de error de base de datos más adelante.
+        _porcentaje_de_discapacidad(valor)
+
+    ajuste, _ = AjusteDeServicio.objects.update_or_create(
+        expediente=expediente,
+        servicio=servicio,
+        variable=variable,
+        defaults={"valor": valor, "nota": (nota or "").strip(), "creado_por": usuario},
+    )
+
+    LogAuditoria.objects.create(
+        usuario=usuario,
+        rol_activo=getattr(usuario, "rol_principal", ""),
+        accion=LogAuditoria.Accion.UPDATE,
+        modulo="expediente",
+        entidad="AjusteDeServicio",
+        entidad_id=str(ajuste.pk),
+        expediente_id=expediente.pk,
+        detalle={"servicio": servicio.codigo, "variable": variable, "valor": valor},
+    )
+    return ajuste
+
+
+def quitar_ajuste(expediente, servicio, variable: str, *, usuario=None) -> bool:
+    """
+    Deshace el ajuste y devuelve la variable a lo que dice la matrícula.
+
+    Que se pueda volver atrás es lo que hace seguro ajustar: sin esto, una
+    corrección equivocada quedaría fija para siempre en ese servicio.
+    """
+    from apps.auditoria.models import LogAuditoria
+
+    from .models import AjusteDeServicio
+
+    borrados, _ = AjusteDeServicio.objects.filter(
+        expediente=expediente, servicio=servicio, variable=variable
+    ).delete()
+    if borrados:
+        LogAuditoria.objects.create(
+            usuario=usuario,
+            rol_activo=getattr(usuario, "rol_principal", ""),
+            accion=LogAuditoria.Accion.SOFT_DELETE,
+            modulo="expediente",
+            entidad="AjusteDeServicio",
+            entidad_id=f"{expediente.pk}:{servicio.codigo}:{variable}",
+            expediente_id=expediente.pk,
+            detalle={"servicio": servicio.codigo, "variable": variable},
+        )
+    return bool(borrados)
