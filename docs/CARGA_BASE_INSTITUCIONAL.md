@@ -1,5 +1,9 @@
 # Carga de la base institucional
 
+> Para el **procedimiento paso a paso**, ver `docs/COMO_CARGAR_LA_BASE.md`.
+> Este documento es el diccionario: qué formato, qué encabezados y cuántas
+> variables.
+
 Cómo se entrega a SIBU la base de datos de estudiantes, qué debe traer el
 archivo y qué hace el sistema con él.
 

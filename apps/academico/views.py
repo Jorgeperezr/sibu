@@ -22,9 +22,26 @@ from . import mapping
 from .models import CargaInstitucional
 from .services import LectorFicha, ProcesadorCarga, hash_archivo
 
+# Permiso de Django que autoriza a cargar la base institucional. Se comprueba
+# ADEMÁS del rol, y no en su lugar, porque hay una cuenta que legítimamente
+# necesita las dos cosas a la vez y el rol solo no lo permite:
+#
+# La cuenta de administración con la que se prueba el sistema lleva rol
+# PROFESIONAL a propósito —`rbac.es_admin()` le negaría el contenido clínico y
+# vería «0 atenciones» en cada expediente—, así que por rol nunca alcanzaría
+# estas pantallas. Sí tiene el permiso, que es lo que de verdad expresa
+# «puede cargar la base»: más preciso que el rol, no más laxo.
+#
+# El sello de Psicología no se toca: estas pantallas son matrícula, no
+# expediente, y el filtrado del contenido clínico sigue siendo por rol.
+PERMISO_CARGA = "academico.add_cargainstitucional"
+
 
 def _es_admin(user):
-    return user.is_authenticated and (user.is_superuser or user.rol_principal == Rol.ADMIN_GENERAL)
+    """¿Puede esta cuenta cargar y consultar la base institucional?"""
+    return user.is_authenticated and (
+        user.is_superuser or user.rol_principal == Rol.ADMIN_GENERAL or user.has_perm(PERMISO_CARGA)
+    )
 
 
 @login_required

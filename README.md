@@ -55,8 +55,9 @@ make cuentas
 
 | Usuario | Ve |
 |---|---|
-| `1104346091` / `1104346091` | Los nueve servicios y `/admin/` (el usuario es la cédula) |
-| `medico`, `psicologo`, `trabajadora`, … / `sibu-demo-2026` | Solo su servicio |
+| `1104346091` / `1104346091` | Los nueve servicios, la carga de la base institucional y `/admin/` |
+| `jhoely.lalangui`, `jorge.perez`, `daniel.cabrera`, … (contraseña = usuario) | Solo su servicio |
+| `laboratorista`, `farmaceutico`, `trabajadora`, `becas` / `sibu-demo-2026` | Solo su servicio |
 | `administrador` / `sibu-demo-2026` | Base institucional y gestión, sin contenido clínico |
 | `director` / `sibu-demo-2026` | Tablero de gestión, sin contenido clínico |
 | `estudiante` / `sibu-demo-2026` | Portal del paciente (`/portal/`) |

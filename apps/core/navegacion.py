@@ -25,6 +25,7 @@ class Modulo:
     #   ("roles", {Rol, ...})      -> su rol_principal está en el conjunto
     #   ("siempre", None)          -> visible para cualquier autenticado
     #   ("tiene_servicio", None)   -> tiene AL MENOS un servicio, cualquiera
+    #   ("permiso", "app.codigo")  -> tiene ese permiso de Django
     regla: tuple
     grupo: str  # para agrupar en la portada
 
@@ -69,7 +70,17 @@ MODULOS = [
     # El asistente de carga existía desde el Sprint 2 sin ninguna entrada de
     # menú: se llegaba escribiendo la URL a mano. `padron` es la puerta —desde
     # ahí se cargan archivos, se descarga la plantilla y se ve lo cargado—.
-    Modulo("Base institucional", "academico:padron", ("roles", {Rol.ADMIN_GENERAL}), "Gestión"),
+    # Por permiso y no por rol: la cuenta con la que se prueba el sistema lleva
+    # rol PROFESIONAL a propósito —con rol de administrador el RBAC le negaría
+    # el contenido clínico— pero sí tiene el permiso de carga. Es la misma
+    # regla que aplica la vista, para que el menú no ofrezca un enlace que
+    # luego responde 403, ni lo esconda a quien sí puede entrar.
+    Modulo(
+        "Base institucional",
+        "academico:padron",
+        ("permiso", "academico.add_cargainstitucional"),
+        "Gestión",
+    ),
 ]
 
 # Rutas de módulos que solo se abren desde un expediente/atención concreta. No
@@ -93,6 +104,8 @@ def _ve_modulo(user, modulo: Modulo, servicios_ids: set, codigos_por_id: dict) -
         return dato in codigos
     if tipo == "tiene_servicio":
         return bool(servicios_ids)
+    if tipo == "permiso":
+        return user.has_perm(dato)
     return False
 
 
