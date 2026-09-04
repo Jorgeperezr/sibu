@@ -37,10 +37,14 @@ Eso es todo. No hace falta `cp .env.example .env`, ni `createsuperuser`, ni
 
 `make up` hace por su cuenta lo que antes había que recordar: deriva el dominio
 que Codespaces asigna al puerto 8000 (sin eso, todos los formularios fallan con
-un error de CSRF), comprueba que PostgreSQL responda, aplica las migraciones
-pendientes y —si la base todavía está vacía— crea la estructura, los permisos,
-el catálogo CIE-10 y las cuentas de prueba. La primera vez tarda un minuto; las
-siguientes, segundos.
+un error de CSRF), comprueba que PostgreSQL responda y deja la base al día. La
+primera vez tarda un minuto; las siguientes, un segundo.
+
+**Después de un `git pull` no hay que hacer nada más.** `make up` compara lo que
+hay en la base con lo que el código define y decide solo: aplica las migraciones
+que falten y vuelve a sembrar si la actualización trajo cuentas, servicios o
+permisos nuevos. Antes eso obligaba a acordarse de `make demo` a mano, y no
+acordarse se parecía mucho a «las credenciales no funcionan».
 
 Al terminar imprime la URL. Púlsela, o abra el puerto 8000 en la pestaña
 **PORTS** de VS Code.
@@ -72,7 +76,7 @@ prueba, es el comportamiento real del sistema.
 | El navegador dice *Not Found* o pide iniciar sesión en GitHub | El puerto está privado. Pestaña **PORTS** → clic derecho en el 8000 → *Port Visibility* → **Public**. |
 | *That port is already in use* | Quedó vivo un servidor anterior: `kill $(lsof -ti:8000)` y repita `make up`. |
 | La página sale sin estilos: la barra lateral desmontada y los enlaces en fila | El navegador se quedó con una copia vieja o a medias del CSS. Recargue forzando: **Ctrl+Shift+R** (Cmd+Shift+R en Mac). Los enlaces a estáticos llevan la versión del archivo desde entonces, así que no debería repetirse. |
-| El usuario y la contraseña no son aceptados | La propia pantalla lo dice ahora. Compruebe cuáles existen con `make cuentas`. Si su base ya tenía datos de antes, `make up` no la prepara —y hace bien, no pisa lo existente—, así que las cuentas de prueba se recrean con `make demo`. |
+| El usuario y la contraseña no son aceptados | Compruebe cuáles existen con `make cuentas`. Desde un `git pull`, `make up` repone solo las cuentas que el código define; si aun así falta la suya, fuércelo con `make preparar`. |
 | *La verificación CSRF ha fallado* al iniciar sesión | La propia pantalla lo explica ahora: dice qué Origin llegó, cuáles acepta el servidor y qué hacer. Lo más común: arrancó con `make run` en vez de `make up`, o está en una rama que no trae el arreglo (`git branch --show-current`). |
 | *sin conexión a la base de datos* | El contenedor `db` aún no levantó. Espere unos segundos y repita, o *Rebuild Container*. |
 

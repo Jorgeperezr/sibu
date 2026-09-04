@@ -14,6 +14,8 @@ Estas pruebas fijan lo que resuelve cada cosa. Siguiendo la disciplina de
 `test_checks.py`, fijan lo que afirman en vez de heredarlo del entorno.
 """
 
+from pathlib import Path
+
 import pytest
 from django.core.management import call_command
 
@@ -382,3 +384,116 @@ def test_resembrar_corrige_una_cuenta_que_ya_existia(settings):
     assert cuenta.first_name == "Daniel Francisco"
     assert cuenta.email == "daniel.cabrera@unl.edu.ec"
     assert cuenta.check_password("daniel.cabrera")
+
+
+# --------------------------------------------------- preparar --si-cambio
+
+
+@pytest.mark.django_db
+def test_si_cambio_prepara_la_base_vacia(settings):
+    """Primer arranque: no hay nada, así que hay que hacerlo todo."""
+    settings.DEBUG = True
+    call_command("preparar", "--si-cambio", verbosity=0)
+    assert Servicio.objects.exists()
+    assert Usuario.objects.exists()
+
+
+@pytest.mark.django_db
+def test_si_cambio_no_vuelve_a_sembrar_si_nada_cambio(settings, monkeypatch):
+    """
+    Lo que hace usable el arranque: en el caso normal —la base ya preparada y
+    el código sin tocar— no repite cinco comandos, solo mira una huella.
+    """
+    from apps.core.management.commands import preparar as modulo
+
+    settings.DEBUG = True
+    call_command("preparar", "--si-cambio", verbosity=0)
+
+    llamadas = []
+    monkeypatch.setattr(modulo, "call_command", lambda *a, **k: llamadas.append(a[0]))
+    call_command("preparar", "--si-cambio", verbosity=0)
+    assert llamadas == [], f"volvió a ejecutar {llamadas} sin que nada cambiara"
+
+
+@pytest.mark.django_db
+def test_si_cambio_vuelve_a_sembrar_cuando_la_siembra_cambia(settings, monkeypatch):
+    """
+    El caso que quita el `make demo` a mano: tras un `git pull` que trae una
+    cuenta nueva, el arranque lo nota solo. Antes, no acordarse de sembrar se
+    parecía mucho a «las credenciales no funcionan».
+    """
+    from apps.core.management.commands import preparar as modulo
+
+    settings.DEBUG = True
+    call_command("preparar", "--si-cambio", verbosity=0)
+
+    # Como si `datos_demo.py` hubiera cambiado de contenido.
+    monkeypatch.setattr(modulo.Command, "_huella", lambda self: "otra-huella")
+
+    llamadas = []
+    monkeypatch.setattr(modulo, "call_command", lambda *a, **k: llamadas.append(a[0]))
+    call_command("preparar", "--si-cambio", verbosity=0)
+    assert "datos_demo" in llamadas
+    assert "configurar_rbac" in llamadas
+
+
+@pytest.mark.django_db
+def test_la_huella_mira_el_contenido_y_no_la_fecha(settings, tmp_path):
+    """
+    `git pull` reescribe las fechas de todos los archivos que toca, aunque el
+    contenido sea idéntico. Una huella por fecha volvería a sembrar en cada
+    arranque y el remedio sería peor que la enfermedad.
+    """
+    from apps.core.management.commands.preparar import Command
+
+    orden = Command()
+    primera = orden._huella()
+    for relativo in Command.ARCHIVOS_DE_SIEMBRA:
+        ruta = Path(settings.BASE_DIR) / relativo
+        ruta.touch()
+    assert orden._huella() == primera
+
+
+@pytest.mark.django_db
+def test_si_cambio_no_da_por_al_dia_una_base_a_medio_preparar(settings, monkeypatch):
+    """
+    La huella se anota al final. Si un paso revienta a mitad, la base queda
+    incompleta y el arranque siguiente tiene que volver a intentarlo; darla por
+    al día dejaría el sistema roto sin decirlo.
+    """
+    from apps.core.management.commands import preparar as modulo
+    from apps.core.models import ParametroSistema
+
+    settings.DEBUG = True
+
+    def revienta(nombre, *a, **k):
+        if nombre == "cargar_cie10":
+            raise RuntimeError("catálogo ilegible")
+        return None
+
+    monkeypatch.setattr(modulo, "call_command", revienta)
+    with pytest.raises(RuntimeError):
+        call_command("preparar", "--si-cambio", verbosity=0)
+
+    assert not ParametroSistema.objects.filter(clave=modulo.Command.CLAVE_HUELLA).exists()
+
+
+@pytest.mark.django_db
+def test_si_cambio_aplica_una_migracion_pendiente_aunque_la_siembra_siga_igual(
+    settings, monkeypatch
+):
+    """
+    Una migración nueva no cambia la huella de siembra, pero sin aplicarla la
+    tabla no existe y la pantalla que la usa revienta. Decidir solo por la
+    huella dejaría ese caso fuera.
+    """
+    from apps.core.management.commands import preparar as modulo
+
+    settings.DEBUG = True
+    call_command("preparar", "--si-cambio", verbosity=0)
+
+    monkeypatch.setattr(modulo.Command, "_hay_migraciones_pendientes", lambda self: True)
+    llamadas = []
+    monkeypatch.setattr(modulo, "call_command", lambda *a, **k: llamadas.append(a[0]))
+    call_command("preparar", "--si-cambio", verbosity=0)
+    assert "migrate" in llamadas

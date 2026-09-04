@@ -14,7 +14,7 @@ Entre con la cuenta de administración:
 
 Si el menú de la izquierda no muestra **Base institucional** bajo *Gestión*,
 esa cuenta no tiene el permiso de carga. Compruébelo con `make cuentas` y
-recréela con `make demo`.
+recréela con `make preparar`.
 
 ## Paso 1 — Descargar la plantilla
 

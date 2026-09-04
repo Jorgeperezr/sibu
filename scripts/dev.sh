@@ -40,29 +40,18 @@ if ! python -c "import django; django.setup(); from django.db import connection;
 fi
 echo "base de datos: OK"
 
-# --- 3. ¿La base está vacía? Prepararla entera ------------------------------
+# --- 3. Dejar la base al día -----------------------------------------------
 # Un servidor arrancado sobre una base sin preparar levanta bien y luego
 # rechaza cualquier usuario que se escriba en la pantalla de inicio de sesión,
 # porque no hay ninguna cuenta creada. Ese es el "error al iniciar sesión" que
-# no se explica solo. Si no hay servicios ni cuentas, se prepara todo aquí.
-VACIA=$(python -c "
-import django; django.setup()
-from apps.core.models import Servicio
-from apps.usuarios.models import Usuario
-print('si' if not (Servicio.objects.exists() and Usuario.objects.exists()) else 'no')
-" 2>/dev/null || echo "si")
-
-if [ "$VACIA" = "si" ]; then
-  echo "Base sin preparar: creando estructura, permisos y cuentas de prueba..."
-  echo ""
-  python manage.py preparar
-else
-  # Ya preparada: solo hace falta que no queden migraciones pendientes.
-  if ! python manage.py migrate --check >/dev/null 2>&1; then
-    echo "Aplicando migraciones pendientes..."
-    python manage.py migrate --noinput
-  fi
-fi
+# no se explica solo.
+#
+# `--si-cambio` decide por su cuenta: prepara si la base está vacía y también
+# si la definición de la siembra cambió desde la última vez —lo que pasa tras
+# cada `git pull` que trae cuentas o servicios nuevos—. Antes eso obligaba a
+# acordarse de `make demo` a mano, y no acordarse se parecía mucho a "las
+# credenciales no funcionan".
+python manage.py preparar --si-cambio
 
 # --- 4. ¿Ya hay un servidor escuchando? -------------------------------------
 # El "That port is already in use" de Django no dice qué hacer. Esto sí.
