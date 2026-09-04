@@ -174,7 +174,9 @@ def test_la_siembra_deja_una_cuenta_que_administra_sin_ver_lo_clinico(settings):
     assert administrador.rol_principal == Rol.ADMIN_GENERAL
     assert administrador.is_superuser is False
 
-    con_servicios = Usuario.objects.get(username="jorge.perez@unl.edu.ec")
+    from apps.core.management.commands.datos_demo import ADMIN
+
+    con_servicios = Usuario.objects.get(username=ADMIN["username"])
     assert con_servicios.rol_principal == Rol.PROFESIONAL
 
 
@@ -224,3 +226,73 @@ def test_ninguna_prueba_importa_los_ajustes_de_desarrollo():
         if patron.search(archivo.read_text(encoding="utf-8"))
     ]
     assert not culpables, f"importan los ajustes de desarrollo: {culpables}"
+
+
+# ------------------------------------------------- la cuenta de administración
+
+
+@pytest.mark.django_db
+def test_la_cuenta_de_administracion_entra_con_su_cedula(settings, client):
+    """
+    Usuario y contraseña son la cédula: es como el modelo `Usuario` dice que se
+    identifica una cuenta ("username = cédula o usuario institucional").
+    """
+    from apps.core.management.commands.datos_demo import ADMIN
+
+    settings.DEBUG = True
+    call_command("preparar", verbosity=0)
+    assert client.login(username=ADMIN["username"], password=ADMIN["clave"])
+    assert Usuario.objects.get(username=ADMIN["username"]).cedula == ADMIN["cedula"]
+
+
+@pytest.mark.django_db
+def test_la_cuenta_de_administracion_sigue_viendo_contenido_clinico(settings):
+    """
+    Lo que impide convertirla en superusuario de verdad.
+
+    `rbac.atenciones_visibles` devuelve `.none()` para cualquier administrador
+    —`es_admin()` cubre `is_superuser` y `ADMIN_GENERAL`— por separación de
+    funciones. Con cualquiera de los dos, esta cuenta abriría cada expediente y
+    vería «0 atenciones»: lo contrario de poder probar el sistema. Por eso lleva
+    rol PROFESIONAL con los nueve servicios, y el acceso a /admin/ va con
+    permisos explícitos en vez de `is_superuser`.
+    """
+    from apps.core.management.commands.datos_demo import ADMIN
+    from apps.expediente.models import Atencion
+    from apps.usuarios import rbac
+    from apps.usuarios.models import Rol
+
+    settings.DEBUG = True
+    call_command("preparar", verbosity=0)
+    cuenta = Usuario.objects.get(username=ADMIN["username"])
+
+    assert cuenta.rol_principal == Rol.PROFESIONAL
+    assert cuenta.is_superuser is False
+    assert cuenta.is_staff is True  # entra a /admin/ por permisos explícitos
+    assert cuenta.perfil.servicios.count() == 9
+
+    visibles = rbac.atenciones_visibles(cuenta, Atencion.objects.all())
+    assert visibles.exists(), "la cuenta de administración se quedó sin ver atenciones"
+
+
+@pytest.mark.django_db
+def test_la_cedula_de_la_cuenta_no_choca_al_resembrar(settings):
+    """
+    `Usuario.cedula` es única. Si una siembra anterior se la dejó a otra cuenta,
+    volver a sembrar reventaría con IntegrityError en vez de reasignarla.
+    """
+    from apps.core.management.commands.datos_demo import ADMIN
+
+    settings.DEBUG = True
+    call_command("preparar", verbosity=0)
+    intruso = Usuario.objects.create_user(username="intruso", password="clave-larga-12345")
+    Usuario.objects.filter(pk=Usuario.objects.get(username=ADMIN["username"]).pk).update(
+        cedula=None
+    )
+    intruso.cedula = ADMIN["cedula"]
+    intruso.save(update_fields=["cedula"])
+
+    call_command("datos_demo", verbosity=0)  # no debe reventar
+    assert Usuario.objects.get(username=ADMIN["username"]).cedula == ADMIN["cedula"]
+    intruso.refresh_from_db()
+    assert intruso.cedula is None

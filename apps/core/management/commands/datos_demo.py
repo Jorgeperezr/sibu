@@ -29,17 +29,26 @@ CLAVE = "sibu-demo-2026"
 
 # Cuenta de administración solicitada para probar el sistema completo.
 #
+# El usuario es la cédula, que es como el modelo `Usuario` dice que se
+# identifica una cuenta ("username = cédula o usuario institucional").
+#
 # La contraseña no pasa la política del proyecto —AUTH_PASSWORD_VALIDATORS pide
-# 12 caracteres y esta tiene 9—, y no hace falta que la pase: los validadores
-# solo actúan sobre formularios (el admin, `createsuperuser`, el cambio de
-# contraseña), no sobre `set_password()`. Así esta cuenta existe sin rebajar la
-# política que protege al resto, que sigue intacta.
+# 12 caracteres, prohíbe que se parezca al usuario y rechaza las puramente
+# numéricas; esta incumple las tres—, y no hace falta que la pase: los
+# validadores solo actúan sobre formularios (el admin, `createsuperuser`, el
+# cambio de contraseña), no sobre `set_password()`. Así esta cuenta existe sin
+# rebajar la política que protege al resto, que sigue intacta.
+#
+# ADVERTENCIA: una contraseña igual al usuario, y además la cédula de una
+# persona real, no puede salir de aquí. Este comando se niega a correr con
+# DEBUG=False, que es lo que impide que llegue al servidor de la Unidad.
 ADMIN = {
-    "username": "jorge.perez@unl.edu.ec",
+    "username": "1104346091",
+    "cedula": "1104346091",
     "email": "jorge.perez@unl.edu.ec",
     "first_name": "Jorge",
     "last_name": "Pérez",
-    "clave": "Jorge2025",
+    "clave": "1104346091",
 }
 
 # Cédulas ficticias que pasan el módulo 10 ecuatoriano: `Persona.save()` las
@@ -234,6 +243,11 @@ class Command(BaseCommand):
         admin.email = ADMIN["email"]
         admin.first_name = ADMIN["first_name"]
         admin.last_name = ADMIN["last_name"]
+        # `Usuario.cedula` es única: se libera de cualquier otra cuenta antes de
+        # asignarla, o el guardado fallaría con IntegrityError sobre una siembra
+        # anterior en la que la llevara otro usuario.
+        Usuario.objects.filter(cedula=ADMIN["cedula"]).exclude(pk=admin.pk).update(cedula=None)
+        admin.cedula = ADMIN["cedula"]
 
         # El rol es PROFESIONAL, no ADMIN_GENERAL, y esto no es un descuido:
         # `rbac.atenciones_visibles` le niega el contenido clínico a quien sea
