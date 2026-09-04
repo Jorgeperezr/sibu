@@ -25,5 +25,11 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 # Origin que presenta su reenvío de puertos aunque el navegador muestre otro.
 CSRF_TRUSTED_ORIGINS = origenes_confiables(os.environ)
 
+# Cuando aun así falle, que la pantalla diga qué Origin llegó, cuáles se
+# aceptan y qué hacer. La de Django dice «does not match any trusted origins» y
+# ahí termina. Solo en desarrollo: en producción no se le enseña la
+# configuración a quien no debería verla.
+CSRF_FAILURE_VIEW = "apps.core.csrf.vista_fallo_csrf"
+
 # En desarrollo se relajan controles que solo aplican tras HTTPS
 AXES_ENABLED = env.bool("AXES_ENABLED", default=False)  # noqa
