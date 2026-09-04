@@ -128,7 +128,8 @@ def test_cuentas_lista_lo_que_existe(capsys, settings):
     capsys.readouterr()  # descartar lo que imprimió la preparación
     call_command("cuentas")
     salida = capsys.readouterr().out
-    assert "medico" in salida
+    # Un profesional real de la Unidad y la clave de las cuentas de prueba.
+    assert "jhoely.lalangui" in salida
     assert "sibu-demo-2026" in salida
 
 
@@ -144,7 +145,7 @@ def test_cuentas_no_anuncia_contrasenas_fuera_de_desarrollo(capsys, settings):
     settings.DEBUG = False
     call_command("cuentas")
     salida = capsys.readouterr().out
-    assert "medico" in salida
+    assert "jhoely.lalangui" in salida
     assert "sibu-demo-2026" not in salida
 
 
@@ -194,7 +195,9 @@ def test_quien_administra_alcanza_el_padron_y_quien_atiende_no(settings, client)
     assert client.login(username="administrador", password="sibu-demo-2026")
     assert client.get(reverse("academico:padron")).status_code == 200
 
-    assert client.login(username="medico", password="sibu-demo-2026")
+    # Un profesional: el padrón institucional no es suyo. Su contraseña es su
+    # propio usuario, que es como se siembran los profesionales de la Unidad.
+    assert client.login(username="jhoely.lalangui", password="jhoely.lalangui")
     assert client.get(reverse("academico:padron")).status_code == 302
 
 
@@ -296,3 +299,86 @@ def test_la_cedula_de_la_cuenta_no_choca_al_resembrar(settings):
     assert Usuario.objects.get(username=ADMIN["username"]).cedula == ADMIN["cedula"]
     intruso.refresh_from_db()
     assert intruso.cedula is None
+
+
+# ------------------------------------------- profesionales de la Unidad
+
+
+@pytest.mark.django_db
+def test_cada_profesional_entra_con_lo_que_va_antes_de_la_arroba(settings, client):
+    """
+    Lo pedido: el usuario es la parte local de su correo institucional y la
+    contraseña es la misma. `jorge.perez@unl.edu.ec` -> usuario y contraseña
+    `jorge.perez`.
+    """
+    from apps.core.management.commands.datos_demo import PROFESIONALES, clave_de
+
+    settings.DEBUG = True
+    call_command("preparar", verbosity=0)
+
+    reales = [p for p in PROFESIONALES if p["correo"]]
+    assert len(reales) == 5
+    for datos in reales:
+        local = datos["correo"].split("@")[0]
+        assert datos["usuario"] == local
+        assert clave_de(datos) == local
+        assert client.login(username=local, password=local), f"no entra {local}"
+
+
+@pytest.mark.django_db
+def test_cada_profesional_queda_en_su_servicio_y_con_su_nombre(settings):
+    from apps.core.management.commands.datos_demo import PROFESIONALES
+
+    settings.DEBUG = True
+    call_command("preparar", verbosity=0)
+
+    for datos in (p for p in PROFESIONALES if p["correo"]):
+        cuenta = Usuario.objects.get(username=datos["usuario"])
+        assert cuenta.email == datos["correo"]
+        assert cuenta.get_full_name() == f"{datos['nombres']} {datos['apellidos']}"
+        servicios = list(cuenta.perfil.servicios.values_list("codigo", flat=True))
+        assert servicios == [datos["servicio"]], f"{datos['usuario']} ve {servicios}"
+
+
+@pytest.mark.django_db
+def test_el_psicologo_no_es_administrador(settings):
+    """
+    Jorge Pérez tiene dos cuentas y no son intercambiables: `jorge.perez`
+    atiende Psicología, y la de administración es la de su cédula. Si la de
+    Psicología llevara rol de administrador, el RBAC le negaría el contenido
+    clínico de su propio servicio.
+    """
+    from apps.core.management.commands.datos_demo import ADMIN
+    from apps.usuarios.models import Rol
+
+    settings.DEBUG = True
+    call_command("preparar", verbosity=0)
+
+    psicologo = Usuario.objects.get(username="jorge.perez")
+    assert psicologo.rol_principal == Rol.PROFESIONAL
+    assert psicologo.is_superuser is False
+    assert psicologo.is_staff is False
+    assert psicologo.pk != Usuario.objects.get(username=ADMIN["username"]).pk
+
+
+@pytest.mark.django_db
+def test_resembrar_corrige_una_cuenta_que_ya_existia(settings):
+    """
+    Los datos se escriben fuera de `defaults`: si no, `get_or_create` los
+    ignoraría en una cuenta ya creada y `make demo` no serviría para corregir
+    un nombre mal escrito ni para reponer una contraseña olvidada.
+    """
+    settings.DEBUG = True
+    call_command("preparar", verbosity=0)
+
+    cuenta = Usuario.objects.get(username="daniel.cabrera")
+    cuenta.first_name = "Equivocado"
+    cuenta.email = ""
+    cuenta.set_password("otra-cosa")
+    cuenta.save()
+
+    call_command("datos_demo", verbosity=0)
+    cuenta.refresh_from_db()
+    assert cuenta.first_name == "Daniel Francisco"
+    assert cuenta.email == "daniel.cabrera@unl.edu.ec"
+    assert cuenta.check_password("daniel.cabrera")

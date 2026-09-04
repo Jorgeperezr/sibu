@@ -70,17 +70,106 @@ PACIENTES = [
 ]
 
 # (username, nombre, apellido, código de servicio, rol)
+# Profesionales de la Unidad.
+#
+# Los cinco primeros son las personas reales de cada servicio: el usuario es lo
+# que va antes de la @ de su correo institucional, y la contraseña es lo mismo.
+# Esa contraseña es tan débil como parece —es el usuario— y por eso este comando
+# se niega a correr con DEBUG=False: cuando el sistema entre en servicio, cada
+# uno debe fijar la suya con `manage.py changepassword <usuario>`.
+#
+# Los cuatro restantes siguen siendo cuentas de prueba con nombres inventados,
+# porque de esos servicios no se ha indicado quién los atiende. Usan la clave
+# común `CLAVE`.
 PROFESIONALES = [
-    ("medico", "Ricardo", "Valdivieso", "medicina", "profesional"),
-    ("enfermera", "Sonia", "Pineda", "enfermeria", "profesional"),
-    ("odontologo", "Marcelo", "Ludeña", "odontologia", "profesional"),
-    ("laboratorista", "Paola", "Bermeo", "laboratorio-clinico", "laboratorio"),
-    ("farmaceutico", "Iván", "Costa", "farmacia", "farmacia"),
-    ("psicologo", "Elena", "Maldonado", "psicologia", "profesional"),
-    ("psicopedagogo", "Tania", "Ordóñez", "psicopedagogia", "profesional"),
-    ("trabajadora", "Rosa", "Célleri", "trabajo-social", "profesional"),
-    ("becas", "Pablo", "Quezada", "becas-y-ayudas-economicas", "profesional"),
+    {
+        "usuario": "jhoely.lalangui",
+        "nombres": "Jhoely Michelle",
+        "apellidos": "Lalangui Iñiguez",
+        "correo": "jhoely.lalangui@unl.edu.ec",
+        "servicio": "medicina",
+        "rol": "profesional",
+    },
+    {
+        "usuario": "andrea.ambuludi",
+        "nombres": "Andrea Paulina",
+        "apellidos": "Ambuludi Chamba",
+        "correo": "andrea.ambuludi@unl.edu.ec",
+        "servicio": "enfermeria",
+        "rol": "profesional",
+    },
+    {
+        "usuario": "daniel.cabrera",
+        "nombres": "Daniel Francisco",
+        "apellidos": "Cabrera Vaca",
+        "correo": "daniel.cabrera@unl.edu.ec",
+        "servicio": "odontologia",
+        "rol": "profesional",
+    },
+    {
+        "usuario": "jorge.perez",
+        "nombres": "Jorge Eduardo",
+        "apellidos": "Pérez Rodríguez",
+        "correo": "jorge.perez@unl.edu.ec",
+        "servicio": "psicologia",
+        "rol": "profesional",
+    },
+    {
+        "usuario": "victor.samaniego",
+        "nombres": "Víctor Manuel",
+        "apellidos": "Samaniego Aguirre",
+        "correo": "victor.samaniego@unl.edu.ec",
+        "servicio": "psicopedagogia",
+        "rol": "profesional",
+    },
+    # Sin persona asignada todavía: nombres de prueba y clave común.
+    {
+        "usuario": "laboratorista",
+        "nombres": "Paola",
+        "apellidos": "Bermeo",
+        "correo": "",
+        "servicio": "laboratorio-clinico",
+        "rol": "laboratorio",
+        "clave": CLAVE,
+    },
+    {
+        "usuario": "farmaceutico",
+        "nombres": "Iván",
+        "apellidos": "Costa",
+        "correo": "",
+        "servicio": "farmacia",
+        "rol": "farmacia",
+        "clave": CLAVE,
+    },
+    {
+        "usuario": "trabajadora",
+        "nombres": "Rosa",
+        "apellidos": "Célleri",
+        "correo": "",
+        "servicio": "trabajo-social",
+        "rol": "profesional",
+        "clave": CLAVE,
+    },
+    {
+        "usuario": "becas",
+        "nombres": "Pablo",
+        "apellidos": "Quezada",
+        "correo": "",
+        "servicio": "becas-y-ayudas-economicas",
+        "rol": "profesional",
+        "clave": CLAVE,
+    },
 ]
+
+
+def clave_de(profesional: dict) -> str:
+    """
+    La contraseña del profesional: la que traiga, o su propio usuario.
+
+    Que sea igual al usuario es lo pedido, y lo que obliga a que esto no salga
+    de un entorno de prueba.
+    """
+    return profesional.get("clave") or profesional["usuario"]
 
 
 class Command(BaseCommand):
@@ -117,7 +206,7 @@ class Command(BaseCommand):
         from apps.usuarios.models import Usuario
 
         cedulas = [c for c, *_ in PACIENTES]
-        usuarios = [u for u, *_ in PROFESIONALES] + [
+        usuarios = [p["usuario"] for p in PROFESIONALES] + [
             "director",
             "estudiante",
             ADMIN["username"],
@@ -140,15 +229,19 @@ class Command(BaseCommand):
 
         # --- Usuarios ------------------------------------------------------
         self.perfiles = {}
-        for username, nombres, apellidos, codigo, rol in PROFESIONALES:
+        for datos in PROFESIONALES:
+            codigo = datos["servicio"]
             servicio = Servicio.objects.filter(codigo=codigo).first()
             if servicio is None:
                 continue
-            u, _ = Usuario.objects.get_or_create(
-                username=username,
-                defaults={"first_name": nombres, "last_name": apellidos, "rol_principal": rol},
-            )
-            u.set_password(CLAVE)
+            u, _ = Usuario.objects.get_or_create(username=datos["usuario"])
+            # Fuera de `defaults`, para que resembrar corrija también las
+            # cuentas que ya existían con otro nombre o sin correo.
+            u.first_name = datos["nombres"]
+            u.last_name = datos["apellidos"]
+            u.email = datos["correo"]
+            u.rol_principal = datos["rol"]
+            u.set_password(clave_de(datos))
             u.save()
             perfil, _ = PerfilProfesional.objects.get_or_create(
                 usuario=u, defaults={"seccion": servicio.seccion}
@@ -570,18 +663,28 @@ class Command(BaseCommand):
         self.stdout.write(f"    usuario:    {ADMIN['username']}")
         self.stdout.write(f"    contraseña: {ADMIN['clave']}")
         self.stdout.write("")
-        self.stdout.write(f"  Resto de cuentas, contraseña: {CLAVE}")
+        self.stdout.write(ok("  Profesionales de la Unidad (contraseña = usuario):"))
         self.stdout.write("")
-        self.stdout.write("  usuario         entra a")
-        self.stdout.write("  " + "-" * 58)
-        for username, _n, _a, codigo, _rol in PROFESIONALES:
-            if codigo in self.perfiles:
-                self.stdout.write(f"  {username:<15} su servicio ({codigo})")
+        self.stdout.write(f"  {'usuario':<18} {'contraseña':<18} {'nombre':<32} atiende")
+        self.stdout.write("  " + "-" * 88)
+        for p in PROFESIONALES:
+            if p["servicio"] not in self.perfiles or p.get("clave"):
+                continue
+            nombre = f"{p['nombres']} {p['apellidos']}"
+            self.stdout.write(
+                f"  {p['usuario']:<18} {clave_de(p):<18} {nombre:<32} {p['servicio']}"
+            )
+        self.stdout.write("")
+        self.stdout.write(f"  Cuentas de prueba, contraseña: {CLAVE}")
+        self.stdout.write("")
+        for p in PROFESIONALES:
+            if p["servicio"] in self.perfiles and p.get("clave"):
+                self.stdout.write(f"  {p['usuario']:<18} su servicio ({p['servicio']})")
         self.stdout.write(
-            f"  {'administrador':<15} base institucional y gestión, sin contenido clínico"
+            f"  {'administrador':<18} base institucional y gestión, sin contenido clínico"
         )
-        self.stdout.write(f"  {'director':<15} tablero de gestión, sin contenido clínico")
-        self.stdout.write(f"  {'estudiante':<15} portal del paciente (/portal/)")
+        self.stdout.write(f"  {'director':<18} tablero de gestión, sin contenido clínico")
+        self.stdout.write(f"  {'estudiante':<18} portal del paciente (/portal/)")
         self.stdout.write("")
         self.stdout.write(
             "  Cada profesional ve SOLO su servicio: es el comportamiento real.\n"
