@@ -415,3 +415,39 @@ a:focus-visible,
 .sibu-tarjeta:hover i {
   color: var(--unl-verde);
 }
+
+/* ---- Secciones plegables de un formulario ----
+   Se usan en el alta de personas para que lo opcional no convierta once
+   casillas en más de treinta. `<details>` nativo: funciona sin JavaScript, así
+   que no puede quedarse a medio abrir si el script no carga. */
+details > summary {
+  cursor: pointer;
+  padding: 0.5rem 0.7rem;
+  background: #f7f8f6;
+  border: 1px solid var(--sibu-border);
+  border-radius: 0.35rem;
+  list-style-position: inside;
+}
+details > summary:hover {
+  border-color: var(--unl-verde);
+  color: var(--unl-verde-oscuro);
+}
+details[open] > summary {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* ---- Cabecera de tabla que ordena ----
+   Hereda el color apagado de `.table > thead th`; la activa se destaca para
+   que se vea de un vistazo por dónde está ordenada la tabla. */
+.sibu-orden {
+  color: inherit;
+  text-decoration: none;
+}
+.sibu-orden:hover {
+  color: var(--unl-verde-oscuro);
+  text-decoration: underline;
+}
+.sibu-orden.activo {
+  color: var(--unl-verde-oscuro);
+}

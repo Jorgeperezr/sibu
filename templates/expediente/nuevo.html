@@ -8,6 +8,8 @@
 <p class="text-muted">
   Se abre el expediente único de la persona. Si ya consta en la base
   institucional, búsquela por cédula en lugar de registrarla aquí.
+  Solo <strong>cédula, nombres y apellidos</strong> son obligatorios: el resto
+  se guarda si lo tiene a mano y se puede completar después.
 </p>
 
 {% if datos.prellenado %}
@@ -86,7 +88,76 @@
         <input type="email" class="form-control" id="correo_personal"
                name="correo_personal" value="{{ datos.correo_personal|default:'' }}">
       </div>
+      <div class="col-md-6">
+        <label class="form-label" for="telefono">Teléfono fijo</label>
+        <input class="form-control" id="telefono" name="telefono"
+               value="{{ datos.telefono|default:'' }}">
+      </div>
     </div>
+
+    {% comment %}
+    Lo demás va plegado y NADA de ello es obligatorio. Desplegado de golpe, el
+    formulario pasa de once casillas a más de treinta y el alta de una persona
+    en el mostrador se vuelve un trámite; plegado, quien tenga el dato lo
+    escribe y quien no, guarda igual.
+
+    Se usa <details> y no un acordeón de Bootstrap: funciona sin JavaScript,
+    así que no puede quedarse a medio abrir si el script no carga.
+    {% endcomment %}
+
+    <details class="mt-4">
+      <summary class="fw-semibold">Identidad y salud <span class="text-muted fw-normal">— opcional</span></summary>
+      <div class="row g-3 mt-1">
+        <div class="col-md-4">
+          <label class="form-label" for="genero">Género</label>
+          <input class="form-control" id="genero" name="genero"
+                 value="{{ datos.genero|default:'' }}" maxlength="30">
+        </div>
+        <div class="col-md-8">
+          <label class="form-label" for="identidad_orientacion_sexual">
+            Identidad u orientación sexual
+          </label>
+          <input class="form-control" id="identidad_orientacion_sexual"
+                 name="identidad_orientacion_sexual" maxlength="60"
+                 value="{{ datos.identidad_orientacion_sexual|default:'' }}">
+          <div class="form-text">
+            Un solo ítem, y libre: entra en el informe estadístico del servicio.
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="grupo_sanguineo">Grupo sanguíneo</label>
+          <input class="form-control" id="grupo_sanguineo" name="grupo_sanguineo"
+                 maxlength="5" placeholder="O+"
+                 value="{{ datos.grupo_sanguineo|default:'' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="discapacidad_tipo">Tipo de discapacidad</label>
+          <input class="form-control" id="discapacidad_tipo" name="discapacidad_tipo"
+                 maxlength="60" value="{{ datos.discapacidad_tipo|default:'' }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="discapacidad_porcentaje">Porcentaje</label>
+          <input type="number" min="0" max="100" class="form-control"
+                 id="discapacidad_porcentaje" name="discapacidad_porcentaje"
+                 value="{{ datos.discapacidad_porcentaje|default:'' }}">
+        </div>
+      </div>
+    </details>
+
+    {% for g in grupos %}
+    <details class="mt-3">
+      <summary class="fw-semibold">{{ g.titulo }} <span class="text-muted fw-normal">— opcional</span></summary>
+      <div class="row g-3 mt-1">
+        {% for c in g.casillas %}
+        <div class="col-md-4">
+          <label class="form-label" for="{{ c.nombre }}">{{ c.etiqueta }}</label>
+          <input class="form-control" id="{{ c.nombre }}" name="{{ c.nombre }}"
+                 value="{{ c.valor }}">
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
   </div>
   <div class="card-footer d-flex gap-2">
     <button class="btn btn-primary">Registrar y abrir expediente</button>

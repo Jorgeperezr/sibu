@@ -14,6 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.core.navegacion import acciones_expediente
 from apps.usuarios import rbac
 
+from . import campos as campos_alta
 from .models import AlertaClinica, Expediente, Persona
 from .selectors import MINIMO_TEXTO, buscar_personas, resumen_expediente
 from .services import (
@@ -24,21 +25,10 @@ from .services import (
     resolver_por_cedula,
 )
 
-# Campos que acepta el alta. Explícito para no volcar el POST entero en el
-# modelo: un campo de más aquí es un dato que nadie validó.
-CAMPOS_ALTA = (
-    "cedula",
-    "tipo_documento",
-    "nombres",
-    "apellidos",
-    "fecha_nacimiento",
-    "sexo",
-    "tipo_vinculo",
-    "correo_institucional",
-    "correo_personal",
-    "telefono",
-    "celular",
-)
+# Qué acepta el alta. Explícito, y no el POST entero volcado en el modelo: un
+# campo de más aquí es un dato que nadie validó. Vive en `campos.py` junto con
+# los rótulos y los grupos JSON.
+CAMPOS_ALTA = campos_alta.CAMPOS_PERSONA + campos_alta.CAMPOS_EXPEDIENTE
 
 
 @login_required
@@ -141,6 +131,13 @@ def nuevo(request):
 
     if request.method == "POST":
         datos = {campo: (request.POST.get(campo) or "").strip() for campo in CAMPOS_ALTA}
+        # Las casillas de los grupos (procedencia, residencia, contacto) llegan
+        # como `prefijo-clave`; el servicio las reparte a su JSON.
+        for clave, valor in request.POST.items():
+            if "-" in clave and clave.split("-", 1)[0] in {
+                p for p, _a, _t in campos_alta.GRUPOS_JSON
+            }:
+                datos[clave] = valor.strip()
         try:
             expediente = registrar_persona(datos, usuario=request.user)
         except ValidationError as exc:
@@ -159,6 +156,10 @@ def nuevo(request):
         {
             "datos": datos,
             "vinculos": Persona.TipoVinculo.choices,
+            # Con los valores de vuelta: si el alta se rechaza —una cédula que
+            # no pasa el módulo 10— el formulario se vuelve a pintar, y sin
+            # esto se perdería todo lo tecleado en estos grupos.
+            "grupos": campos_alta.grupos_para_formulario(datos),
         },
     )
 

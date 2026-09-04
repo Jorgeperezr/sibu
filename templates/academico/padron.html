@@ -17,6 +17,12 @@
 </div>
 
 <form method="get" class="row g-2 mb-3">
+  {% comment %}
+  El orden viaja escondido: filtrar no tiene por qué devolver la tabla al orden
+  por defecto, que es lo que pasaba si no se arrastraba.
+  {% endcomment %}
+  <input type="hidden" name="orden" value="{{ orden }}">
+  {% if descendente %}<input type="hidden" name="dir" value="desc">{% endif %}
   <div class="col-md-6">
     <input name="q" value="{{ q }}" class="form-control"
            placeholder="Cédula, nombre, apellido, facultad o carrera">
@@ -45,10 +51,28 @@
 <div class="card">
   <div class="table-responsive">
     <table class="table table-sm mb-0 align-middle">
+      {% comment %}
+      Cabeceras que ordenan. Cada una lleva su enlace: pulsarla ordena por esa
+      columna, y volver a pulsarla invierte el sentido. La flecha indica cuál
+      manda ahora mismo y hacia dónde, porque una tabla que se reordena sin
+      decir por qué se lee como un fallo.
+
+      Son enlaces y no JavaScript: el orden viaja en la URL, así que se puede
+      compartir, guardar en favoritos y sobrevive a recargar la página.
+      {% endcomment %}
       <thead class="table-light">
         <tr>
-          <th>Cédula</th><th>Apellidos y nombres</th><th>Facultad</th>
-          <th>Carrera</th><th>Ciclo</th><th>Estado</th><th>Período</th>
+          {% for clave, titulo in columnas %}
+          <th class="text-nowrap">
+            <a class="sibu-orden{% if orden == clave %} activo{% endif %}"
+               href="?{{ filtros }}{% if filtros %}&{% endif %}orden={{ clave }}{% if orden == clave and not descendente %}&dir=desc{% endif %}">
+              {{ titulo }}
+              {% if orden == clave %}
+                <i class="bi bi-caret-{% if descendente %}down{% else %}up{% endif %}-fill"></i>
+              {% endif %}
+            </a>
+          </th>
+          {% endfor %}
         </tr>
       </thead>
       <tbody>
@@ -73,7 +97,7 @@
   <ul class="pagination pagination-sm">
     {% if pagina.has_previous %}
     <li class="page-item">
-      <a class="page-link" href="?q={{ q }}&periodo={{ periodo_id|default:'' }}&pagina={{ pagina.previous_page_number }}">Anterior</a>
+      <a class="page-link" href="?{{ filtros }}{% if filtros %}&{% endif %}orden={{ orden }}{% if descendente %}&dir=desc{% endif %}&pagina={{ pagina.previous_page_number }}">Anterior</a>
     </li>
     {% endif %}
     <li class="page-item disabled">
@@ -81,7 +105,7 @@
     </li>
     {% if pagina.has_next %}
     <li class="page-item">
-      <a class="page-link" href="?q={{ q }}&periodo={{ periodo_id|default:'' }}&pagina={{ pagina.next_page_number }}">Siguiente</a>
+      <a class="page-link" href="?{{ filtros }}{% if filtros %}&{% endif %}orden={{ orden }}{% if descendente %}&dir=desc{% endif %}&pagina={{ pagina.next_page_number }}">Siguiente</a>
     </li>
     {% endif %}
   </ul>

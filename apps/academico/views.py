@@ -8,6 +8,7 @@ Reservada al Administrador General (RBAC, informe 10).
 
 import os
 import tempfile
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -108,11 +109,17 @@ def padron(request):
     """
     from django.core.paginator import Paginator
 
+    from . import selectors
     from .selectors import padron as consultar_padron
 
     texto = (request.GET.get("q") or "").strip()
     periodo_id = request.GET.get("periodo") or None
-    consulta = consultar_padron(texto, periodo_id)
+    orden = request.GET.get("orden") or selectors.ORDEN_POR_DEFECTO
+    if orden not in selectors.ORDENES:
+        orden = selectors.ORDEN_POR_DEFECTO
+    descendente = request.GET.get("dir") == "desc"
+
+    consulta = consultar_padron(texto, periodo_id, orden, descendente)
     pagina = Paginator(consulta, 50).get_page(request.GET.get("pagina"))
     return render(
         request,
@@ -121,6 +128,21 @@ def padron(request):
             "pagina": pagina,
             "q": texto,
             "periodo_id": periodo_id,
+            "orden": orden,
+            "descendente": descendente,
+            # (clave de orden, título) en el orden en que salen las columnas.
+            "columnas": [
+                ("cedula", "Cédula"),
+                ("nombre", "Apellidos y nombres"),
+                ("facultad", "Facultad"),
+                ("carrera", "Carrera"),
+                ("ciclo", "Ciclo"),
+                ("estado", "Estado"),
+                ("periodo", "Período"),
+            ],
+            # Lo que hay que arrastrar al cambiar de orden o de página, para no
+            # perder el filtro por el camino.
+            "filtros": urlencode({k: v for k, v in (("q", texto), ("periodo", periodo_id)) if v}),
             "periodos": PeriodoAcademico.objects.all(),
             "total": consulta.count(),
             "cargas": CargaInstitucional.objects.select_related("periodo")[:10],

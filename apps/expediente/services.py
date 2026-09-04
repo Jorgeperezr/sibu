@@ -26,6 +26,41 @@ def obtener_o_crear_expediente(persona: Persona, usuario=None) -> Expediente:
     return expediente
 
 
+def _porcentaje_de_discapacidad(valor):
+    """
+    El porcentaje, o None si no se escribió. Fuera de 0-100, se rechaza aquí.
+
+    `Expediente` lleva una CheckConstraint que lo limita a 100. Sin esta
+    comprobación, un 150 tecleado por error saldría como IntegrityError —una
+    pantalla de error 500— en vez de como un aviso que se puede corregir.
+    """
+    valor = (str(valor) if valor is not None else "").strip()
+    if not valor:
+        return None
+    if not valor.isdigit():
+        raise ValidationError("El porcentaje de discapacidad debe ser un número entero.")
+    numero = int(valor)
+    if numero > 100:
+        raise ValidationError("El porcentaje de discapacidad no puede pasar de 100.")
+    return numero
+
+
+def _grupo_json(datos: dict, prefijo: str, claves) -> dict:
+    """
+    Recoge las casillas `prefijo-clave` que traigan algo.
+
+    Las vacías no se guardan: un diccionario lleno de cadenas vacías ocupa
+    sitio, se exporta y se lee como «se preguntó y no había», que no es lo
+    mismo que «no se preguntó».
+    """
+    recogido = {}
+    for clave in claves:
+        valor = (datos.get(f"{prefijo}-{clave}") or "").strip()
+        if valor:
+            recogido[clave] = valor
+    return recogido
+
+
 def registrar_persona(datos: dict, usuario=None) -> Expediente:
     """
     Da de alta a una persona y abre su expediente.
@@ -34,15 +69,27 @@ def registrar_persona(datos: dict, usuario=None) -> Expediente:
     ni en la base local ni en la institucional, la pantalla ofrecía registrarla
     como externa pero no había por dónde hacerlo.
 
+    Solo tres datos son obligatorios —cédula, nombres y apellidos—, que son los
+    que identifican a la persona; el resto se guarda si viene y se deja en
+    blanco si no. Obligar a más en el mostrador llevaría a inventarlo.
+
     No valida la cédula aquí: `Persona.save()` aplica el módulo 10 sobre los
     documentos de tipo cédula, así que la comprobación vive en un solo sitio.
     """
+    from apps.academico import mapping
+
+    from .campos import GRUPOS_JSON
+
     cedula = normalizar_cedula(datos.get("cedula", ""))
     if Persona.objects.filter(cedula=cedula).exists():
         raise ValidationError(f"Ya existe una persona registrada con la cédula {cedula}.")
 
     if not (datos.get("nombres") or "").strip() or not (datos.get("apellidos") or "").strip():
         raise ValidationError("Nombres y apellidos son obligatorios.")
+
+    # Antes de escribir nada: `ATOMIC_REQUESTS` envuelve la petición entera y
+    # validar a medias dejaría el rechazo dentro de la misma transacción.
+    porcentaje = _porcentaje_de_discapacidad(datos.get("discapacidad_porcentaje"))
 
     with transaction.atomic():
         persona = Persona.objects.create(
@@ -52,14 +99,34 @@ def registrar_persona(datos: dict, usuario=None) -> Expediente:
             apellidos=datos["apellidos"].strip(),
             fecha_nacimiento=datos.get("fecha_nacimiento") or None,
             sexo=datos.get("sexo", ""),
+            genero=datos.get("genero", ""),
+            identidad_orientacion_sexual=datos.get("identidad_orientacion_sexual", ""),
             tipo_vinculo=datos.get("tipo_vinculo") or Persona.TipoVinculo.EXTERNO,
             correo_institucional=datos.get("correo_institucional", ""),
             correo_personal=datos.get("correo_personal", ""),
             telefono=datos.get("telefono", ""),
             celular=datos.get("celular", ""),
+            **{
+                atributo: _grupo_json(datos, prefijo, mapping.PERSONA_JSONB[atributo])
+                for prefijo, atributo, _titulo in GRUPOS_JSON
+            },
             creado_por=usuario,
         )
-        return obtener_o_crear_expediente(persona, usuario)
+        expediente = obtener_o_crear_expediente(persona, usuario)
+
+        # Salud básica: vive en el expediente, no en la persona.
+        cambios = []
+        for campo, valor in (
+            ("grupo_sanguineo", (datos.get("grupo_sanguineo") or "").strip()),
+            ("discapacidad_tipo", (datos.get("discapacidad_tipo") or "").strip()),
+            ("discapacidad_porcentaje", porcentaje),
+        ):
+            if valor not in (None, ""):
+                setattr(expediente, campo, valor)
+                cambios.append(campo)
+        if cambios:
+            expediente.save(update_fields=cambios)
+        return expediente
 
 
 def registrar_alerta(

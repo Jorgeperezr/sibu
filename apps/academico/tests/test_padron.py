@@ -255,3 +255,94 @@ def test_el_autocompletado_no_crea_expedientes(cargado):
     antes = Expediente.objects.count()
     cliente.get(reverse("academico:autocompletar"), {"q": "1104567894"})
     assert Expediente.objects.count() == antes
+
+
+# ------------------------------------------------------------------- orden
+
+
+@pytest.mark.django_db
+def test_ordena_por_facultad_en_los_dos_sentidos(cargado):
+    from apps.academico.selectors import padron
+
+    ascendente = [d.facultad for d in padron(orden="facultad")]
+    descendente = [d.facultad for d in padron(orden="facultad", descendente=True)]
+    assert ascendente == sorted(ascendente)
+    assert descendente == sorted(descendente, reverse=True)
+    assert ascendente != descendente
+
+
+@pytest.mark.django_db
+def test_ordena_por_carrera_y_por_fecha_de_carga(cargado):
+    from apps.academico.selectors import padron
+
+    carreras = [d.carrera for d in padron(orden="carrera")]
+    assert carreras == sorted(carreras)
+
+    fechas = [d.cargado_en for d in padron(orden="fecha", descendente=True)]
+    assert fechas == sorted(fechas, reverse=True)
+
+
+@pytest.mark.django_db
+def test_una_columna_desconocida_no_se_pasa_a_la_consulta(cargado):
+    """
+    `order_by()` acepta cualquier cadena, incluida la que recorra una relación
+    hasta donde no debería llegarse desde aquí. Lo que no esté en la lista
+    blanca se ignora y se cae al orden por defecto.
+    """
+    from django.core.exceptions import FieldError
+
+    from apps.academico.selectors import ORDEN_POR_DEFECTO, campos_de_orden, padron
+
+    # Determinista: se comprueba lo que se le pasa a `order_by`, no el orden
+    # resultante, que con datos iguales podría coincidir por azar.
+    assert campos_de_orden("persona__creado_por__password", False) == campos_de_orden(
+        ORDEN_POR_DEFECTO, False
+    )
+    assert campos_de_orden("../../etc/passwd", False) == campos_de_orden(ORDEN_POR_DEFECTO, False)
+
+    # Y que además no reviente al consultarse.
+    try:
+        list(padron(orden="persona__creado_por__password"))
+    except FieldError:  # pragma: no cover - solo si la lista blanca desaparece
+        pytest.fail("una columna inventada llegó hasta la consulta")
+
+
+@pytest.mark.django_db
+def test_el_orden_descendente_no_invierte_el_desempate(cargado):
+    """
+    «Facultad descendente» invierte las facultades, no los nombres dentro de
+    cada facultad: no es lo que se pide al pulsar una cabecera.
+    """
+    from apps.academico.selectors import campos_de_orden
+
+    assert campos_de_orden("facultad", True) == [
+        "-facultad",
+        "persona__apellidos",
+        "persona__nombres",
+    ]
+
+
+@pytest.mark.django_db
+def test_la_pantalla_ordena_y_señala_por_donde(cargado):
+    _, cliente = _cuenta("admin_orden", Rol.ADMIN_GENERAL)
+    respuesta = cliente.get(reverse("academico:padron"), {"orden": "facultad", "dir": "desc"})
+    contenido = respuesta.content.decode()
+    assert respuesta.context["orden"] == "facultad"
+    assert respuesta.context["descendente"] is True
+    # La flecha dice cuál manda y hacia dónde: una tabla que se reordena sin
+    # decir por qué se lee como un fallo.
+    assert "bi-caret-down-fill" in contenido
+
+
+@pytest.mark.django_db
+def test_ordenar_no_pierde_el_filtro(cargado):
+    """
+    Los enlaces de las cabeceras arrastran la búsqueda: si no, ordenar
+    devolvería la tabla completa y el filtro se perdería sin avisar.
+    """
+    _, cliente = _cuenta("admin_filtro", Rol.ADMIN_GENERAL)
+    respuesta = cliente.get(reverse("academico:padron"), {"q": "Torres", "orden": "carrera"})
+    contenido = respuesta.content.decode()
+    assert "Torres Ochoa" in contenido
+    assert "Pérez Ríos" not in contenido
+    assert "q=Torres" in contenido  # los enlaces de cabecera lo conservan

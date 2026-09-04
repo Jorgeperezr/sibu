@@ -163,7 +163,41 @@ def plantilla_csv() -> str:
 # ---------------------------------------------------------------- el padrón
 
 
-def padron(texto: str = "", periodo_id=None):
+# Por qué columnas se puede ordenar el padrón, y a qué campos corresponden.
+#
+# Una lista blanca y no el parámetro tal cual: `order_by()` acepta cualquier
+# cadena, incluida la que recorra una relación hasta un campo que no debería
+# poder consultarse desde aquí. Lo que no esté en este diccionario se ignora y
+# se cae al orden por defecto.
+#
+# Cada una lleva su desempate por apellidos: sin él, dos filas con la misma
+# facultad salen en un orden que PostgreSQL no garantiza entre página y página,
+# y una persona puede aparecer dos veces o ninguna al pasar de la 1 a la 2.
+ORDENES = {
+    "nombre": ["persona__apellidos", "persona__nombres"],
+    "cedula": ["persona__cedula"],
+    "facultad": ["facultad", "persona__apellidos", "persona__nombres"],
+    "carrera": ["carrera", "persona__apellidos", "persona__nombres"],
+    "ciclo": ["ciclo", "persona__apellidos", "persona__nombres"],
+    "estado": ["estado", "persona__apellidos", "persona__nombres"],
+    "periodo": ["periodo__fecha_inicio", "persona__apellidos", "persona__nombres"],
+    "fecha": ["cargado_en", "persona__apellidos", "persona__nombres"],
+}
+ORDEN_POR_DEFECTO = "nombre"
+
+
+def campos_de_orden(orden: str, descendente: bool) -> list[str]:
+    """Traduce (columna, sentido) a lo que entiende `order_by`."""
+    campos = ORDENES.get(orden) or ORDENES[ORDEN_POR_DEFECTO]
+    if not descendente:
+        return list(campos)
+    # Solo se invierte la columna pedida: invertir también el desempate haría
+    # que «facultad descendente» cambiara además el orden de los nombres dentro
+    # de cada facultad, que no es lo que nadie pide al pulsar una cabecera.
+    return [f"-{campos[0]}", *campos[1:]]
+
+
+def padron(texto: str = "", periodo_id=None, orden: str = ORDEN_POR_DEFECTO, descendente=False):
     """
     Lo que quedó cargado, con su persona y su período.
 
@@ -174,7 +208,7 @@ def padron(texto: str = "", periodo_id=None):
     from .models import DatoAcademico
 
     consulta = DatoAcademico.objects.select_related("persona", "periodo", "carga").order_by(
-        "persona__apellidos", "persona__nombres"
+        *campos_de_orden(orden, descendente)
     )
     if periodo_id:
         consulta = consulta.filter(periodo_id=periodo_id)
