@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Beca — SIBU{% endblock %}
 {% block content %}
-<h2>{{ b.expediente.persona.nombre_completo }}</h2>
+<h1 class="h4 sibu-titulo">{{ b.expediente.persona.nombre_completo }}</h1>
 <p class="text-muted">
   {{ b.tipo_beca.nombre }} · desde {{ b.periodo_desde.codigo }}
   {% if b.periodo_hasta %} hasta {{ b.periodo_hasta.codigo }}{% endif %}

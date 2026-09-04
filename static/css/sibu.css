@@ -294,17 +294,50 @@ a:hover {
   border-bottom: 1px solid var(--sibu-border);
 }
 
-/* ---- Encabezado de página: filo rojo, como las bandas del manual ---- */
-.sibu-contenido > h1:first-child,
-.sibu-contenido h1.h4,
-.sibu-contenido > h2:first-of-type {
+/* ---- Encabezado de página: filo rojo, como las bandas del manual ----
+   Se aplica por CLASE, no por posición en el DOM. Antes eran tres selectores
+   posicionales —`> h1:first-child`, `h1.h4`, `> h2:first-of-type`— y eso daba
+   filete donde no tocaba y ninguno donde sí: el «GENERAL» de la portada, que
+   es el primer h2 de la página, lo llevaba; el título de Psicología, metido
+   dentro de un div para acompañarlo de una insignia, no lo llevaba. Con una
+   clase explícita el resultado no depende de dónde caiga el elemento. */
+.sibu-titulo {
   font-weight: 700;
   padding-bottom: 0.35rem;
   border-bottom: 3px solid var(--unl-rojo);
+  /* `inline-block` para que el filete mida lo que el texto y no el ancho de la
+     columna. `max-width` porque, siendo inline-block dentro de un flex, un
+     título largo empujaba el contenedor y sacaba del viewport a lo que tuviera
+     al lado. */
   display: inline-block;
+  max-width: 100%;
 }
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
+}
+
+/* El subtítulo que acompaña al título va SIEMPRE en su propia línea. Como
+   `.sibu-titulo` es `inline-block` para que el filete mida lo que el texto, un
+   `<small>` o un `<p>` a continuación se colocaba al lado y se enredaba con el
+   filete —«Mis datos» y «Padrón institucional» lo hacían—. Se arregla aquí y no
+   plantilla por plantilla: así vale también para la siguiente que se escriba. */
+.sibu-titulo + small,
+.sibu-titulo + p,
+.sibu-titulo + span {
+  display: block;
+}
+
+/* Cabecera de página: el título a la izquierda y sus acciones a la derecha,
+   que en pantalla estrecha bajan en vez de salirse. Es el patrón que casi
+   todas las plantillas escribían a mano con `d-flex justify-content-between`,
+   sin `flex-wrap`: por eso la insignia de Psicología se salía a 375 px. */
+.sibu-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
 }
 
 /* ---- Señal de confidencialidad ---- */
@@ -354,9 +387,6 @@ a:focus-visible,
   letter-spacing: 0.11em;
   color: var(--sibu-muted);
   margin-bottom: 0.6rem;
-  /* Sin esto hereda el filo rojo de los títulos de página. */
-  border-bottom: 0;
-  padding-bottom: 0;
   display: block;
 }
 .sibu-tarjeta {

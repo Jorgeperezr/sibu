@@ -2,7 +2,7 @@
 {% block title %}Ficha socioeconómica — SIBU{% endblock %}
 {% block content %}
 <div class="mb-3">
-  <h1 class="h4 mb-0">Ficha socioeconómica</h1>
+  <h1 class="h4 sibu-titulo mb-0">Ficha socioeconómica</h1>
   <small class="text-muted d-block">
     {{ expediente.persona.nombre_completo }} · Expediente {{ expediente.numero_expediente }}
   </small>
@@ -110,13 +110,15 @@
     <div class="card mt-3">
       <div class="card-header py-2"><small>{{ g.titulo }}</small></div>
       <div class="card-body p-0">
-        <table class="table table-sm mb-0 small">
-          <tbody>
-            {% for f in g.filas %}
-            <tr><th class="fw-normal text-muted ps-3">{{ f.etiqueta }}</th><td>{{ f.valor }}</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 small">
+            <tbody>
+              {% for f in g.filas %}
+              <tr><th class="fw-normal text-muted ps-3">{{ f.etiqueta }}</th><td>{{ f.valor }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
     {% endfor %}

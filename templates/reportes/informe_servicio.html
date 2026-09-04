@@ -1,8 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Informe estadístico · SIBU{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3">
-  <h1 class="h4 mb-0">Informe estadístico</h1>
+<div class="sibu-cabecera mb-3"><h1 class="h4 sibu-titulo mb-0">Informe estadístico</h1>
   <a href="{% url 'reportes:informe_servicio_pdf' %}?servicio={{ servicio.pk }}&desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}"
      class="btn btn-sm btn-primary">
     <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
@@ -64,54 +63,64 @@ siendo una sola persona atendida.
   <div class="col-md-4">
     <div class="card h-100">
       <div class="card-header">Sexo</div>
-      <table class="table table-sm mb-0"><tbody>
-        {% for f in datos.sexo %}
-        <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
-        {% endfor %}
-      </tbody></table>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0"><tbody>
+          {% for f in datos.sexo %}
+          <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
+          {% endfor %}
+        </tbody></table>
+      </div>
     </div>
   </div>
   <div class="col-md-4">
     <div class="card h-100">
       <div class="card-header">Género</div>
-      <table class="table table-sm mb-0"><tbody>
-        {% for f in datos.genero %}
-        <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
-        {% endfor %}
-      </tbody></table>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0"><tbody>
+          {% for f in datos.genero %}
+          <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
+          {% endfor %}
+        </tbody></table>
+      </div>
     </div>
   </div>
   <div class="col-md-4">
     <div class="card h-100">
       <div class="card-header">Identidad u orientación sexual</div>
-      <table class="table table-sm mb-0"><tbody>
-        {% for f in datos.identidad_orientacion_sexual %}
-        <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
-        {% endfor %}
-      </tbody></table>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0"><tbody>
+          {% for f in datos.identidad_orientacion_sexual %}
+          <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
+          {% endfor %}
+        </tbody></table>
+      </div>
     </div>
   </div>
   <div class="col-md-4">
     <div class="card h-100">
       <div class="card-header">Discapacidad</div>
-      <table class="table table-sm mb-0"><tbody>
-        {% for f in datos.discapacidad %}
-        <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
-        {% endfor %}
-      </tbody></table>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0"><tbody>
+          {% for f in datos.discapacidad %}
+          <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
+          {% endfor %}
+        </tbody></table>
+      </div>
     </div>
   </div>
   <div class="col-md-8">
     <div class="card h-100">
       <div class="card-header">Otras condiciones (atenciones con la alerta activa)</div>
-      <table class="table table-sm mb-0">
-        <tbody>
-          <tr><td>Embarazo</td><td class="text-end">{{ datos.embarazo.total }}</td><td class="text-end text-muted">{{ datos.embarazo.porcentaje }}%</td></tr>
-          <tr><td>Lactancia</td><td class="text-end">{{ datos.lactancia.total }}</td><td class="text-end text-muted">{{ datos.lactancia.porcentaje }}%</td></tr>
-          <tr><td>Enfermedad catastrófica</td><td class="text-end">{{ datos.enfermedad_catastrofica.total }}</td><td class="text-end text-muted">{{ datos.enfermedad_catastrofica.porcentaje }}%</td></tr>
-          <tr><td>Necesidad educativa especial</td><td class="text-end">{{ datos.necesidad_educativa_especial.total }}</td><td class="text-end text-muted">{{ datos.necesidad_educativa_especial.porcentaje }}%</td></tr>
-        </tbody>
-      </table>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><td>Embarazo</td><td class="text-end">{{ datos.embarazo.total }}</td><td class="text-end text-muted">{{ datos.embarazo.porcentaje }}%</td></tr>
+            <tr><td>Lactancia</td><td class="text-end">{{ datos.lactancia.total }}</td><td class="text-end text-muted">{{ datos.lactancia.porcentaje }}%</td></tr>
+            <tr><td>Enfermedad catastrófica</td><td class="text-end">{{ datos.enfermedad_catastrofica.total }}</td><td class="text-end text-muted">{{ datos.enfermedad_catastrofica.porcentaje }}%</td></tr>
+            <tr><td>Necesidad educativa especial</td><td class="text-end">{{ datos.necesidad_educativa_especial.total }}</td><td class="text-end text-muted">{{ datos.necesidad_educativa_especial.porcentaje }}%</td></tr>
+          </tbody>
+        </table>
+      </div>
       <div class="card-body">
         <p class="small text-muted mb-0">
           Sexo, género, identidad u orientación sexual y discapacidad se cuentan por categoría (arriba).

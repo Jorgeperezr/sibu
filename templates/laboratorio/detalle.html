@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Orden #{{ orden.id }} · Laboratorio{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3">
+<div class="sibu-cabecera mb-3">
   <div>
-    <h1 class="h4 mb-0">Orden #{{ orden.id }}</h1>
+    <h1 class="h4 sibu-titulo mb-0">Orden #{{ orden.id }}</h1>
     <small class="text-muted">
       {{ persona.nombre_completo }} · {{ persona.cedula }} ·
       <span class="badge bg-info text-dark">{{ orden.get_estado_display }}</span>

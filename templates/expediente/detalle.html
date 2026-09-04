@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Expediente {{ expediente.numero_expediente }} · SIBU{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3">
+<div class="sibu-cabecera mb-3">
   <div>
-    <h1 class="h4 mb-0">{{ persona.nombre_completo }}</h1>
+    <h1 class="h4 sibu-titulo mb-0">{{ persona.nombre_completo }}</h1>
     <small class="text-muted">Expediente {{ expediente.numero_expediente }} ·
       {{ persona.cedula }} · {{ persona.get_tipo_vinculo_display }}</small>
   </div>

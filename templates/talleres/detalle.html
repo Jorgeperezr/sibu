@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ t.codigo }} — SIBU{% endblock %}
 {% block content %}
-<h2>{{ t.tema }}</h2>
+<h1 class="h4 sibu-titulo">{{ t.tema }}</h1>
 <p class="text-muted">
   <code>{{ t.codigo }}</code> · {{ t.servicio.nombre }} · {{ t.fecha|date:"d/m/Y" }} ·
   <span class="badge bg-light text-dark border">{{ t.get_estado_display }}</span>
@@ -72,24 +72,26 @@
       <div class="card-header">Participantes ({{ participantes.count }})</div>
       <div class="card-body p-0">
         {% if participantes %}
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Cédula / Nombre</th><th>Validado</th><th>Asistió</th></tr></thead>
-          <tbody>
-            {% for p in participantes %}
-            <tr>
-              <td class="small">
-                {% if p.expediente %}{{ p.expediente.persona.nombre_completo }}
-                {% else %}{{ p.cedula_digitada }}{% endif %}
-              </td>
-              <td>
-                {% if p.validado %}<span class="badge bg-success-subtle text-success-emphasis">Sí</span>
-                {% else %}<span class="badge bg-light text-dark border" title="Externo a la institución">Externo</span>{% endif %}
-              </td>
-              <td>{% if p.asistio %}✓{% else %}—{% endif %}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>Cédula / Nombre</th><th>Validado</th><th>Asistió</th></tr></thead>
+            <tbody>
+              {% for p in participantes %}
+              <tr>
+                <td class="small">
+                  {% if p.expediente %}{{ p.expediente.persona.nombre_completo }}
+                  {% else %}{{ p.cedula_digitada }}{% endif %}
+                </td>
+                <td>
+                  {% if p.validado %}<span class="badge bg-success-subtle text-success-emphasis">Sí</span>
+                  {% else %}<span class="badge bg-light text-dark border" title="Externo a la institución">Externo</span>{% endif %}
+                </td>
+                <td>{% if p.asistio %}✓{% else %}—{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
         {% else %}<p class="text-muted small p-3 mb-0">Sin participantes.</p>{% endif %}
       </div>
     </div>

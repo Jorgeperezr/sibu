@@ -1,8 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Inventario · Farmacia{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3">
-  <h1 class="h4 mb-0">Inventario</h1>
+<div class="sibu-cabecera mb-3"><h1 class="h4 sibu-titulo mb-0">Inventario</h1>
   <div class="d-flex gap-2">
     <form method="post" onsubmit="return confirm('Se dará de baja todo lote caducado con existencias. ¿Continuar?');">
       {% csrf_token %}

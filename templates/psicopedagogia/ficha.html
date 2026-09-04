@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Ficha psicopedagógica — SIBU{% endblock %}
 {% block content %}
-<h2>{{ ficha.atencion.expediente.persona.nombre_completo }}</h2>
+<h1 class="h4 sibu-titulo">{{ ficha.atencion.expediente.persona.nombre_completo }}</h1>
 <p class="text-muted small">{{ ficha.motivo }}</p>
 
 <div class="row g-3">
@@ -77,24 +77,26 @@
       <div class="card-header">Seguimientos</div>
       <div class="card-body p-0">
         {% if seguimientos %}
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Periodo</th><th>Antes</th><th>Después</th><th>Δ</th></tr></thead>
-          <tbody>
-            {% for s in seguimientos %}
-            <tr>
-              <td>{{ s.periodo }}</td>
-              <td>{{ s.promedio_antes|default:"—" }}</td>
-              <td>{{ s.promedio_despues|default:"—" }}</td>
-              <td>
-                {% if s.promedio_antes and s.promedio_despues %}
-                  {% widthratio s.promedio_despues 1 1 as d %}
-                  <span class="badge bg-light text-dark">{{ s.promedio_despues|floatformat:2 }} vs {{ s.promedio_antes|floatformat:2 }}</span>
-                {% else %}<span class="text-muted small">incompleto</span>{% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>Periodo</th><th>Antes</th><th>Después</th><th>Δ</th></tr></thead>
+            <tbody>
+              {% for s in seguimientos %}
+              <tr>
+                <td>{{ s.periodo }}</td>
+                <td>{{ s.promedio_antes|default:"—" }}</td>
+                <td>{{ s.promedio_despues|default:"—" }}</td>
+                <td>
+                  {% if s.promedio_antes and s.promedio_despues %}
+                    {% widthratio s.promedio_despues 1 1 as d %}
+                    <span class="badge bg-light text-dark">{{ s.promedio_despues|floatformat:2 }} vs {{ s.promedio_antes|floatformat:2 }}</span>
+                  {% else %}<span class="text-muted small">incompleto</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
         {% else %}<p class="text-muted small p-3 mb-0">Sin seguimientos.</p>{% endif %}
       </div>
     </div>
