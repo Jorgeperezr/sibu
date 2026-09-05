@@ -30,6 +30,12 @@ def estructura(db):
     Servicio.objects.get_or_create(
         codigo="farmacia", defaults={"nombre": "Farmacia", "seccion": salud}
     )
+    Servicio.objects.get_or_create(
+        codigo="odontologia", defaults={"nombre": "Odontología", "seccion": salud}
+    )
+    Servicio.objects.get_or_create(
+        codigo="enfermeria", defaults={"nombre": "Enfermería", "seccion": salud}
+    )
     psico_sec, _ = Seccion.objects.get_or_create(
         codigo="psicopedagogica", defaults={"nombre": "Psicopedagógica"}
     )
@@ -68,13 +74,52 @@ def test_un_psicologo_ve_psicologia(estructura):
 
 
 @pytest.mark.django_db
+def test_un_odontologo_ve_odontologia(estructura):
+    odonto = Servicio.objects.get(codigo="odontologia")
+    _, prof = crear_profesional("dentista_nav", odonto, odonto.seccion)
+    assert "Odontología" in _etiquetas(prof.usuario)
+
+
+@pytest.mark.django_db
+def test_quien_no_es_de_odontologia_no_ve_odontologia(estructura):
+    """Coherente con el 403 de la bandeja: mismo criterio en menú y vista."""
+    lab = Servicio.objects.get(codigo="laboratorio-clinico")
+    _, prof = crear_profesional("lab_sin_odonto", lab, lab.seccion)
+    assert "Odontología" not in _etiquetas(prof.usuario)
+
+
+@pytest.mark.django_db
+def test_cada_servicio_de_salud_ve_el_suyo_y_no_los_demas(estructura):
+    """Los nueve servicios son navegables, y cada uno solo ve el propio."""
+    for codigo, etiqueta in [
+        ("medicina", "Medicina"),
+        ("enfermeria", "Enfermería"),
+        ("odontologia", "Odontología"),
+    ]:
+        servicio = Servicio.objects.get(codigo=codigo)
+        _, prof = crear_profesional(f"prof_{codigo}", servicio, servicio.seccion)
+        etiquetas = _etiquetas(prof.usuario)
+        assert etiqueta in etiquetas
+        otros = {"Medicina", "Enfermería", "Odontología"} - {etiqueta}
+        assert otros & etiquetas == set()
+
+
+@pytest.mark.django_db
 def test_el_admin_ve_todos_los_modulos(estructura):
     """Admin navega todo; el acceso fino al contenido lo resuelve cada vista."""
     u = Usuario.objects.create_user(
         username="admin", password=CLAVE, rol_principal=Rol.ADMIN_GENERAL
     )
     etiquetas = _etiquetas(u)
-    assert {"Laboratorio", "Farmacia", "Psicología", "Becas"} <= etiquetas
+    assert {
+        "Medicina",
+        "Enfermería",
+        "Odontología",
+        "Laboratorio",
+        "Farmacia",
+        "Psicología",
+        "Becas",
+    } <= etiquetas
 
 
 @pytest.mark.django_db
@@ -151,3 +196,57 @@ def test_expediente_raiz_redirige_a_buscar(estructura):
     r = c.get("/expediente/")
     assert r.status_code == 302
     assert r.url.endswith("/expediente/buscar/")
+
+
+# --------------------------------------------------------------------------
+# Acciones sobre el expediente
+# --------------------------------------------------------------------------
+
+
+def _acciones(user):
+    from apps.core.navegacion import acciones_expediente
+
+    return {a.etiqueta for a in acciones_expediente(user)}
+
+
+@pytest.mark.django_db
+def test_cada_servicio_solo_puede_iniciar_lo_suyo(estructura):
+    """
+    Los botones del expediente salen del RBAC, igual que el menú: quien no
+    puede abrir esa atención tampoco ve el botón, y quien lo ve no se lleva un
+    403 al pulsarlo.
+    """
+    medicina = Servicio.objects.get(codigo="medicina")
+    _, medico = crear_profesional("medico_acc", medicina, medicina.seccion)
+    acciones = _acciones(medico.usuario)
+    assert "Consulta médica" in acciones
+    assert "Proceso psicológico" not in acciones
+    assert "Triaje" not in acciones
+
+
+@pytest.mark.django_db
+def test_el_psicologo_es_el_unico_que_abre_un_proceso_psicologico(estructura):
+    psico = Servicio.objects.get(codigo="psicologia")
+    _, prof = crear_profesional("psi_acc", psico, psico.seccion)
+    assert "Proceso psicológico" in _acciones(prof.usuario)
+
+    lab = Servicio.objects.get(codigo="laboratorio-clinico")
+    _, otro = crear_profesional("lab_acc", lab, lab.seccion)
+    assert "Proceso psicológico" not in _acciones(otro.usuario)
+
+
+@pytest.mark.django_db
+def test_la_trazabilidad_de_derivaciones_la_ve_cualquier_profesional(estructura):
+    """No es contenido clínico: es el rastro de a dónde se derivó."""
+    lab = Servicio.objects.get(codigo="laboratorio-clinico")
+    _, prof = crear_profesional("lab_traza", lab, lab.seccion)
+    assert "Trazabilidad de derivaciones" in _acciones(prof.usuario)
+
+
+@pytest.mark.django_db
+def test_un_usuario_del_portal_no_inicia_atenciones(estructura):
+    """El estudiante consulta lo suyo; no abre historias clínicas."""
+    u = Usuario.objects.create_user(
+        username="estu_acc", password=CLAVE, rol_principal=Rol.USUARIO_FINAL
+    )
+    assert _acciones(u) == set()

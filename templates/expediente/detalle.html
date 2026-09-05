@@ -1,13 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Expediente {{ expediente.numero_expediente }} · SIBU{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3">
+<div class="sibu-cabecera mb-3">
   <div>
-    <h1 class="h4 mb-0">{{ persona.nombre_completo }}</h1>
+    <h1 class="h4 sibu-titulo mb-0">{{ persona.nombre_completo }}</h1>
     <small class="text-muted">Expediente {{ expediente.numero_expediente }} ·
       {{ persona.cedula }} · {{ persona.get_tipo_vinculo_display }}</small>
   </div>
-  <a href="{% url 'expediente:buscar' %}" class="btn btn-sm btn-outline-secondary">Nueva búsqueda</a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'expediente:datos' expediente.pk %}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-sliders"></i> Datos y ajustes
+    </a>
+    <a href="{% url 'expediente:buscar' %}" class="btn btn-sm btn-outline-secondary">Nueva búsqueda</a>
+  </div>
 </div>
 
 {% if alertas %}
@@ -15,6 +20,62 @@
   {% for a in alertas %}
     <span class="badge bg-danger me-1" title="{{ a.get_tipo_display }}">⚠ {{ a.descripcion }}</span>
   {% endfor %}
+</div>
+{% endif %}
+
+{% if tipos_alerta %}
+<div class="card mb-3">
+  <div class="card-header">
+    <a class="text-decoration-none text-body d-block" data-bs-toggle="collapse"
+       href="#form-alerta" role="button">
+      <i class="bi bi-flag"></i> Registrar alerta clínica
+    </a>
+  </div>
+  <div class="collapse" id="form-alerta">
+    <div class="card-body">
+      {% comment %}
+      Visible en todo el expediente por diseño del modelo: una alergia la debe
+      ver Farmacia, una NEE la debe ver Psicopedagogía. No es contenido
+      clínico narrativo —lo que protege el sello de Psicología—, es una
+      bandera, así que registrarla desde cualquier servicio no abre rendija.
+      {% endcomment %}
+      <form method="post" action="{% url 'expediente:alertas' expediente.id %}" class="row g-2">
+        {% csrf_token %}
+        <div class="col-sm-4">
+          <select name="tipo" class="form-select form-select-sm" required>
+            <option value="">Tipo de alerta</option>
+            {% for valor, etiqueta in tipos_alerta %}
+              <option value="{{ valor }}">{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-6">
+          <input name="descripcion" class="form-control form-control-sm" maxlength="255"
+                 placeholder="Descripción" required>
+        </div>
+        <div class="col-sm-2">
+          <button class="btn btn-sm btn-outline-primary w-100">Registrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if acciones %}
+<div class="card mb-3">
+  <div class="card-header">Iniciar atención</div>
+  <div class="card-body d-flex flex-wrap gap-2">
+    {% for a in acciones %}
+    {% comment %}
+    Los botones salen del RBAC, igual que el menú: quien no puede abrir esa
+    atención tampoco ve el botón, y el que lo ve no recibe un 403 al pulsarlo.
+    {% endcomment %}
+    <a href="{% url a.url_name expediente.id %}" class="btn btn-sm btn-{{ a.variante }}">
+      {% if a.icono %}<i class="bi bi-{{ a.icono }}"></i>{% endif %} {{ a.etiqueta }}
+    </a>
+    {% endfor %}
+  </div>
 </div>
 {% endif %}
 
@@ -34,6 +95,16 @@
           · <span class="badge bg-secondary">{{ at.get_estado_display }}</span>
         </div>
         {% if at.motivo_consulta %}<div class="small">{{ at.motivo_consulta|truncatechars:120 }}</div>{% endif %}
+        {% if at.puede_derivar %}
+        {% comment %}
+        Solo desde una atención propia: es la misma regla que aplica la vista
+        de derivar. Sin este enlace había que teclear la URL a mano.
+        {% endcomment %}
+        <a href="{% url 'derivaciones:derivar' at.id %}"
+           class="btn btn-sm btn-outline-primary mt-2">
+          <i class="bi bi-arrow-right-circle"></i> Derivar a otro servicio
+        </a>
+        {% endif %}
       </li>
     {% empty %}
       <li class="list-group-item text-muted">No hay atenciones visibles para su rol en este expediente.</li>

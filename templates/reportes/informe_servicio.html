@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Informe estadístico · SIBU{% endblock %}
+{% block content %}
+<div class="sibu-cabecera mb-3"><h1 class="h4 sibu-titulo mb-0">Informe estadístico</h1>
+  <a href="{% url 'reportes:informe_servicio_pdf' %}?servicio={{ servicio.pk }}&desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}"
+     class="btn btn-sm btn-primary">
+    <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+  </a>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+  {% if servicios|length > 1 %}
+  <div class="col-auto">
+    <select name="servicio" class="form-select form-select-sm">
+      {% for s in servicios %}
+        <option value="{{ s.pk }}" {% if s.pk == servicio.pk %}selected{% endif %}>{{ s.nombre }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  <div class="col-auto">
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm">
+  </div>
+  <div class="col-auto">
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm">
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-sm btn-outline-primary">Filtrar</button>
+  </div>
+</form>
+
+{% comment %}
+Las dos cifras van una junto a otra a propósito: no son la misma pregunta.
+Una persona atendida tres veces en el rango suma tres atenciones pero sigue
+siendo una sola persona atendida.
+{% endcomment %}
+<div class="row g-3 mb-3">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <div class="small text-muted">Atenciones</div>
+        <div class="fs-3 fw-bold">{{ datos.total_atenciones }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <div class="small text-muted">Personas atendidas</div>
+        <div class="fs-3 fw-bold">{{ datos.total_pacientes }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="small text-muted">
+  {{ datos.servicio.nombre }}{% if desde or hasta %} · entre {{ desde|date:"d/m/Y"|default:"el inicio" }} y {{ hasta|date:"d/m/Y"|default:"la fecha" }}{% endif %}.
+  Los porcentajes de las tablas de abajo son sobre el total de atenciones, no
+  sobre personas: quien fue atendido tres veces cuenta tres veces.
+</p>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header">Sexo</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0"><tbody>
+          {% for f in datos.sexo %}
+          <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
+          {% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header">Género</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0"><tbody>
+          {% for f in datos.genero %}
+          <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
+          {% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header">Identidad u orientación sexual</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0"><tbody>
+          {% for f in datos.identidad_orientacion_sexual %}
+          <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
+          {% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header">Discapacidad</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0"><tbody>
+          {% for f in datos.discapacidad %}
+          <tr><td>{{ f.etiqueta }}</td><td class="text-end">{{ f.total }}</td><td class="text-end text-muted">{{ f.porcentaje }}%</td></tr>
+          {% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="card h-100">
+      <div class="card-header">Otras condiciones (atenciones con la alerta activa)</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><td>Embarazo</td><td class="text-end">{{ datos.embarazo.total }}</td><td class="text-end text-muted">{{ datos.embarazo.porcentaje }}%</td></tr>
+            <tr><td>Lactancia</td><td class="text-end">{{ datos.lactancia.total }}</td><td class="text-end text-muted">{{ datos.lactancia.porcentaje }}%</td></tr>
+            <tr><td>Enfermedad catastrófica</td><td class="text-end">{{ datos.enfermedad_catastrofica.total }}</td><td class="text-end text-muted">{{ datos.enfermedad_catastrofica.porcentaje }}%</td></tr>
+            <tr><td>Necesidad educativa especial</td><td class="text-end">{{ datos.necesidad_educativa_especial.total }}</td><td class="text-end text-muted">{{ datos.necesidad_educativa_especial.porcentaje }}%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted mb-0">
+          Sexo, género, identidad u orientación sexual y discapacidad se cuentan por categoría (arriba).
+          Estas cuatro no son categorías sino banderas: se cuenta cuántas de
+          las atenciones del período tenían la alerta activa al generar el
+          informe, no en el momento exacto de cada atención. El porcentaje,
+          igual que en las demás tablas, es sobre el total de atenciones.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

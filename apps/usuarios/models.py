@@ -32,6 +32,7 @@ class Usuario(AbstractUser):
     rol_principal = models.CharField(max_length=20, choices=Rol.choices, default=Rol.CONSULTA)
     mfa_habilitado = models.BooleanField(default=False)
     telefono = models.CharField(max_length=20, blank=True)
+    fecha_nacimiento = models.DateField(null=True, blank=True)
 
     class Meta:
         verbose_name = "usuario"
@@ -51,6 +52,9 @@ class PerfilProfesional(models.Model):
     registro_profesional = models.CharField(
         max_length=60, blank=True, help_text="Registro (ACESS/SENESCYT) del profesional."
     )
+    denominacion_cargo = models.CharField(
+        max_length=150, blank=True, help_text="Denominación del cargo según el manual de puestos."
+    )
     puede_firmar_digital = models.BooleanField(default=False)
 
     class Meta:
@@ -59,3 +63,37 @@ class PerfilProfesional(models.Model):
 
     def __str__(self):
         return f"Perfil de {self.usuario}"
+
+
+class ActividadEsencial(models.Model):
+    """
+    Una actividad esencial del manual de puestos (LOSEP) del profesional.
+
+    El manual real numera entre diez y trece actividades; la última suele ser
+    "las demás actividades que le asigne su jefe inmediato", y bajo esa
+    entrada se acumulan con el tiempo tareas concretas delegadas. Por eso una
+    actividad admite sub-actividades vía `actividad_superior`: no es una lista
+    plana forzada a serlo, es la misma jerarquía de dos niveles que trae el
+    manual de puestos.
+
+    `perfil` se guarda también en las sub-actividades —no solo en la raíz— para
+    no tener que subir la cadena en cada consulta; se valida en el servicio
+    que coincida con el de `actividad_superior`.
+    """
+
+    perfil = models.ForeignKey(
+        PerfilProfesional, on_delete=models.CASCADE, related_name="actividades_esenciales"
+    )
+    actividad_superior = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.CASCADE, related_name="subactividades"
+    )
+    orden = models.PositiveSmallIntegerField()
+    descripcion = models.CharField(max_length=500)
+
+    class Meta:
+        verbose_name = "actividad esencial"
+        verbose_name_plural = "actividades esenciales"
+        ordering = ["orden"]
+
+    def __str__(self):
+        return self.descripcion[:60]

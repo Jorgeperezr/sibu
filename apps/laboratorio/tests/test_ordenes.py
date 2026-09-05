@@ -16,7 +16,7 @@ from apps.medicina import services as med_services
 def escenario(db):
     est = crear_estructura()
     _, medico = crear_profesional("medico", est["medicina"], est["salud"])
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     CIE10.objects.get_or_create(codigo="J00", defaults={"descripcion": "Resfriado"})
     hemograma = Examen.objects.create(
         codigo="LAB-001", nombre="Biometría hemática", perfil="Hematología"
@@ -80,3 +80,29 @@ def test_no_solicitar_sobre_atencion_firmada(escenario):
     atencion.save()
     with pytest.raises(ValidationError, match="firmada"):
         services.crear_orden(atencion, [escenario["hemograma"].id])
+
+
+@pytest.mark.django_db
+def test_un_rango_de_referencia_invertido_se_rechaza(escenario):
+    """
+    Invertirlo no da error visible: hace que ningún resultado caiga dentro de la
+    referencia, así que todos salen marcados alto o bajo y la lectura clínica
+    queda falseada en silencio.
+    """
+    from django.db import IntegrityError, transaction
+
+    from apps.laboratorio.models import Examen, ParametroExamen
+
+    examen = Examen.objects.create(codigo="EX-RANGO", nombre="Prueba")
+    with pytest.raises(IntegrityError), transaction.atomic():
+        ParametroExamen.objects.create(examen=examen, nombre="Hemoglobina", ref_min=18, ref_max=12)
+
+
+@pytest.mark.django_db
+def test_un_rango_abierto_por_un_lado_sigue_valiendo(escenario):
+    """Muchos parámetros solo tienen tope superior o inferior."""
+    from apps.laboratorio.models import Examen, ParametroExamen
+
+    examen = Examen.objects.create(codigo="EX-ABIERTO", nombre="Prueba")
+    p = ParametroExamen.objects.create(examen=examen, nombre="Glucosa", ref_max=100)
+    assert p.pk is not None

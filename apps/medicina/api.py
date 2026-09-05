@@ -21,6 +21,7 @@ from apps.expediente.models import Expediente
 from apps.farmacia import services as farmacia_services
 from apps.laboratorio import services as lab_services
 from apps.usuarios import rbac
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
 
 from . import services
 from .models import AtencionMedicina
@@ -39,7 +40,7 @@ class AtencionMedicinaViewSet(viewsets.ModelViewSet):
         "atencion__expediente__persona", "atencion__servicio", "atencion__profesional"
     )
     serializer_class = AtencionMedicinaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         """Filtrado RBAC: solo atenciones que el rol del usuario puede ver."""

@@ -1002,7 +1002,7 @@ El desarrollo se realizará **principalmente en GitHub Codespaces** (cuenta educ
 Buenas prácticas del entorno:
 
 1. **Gestión de horas en Codespaces:** máquina de 2 núcleos por defecto, auto-stop a 30 minutos de inactividad, eliminar codespaces antiguos (el almacenamiento también consume cuota) y usar prebuilds solo si el presupuesto lo permite.
-2. **Datos:** exclusivamente **sintéticos** en desarrollo (comando `manage.py generar_datos_demo`); jamás cargar la ficha socioeconómica real ni historias clínicas en entornos de desarrollo en la nube.
+2. **Datos:** exclusivamente **sintéticos** en desarrollo (comando `manage.py datos_demo`, que se niega a correr con `DEBUG=False`); jamás cargar la ficha socioeconómica real ni historias clínicas en entornos de desarrollo en la nube.
 3. **Secretos:** variables mediante Codespaces Secrets / archivo `.env` local (excluido del repositorio); las credenciales OAuth de Google de desarrollo apuntan a un proyecto de prueba de Google Cloud, nunca al Workspace productivo.
 4. **CI/CD:** GitHub Actions (3.000 min/mes educativos) ejecuta en cada push: ruff, bandit, pip-audit, migraciones y pytest con PostgreSQL de servicio; el pipeline es el mismo que luego desplegará a los servidores institucionales.
 5. **Puertos:** 8000 (Django) con reenvío automático en Codespaces; 5432/6379 internos a la red del compose.
@@ -1097,7 +1097,7 @@ GET  /api/v1/indicadores/dashboard/?rango=
   "service": "web",
   "workspaceFolder": "/workspace",
   "forwardPorts": [8000],
-  "postCreateCommand": "pip install -r requirements/dev.txt && python manage.py migrate && python manage.py generar_datos_demo",
+  "postCreateCommand": "pip install -r requirements/dev.txt",
   "customizations": {
     "vscode": {
       "extensions": [

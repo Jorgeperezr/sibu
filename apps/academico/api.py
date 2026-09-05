@@ -15,6 +15,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.usuarios.permissions import EsAdministrador
+from apps.usuarios.rbac import puede_ver_expediente
 
 from .models import CargaInstitucional
 from .providers import get_provider
@@ -89,7 +90,19 @@ class CargaInstitucionalViewSet(viewsets.ModelViewSet):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def consultar_persona(request, cedula: str):
-    """Autocompletado por cédula. Devuelve datos institucionales o 404."""
+    """
+    Autocompletado por cédula. Devuelve datos institucionales o 404.
+
+    Exige ser personal: la respuesta lleva nombre, facultad, carrera y estado
+    de matrícula de la persona. `@login_required` a secas convertía esto en
+    una consulta libre del padrón universitario, que es justo lo que la vista
+    web `buscar` dejó de ser.
+    """
+    if not puede_ver_expediente(request.user):
+        return Response(
+            {"detalle": "No tiene permisos para consultar expedientes."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     datos = get_provider().consultar_persona(cedula)
     if datos is None:
         return Response(

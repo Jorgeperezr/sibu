@@ -5,8 +5,10 @@ Toda ficha de servicio (Medicina, Enfermería, …) extiende `Atencion` mediante
 una relación OneToOne (patrón "clase base + extensión", informe 4.2 y 11.3).
 """
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
+from apps.academico.validators import normalizar_cedula, validar_cedula_ecuatoriana
 from apps.core.models import ModeloBase, Servicio
 from apps.usuarios.models import PerfilProfesional
 
@@ -28,6 +30,9 @@ class Persona(ModeloBase):
     fecha_nacimiento = models.DateField(null=True, blank=True)
     sexo = models.CharField(max_length=20, blank=True)
     genero = models.CharField(max_length=30, blank=True)
+    # Identidad de género y orientación sexual: un solo ítem, no dos campos.
+    # Libre y no obligatorio, igual que sexo/género.
+    identidad_orientacion_sexual = models.CharField(max_length=60, blank=True)
     tipo_vinculo = models.CharField(max_length=20, choices=TipoVinculo.choices)
     correo_institucional = models.EmailField(blank=True)
     correo_personal = models.EmailField(blank=True)
@@ -51,6 +56,27 @@ class Persona(ModeloBase):
     def nombre_completo(self):
         return f"{self.apellidos} {self.nombres}".strip()
 
+    def save(self, *args, **kwargs):
+        """
+        Normaliza y valida la cédula antes de tocar la base.
+
+        La cédula es la clave de vinculación del expediente único: una mal
+        digitada crea una persona fantasma que ya no se puede cruzar con nada.
+        `academico`, `talleres` y `portal` validaban en su propio servicio, pero
+        el modelo aceptaba cualquier cadena, así que cualquier otra vía de
+        creación —el admin, el shell, una migración de datos— la colaba.
+
+        Se valida solo el documento de tipo cédula: un externo con pasaporte no
+        pasa el módulo 10 ecuatoriano y es un caso legítimo.
+        """
+        if self.tipo_documento == "cedula":
+            self.cedula = normalizar_cedula(self.cedula)
+            if not validar_cedula_ecuatoriana(self.cedula):
+                raise ValidationError(
+                    {"cedula": f"La cédula {self.cedula} no es válida (módulo 10 ecuatoriano)."}
+                )
+        return super().save(*args, **kwargs)
+
 
 class Expediente(ModeloBase):
     """Carpeta digital única que consolida todas las atenciones de la persona."""
@@ -65,6 +91,15 @@ class Expediente(ModeloBase):
     class Meta:
         verbose_name = "expediente"
         verbose_name_plural = "expedientes"
+        constraints = [
+            # PositiveSmallIntegerField solo impide el negativo: un 250 % de
+            # discapacidad entraba sin protestar.
+            models.CheckConstraint(
+                condition=models.Q(discapacidad_porcentaje__isnull=True)
+                | models.Q(discapacidad_porcentaje__lte=100),
+                name="ck_expediente_discapacidad_hasta_100",
+            ),
+        ]
 
     def __str__(self):
         return f"Expediente {self.numero_expediente}"
@@ -78,9 +113,13 @@ class AlertaClinica(ModeloBase):
         RIESGO = "riesgo", "Riesgo clínico"
         SOCIAL = "social", "Alerta social"
         NEE = "nee", "Necesidad educativa especial"
+        GESTACION = "gestacion", "Gestación"
+        LACTANCIA = "lactancia", "Lactancia"
+        ENF_CATASTROFICA = "enf_catastrofica", "Enfermedad catastrófica"
 
     expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE, related_name="alertas")
-    tipo = models.CharField(max_length=12, choices=Tipo.choices)
+    # Se ensancha de 12 a 20: "enf_catastrofica" no cabía en el ancho original.
+    tipo = models.CharField(max_length=20, choices=Tipo.choices)
     descripcion = models.CharField(max_length=255)
     activa = models.BooleanField(default=True)
 
@@ -162,3 +201,58 @@ class Atencion(ModeloBase):
     @property
     def inmutable(self):
         return self.estado in {self.Estado.FIRMADA, self.Estado.ENMENDADA}
+
+
+class AjusteDeServicio(ModeloBase):
+    """
+    Corrección de una variable de la persona, válida SOLO dentro de un servicio.
+
+    La base institucional viene de la matrícula y es una foto del momento en que
+    el estudiante llenó la ficha. Un servicio encuentra otra realidad: la ficha
+    dice que no hay embarazo y en Medicina se registra uno. Ese hallazgo tiene
+    que poder anotarse sin reescribir la base institucional, que es la fuente
+    para el resto del sistema y que nadie autorizó a corregir desde una consulta.
+
+    De ahí el alcance por servicio: cada uno trabaja y reporta con lo que él
+    mismo comprobó, y lo que no haya comprobado lo toma de la institución. La
+    foto original queda intacta y se puede volver a ella quitando el ajuste.
+
+    Hay dos variables que NO se pueden ajustar, y no por omisión: el género y la
+    identidad u orientación sexual son declaraciones de la persona sobre sí
+    misma. Que un servicio las «corrija» sería asignarle una identidad a
+    alguien. Se cambian donde se declaran —el alta o el portal—, no aquí.
+    """
+
+    class Variable(models.TextChoices):
+        SEXO = "sexo", "Sexo"
+        GRUPO_SANGUINEO = "grupo_sanguineo", "Grupo sanguíneo"
+        DISCAPACIDAD_TIPO = "discapacidad_tipo", "Tipo de discapacidad"
+        DISCAPACIDAD_PORCENTAJE = "discapacidad_porcentaje", "Porcentaje de discapacidad"
+        GESTACION = "gestacion", "Embarazo"
+        LACTANCIA = "lactancia", "Lactancia"
+        ENF_CATASTROFICA = "enf_catastrofica", "Enfermedad catastrófica"
+        NEE = "nee", "Necesidad educativa especial"
+
+    expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE, related_name="ajustes")
+    servicio = models.ForeignKey(Servicio, on_delete=models.CASCADE, related_name="ajustes")
+    variable = models.CharField(max_length=30, choices=Variable.choices)
+    valor = models.CharField(max_length=120)
+    # Por qué se cambió. No es adorno: un dato que contradice a la matrícula sin
+    # explicación es indistinguible de un error de digitación.
+    nota = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "ajuste de servicio"
+        verbose_name_plural = "ajustes de servicio"
+        ordering = ["variable"]
+        constraints = [
+            # Uno por variable y servicio: dos filas para lo mismo dejarían el
+            # valor efectivo a merced del orden de la consulta.
+            models.UniqueConstraint(
+                fields=["expediente", "servicio", "variable"],
+                name="uniq_ajuste_por_servicio_y_variable",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.get_variable_display()}={self.valor} ({self.servicio})"

@@ -1,0 +1,91 @@
+{% extends "documentos/base_pdf.html" %}
+
+{% block titulo_doc %}Informe estadístico{% endblock %}
+{% block titulo %}Informe estadístico — {{ datos.servicio.nombre }}{% endblock %}
+{% block subtitulo %}
+  {% if datos.desde or datos.hasta %}
+    Periodo: {{ datos.desde|date:"d/m/Y"|default:"inicio" }} — {{ datos.hasta|date:"d/m/Y"|default:"a la fecha" }}
+  {% else %}
+    Acumulado histórico
+  {% endif %}
+{% endblock %}
+
+{% block contenido %}
+
+{% comment %}
+Este informe lo genera un profesional sobre su PROPIO servicio: no hay
+supresión K_MÍNIMO porque no es un agregado cruzando servicios para la
+Dirección, es el mismo contenido que ese profesional ya ve atención por
+atención, solo que sumado.
+{% endcomment %}
+
+<table class="ficha">
+  <tr><th>Atenciones</th><td>{{ datos.total_atenciones }}</td></tr>
+  <tr><th>Personas atendidas</th><td>{{ datos.total_pacientes }}</td></tr>
+</table>
+<p class="nota">
+  Las dos cifras no son la misma pregunta: una persona atendida tres veces en
+  el rango suma tres atenciones pero es una sola persona atendida. Los
+  porcentajes de las tablas siguientes son sobre el total de ATENCIONES.
+</p>
+
+<h2>Sexo</h2>
+<table>
+  <thead><tr><th>Categoría</th><th class="num">Atenciones</th><th class="num">%</th></tr></thead>
+  <tbody>
+    {% for f in datos.sexo %}
+    <tr><td>{{ f.etiqueta }}</td><td class="num">{{ f.total }}</td><td class="num">{{ f.porcentaje }}%</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Género</h2>
+<table>
+  <thead><tr><th>Categoría</th><th class="num">Atenciones</th><th class="num">%</th></tr></thead>
+  <tbody>
+    {% for f in datos.genero %}
+    <tr><td>{{ f.etiqueta }}</td><td class="num">{{ f.total }}</td><td class="num">{{ f.porcentaje }}%</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Identidad u orientación sexual</h2>
+<table>
+  <thead><tr><th>Categoría</th><th class="num">Atenciones</th><th class="num">%</th></tr></thead>
+  <tbody>
+    {% for f in datos.identidad_orientacion_sexual %}
+    <tr><td>{{ f.etiqueta }}</td><td class="num">{{ f.total }}</td><td class="num">{{ f.porcentaje }}%</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Discapacidad</h2>
+<table>
+  <thead><tr><th>Categoría</th><th class="num">Atenciones</th><th class="num">%</th></tr></thead>
+  <tbody>
+    {% for f in datos.discapacidad %}
+    <tr><td>{{ f.etiqueta }}</td><td class="num">{{ f.total }}</td><td class="num">{{ f.porcentaje }}%</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Otras condiciones</h2>
+<table>
+  <thead><tr><th>Condición</th><th class="num">Atenciones con la alerta activa</th><th class="num">%</th></tr></thead>
+  <tbody>
+    <tr><td>Embarazo</td><td class="num">{{ datos.embarazo.total }}</td><td class="num">{{ datos.embarazo.porcentaje }}%</td></tr>
+    <tr><td>Lactancia</td><td class="num">{{ datos.lactancia.total }}</td><td class="num">{{ datos.lactancia.porcentaje }}%</td></tr>
+    <tr><td>Enfermedad catastrófica</td><td class="num">{{ datos.enfermedad_catastrofica.total }}</td><td class="num">{{ datos.enfermedad_catastrofica.porcentaje }}%</td></tr>
+    <tr><td>Necesidad educativa especial</td><td class="num">{{ datos.necesidad_educativa_especial.total }}</td><td class="num">{{ datos.necesidad_educativa_especial.porcentaje }}%</td></tr>
+  </tbody>
+</table>
+<div class="nota">
+  Sexo, género, identidad u orientación sexual y discapacidad se cuentan por categoría declarada.
+  Embarazo, lactancia, enfermedad catastrófica y necesidad educativa especial
+  no son categorías sino banderas clínicas: se cuenta cuántas atenciones del
+  periodo correspondían a un expediente con esa alerta activa al generar el
+  informe, no en el momento exacto de cada atención. Todos los porcentajes son
+  sobre el total de atenciones, no sobre personas atendidas.
+</div>
+
+{% endblock %}

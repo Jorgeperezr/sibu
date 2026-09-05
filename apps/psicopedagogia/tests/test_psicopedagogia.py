@@ -22,7 +22,7 @@ def escenario(db):
         codigo="psicopedagogia", defaults={"nombre": "Psicopedagogía", "seccion": est["salud"]}
     )
     _, profesional = crear_profesional("psicopedagogo", pp, pp.seccion)
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     PeriodoAcademico.objects.get_or_create(
         codigo="2026-1",
         defaults={

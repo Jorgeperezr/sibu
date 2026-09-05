@@ -50,6 +50,20 @@ class Agenda(ModeloBase):
         verbose_name = "agenda"
         verbose_name_plural = "agendas"
         ordering = ["profesional", "dia_semana", "hora_inicio"]
+        constraints = [
+            # `clean()` ya lo comprobaba, pero solo lo ejecutan los formularios:
+            # los servicios y el shell creaban agendas invertidas sin protestar,
+            # y `generar_turnos` devolvía una lista vacía sin explicar por qué.
+            models.CheckConstraint(
+                condition=models.Q(hora_inicio__lt=models.F("hora_fin")),
+                name="ck_agenda_inicio_antes_de_fin",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(vigente_hasta__isnull=True)
+                | models.Q(vigente_hasta__gte=models.F("vigente_desde")),
+                name="ck_agenda_vigencia_coherente",
+            ),
+        ]
 
     def __str__(self):
         return (
@@ -92,6 +106,12 @@ class BloqueoAgenda(ModeloBase):
         verbose_name = "bloqueo de agenda"
         verbose_name_plural = "bloqueos de agenda"
         ordering = ["-fecha_inicio"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(fecha_inicio__lt=models.F("fecha_fin")),
+                name="ck_bloqueo_inicio_antes_de_fin",
+            ),
+        ]
 
 
 class Cita(ModeloBase):
@@ -148,6 +168,10 @@ class Cita(ModeloBase):
             models.Index(fields=["expediente", "fecha_hora"]),
         ]
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(duracion_min__gt=0),
+                name="ck_cita_duracion_positiva",
+            ),
             # No dos citas activas al mismo profesional a la misma hora
             models.UniqueConstraint(
                 fields=["profesional", "fecha_hora"],

@@ -32,7 +32,7 @@ def crear_profesional(username, servicio, seccion, rol=Rol.PROFESIONAL):
     return user, perfil
 
 
-def crear_expediente(cedula="1104567890"):
+def crear_expediente(cedula="1104567894"):
     persona = Persona.objects.create(
         cedula=cedula,
         nombres="Test",

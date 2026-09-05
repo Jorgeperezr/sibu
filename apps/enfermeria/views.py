@@ -6,10 +6,12 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core.models import Servicio
 from apps.expediente.models import Expediente
+from apps.usuarios.decorators import verificar_es_del_servicio
 
 from .models import SignosVitales
-from .services import signos_del_dia
+from .services import signos_del_dia, triajes_del_dia
 
 
 def _dec(valor):
@@ -29,9 +31,24 @@ def _int(valor):
         return None
 
 
+def _servicio():
+    """El servicio de Enfermería, fuente única del criterio de acceso."""
+    return get_object_or_404(Servicio, codigo="enfermeria")
+
+
+@login_required
+def bandeja(request):
+    """Cola de trabajo de Enfermería: los triajes tomados hoy."""
+    verificar_es_del_servicio(request.user, _servicio())
+    return render(request, "enfermeria/bandeja.html", {"triajes": triajes_del_dia()})
+
+
 @login_required
 def triaje(request, expediente_id):
     """Registra signos vitales del expediente (triaje previo a Medicina)."""
+    # Los signos vitales son contenido clínico: sin esto cualquier autenticado
+    # los leía y los registraba sobre el expediente de cualquiera.
+    verificar_es_del_servicio(request.user, _servicio())
     expediente = get_object_or_404(Expediente, pk=expediente_id)
     perfil = getattr(request.user, "perfil", None)
 

@@ -18,10 +18,12 @@ from rest_framework.response import Response
 from apps.core.models import Servicio
 from apps.expediente.models import Expediente
 from apps.usuarios.models import PerfilProfesional
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
+from apps.usuarios.rbac import visible_para_personal
 
 from . import services
 from .models import Agenda, BloqueoAgenda, Cita
-from .selectors import proximas_del_expediente
+from .selectors import citas_visibles, proximas_del_expediente
 from .serializers import (
     AgendaSerializer,
     BloqueoAgendaSerializer,
@@ -37,15 +39,25 @@ from .serializers import (
 class AgendaViewSet(viewsets.ModelViewSet):
     queryset = Agenda.objects.select_related("profesional__usuario", "servicio")
     serializer_class = AgendaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["profesional", "servicio", "dia_semana", "activa"]
+
+    def get_queryset(self):
+        """Quién atiende, cuándo y en qué servicio: operación interna."""
+        return visible_para_personal(
+            self.request.user, super().get_queryset(), campo_servicio="servicio"
+        )
 
 
 class BloqueoAgendaViewSet(viewsets.ModelViewSet):
     queryset = BloqueoAgenda.objects.all()
     serializer_class = BloqueoAgendaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["profesional"]
+
+    def get_queryset(self):
+        """Igual que la agenda de la que cuelga."""
+        return visible_para_personal(self.request.user, super().get_queryset())
 
 
 class CitaViewSet(viewsets.ModelViewSet):
@@ -53,8 +65,18 @@ class CitaViewSet(viewsets.ModelViewSet):
         "expediente__persona", "servicio", "profesional__usuario"
     )
     serializer_class = CitaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["servicio", "profesional", "estado", "expediente"]
+
+    def get_queryset(self):
+        """
+        Sin esto la lista era la tabla entera, y con `servicio` entre los
+        filtros bastaba una petición —`?servicio=<psicología>`— para sacar el
+        nombre, la cédula y el motivo de cada paciente del servicio sellado.
+        Filtrar aquí cubre también el detalle por id: lo que no está en el
+        queryset devuelve 404 aunque se adivine el número.
+        """
+        return citas_visibles(self.request.user, super().get_queryset()).distinct()
 
     def create(self, request, *args, **kwargs):
         serializer = ReservaCitaSerializer(data=request.data)

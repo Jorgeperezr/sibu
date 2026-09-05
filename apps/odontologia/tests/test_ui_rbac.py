@@ -35,7 +35,7 @@ def escenario(db):
     u_otro.set_password(CLAVE)
     u_otro.save()
 
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     hc = services.crear_atencion_odontologia(expediente=exp, profesional=dentista, motivo="Dolor")
     return {"hc": hc, "exp": exp}
 
@@ -55,3 +55,22 @@ def test_profesional_de_otro_servicio_no_abre_la_consulta(escenario):
     c.login(username="otro_medico", password=CLAVE)
     r = c.get(f"/odontologia/consulta/{escenario['hc'].pk}/")
     assert r.status_code == 403
+
+
+@pytest.mark.django_db
+def test_la_bandeja_lista_las_consultas_abiertas_del_servicio(escenario):
+    """La puerta de entrada del módulo: sin ella no hay enlace de menú posible."""
+    c = Client()
+    c.login(username="dentista", password=CLAVE)
+    r = c.get("/odontologia/")
+    assert r.status_code == 200
+    assert "Paciente" in r.content.decode()
+    assert escenario["hc"] in list(r.context["historias"])
+
+
+@pytest.mark.django_db
+def test_la_bandeja_niega_a_quien_no_es_del_servicio(escenario):
+    """Listar los pacientes de Odontología ya es contenido del servicio."""
+    c = Client()
+    c.login(username="otro_medico", password=CLAVE)
+    assert c.get("/odontologia/").status_code == 403

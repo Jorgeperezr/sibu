@@ -6,6 +6,7 @@ Ajustes compartidos por todos los ambientes. Ver dev.py y prod.py.
 from pathlib import Path
 
 import environ
+from django.contrib.messages import constants as niveles_mensaje
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -103,6 +104,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.navegacion.navegacion",
+                "apps.core.navegacion.entorno",
             ],
         },
     },
@@ -146,6 +148,12 @@ AUTH_PASSWORD_VALIDATORS = [
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "inicio"
 LOGOUT_REDIRECT_URL = "login"
+
+# Django etiqueta los errores como "error"; Bootstrap solo define
+# `alert-danger`. Sin esta traducción, `alert-{{ m.tags }}` producía
+# `alert-error`, una clase que no existe: el aviso de error salía sin color,
+# indistinguible de uno informativo.
+MESSAGE_TAGS = {niveles_mensaje.ERROR: "danger"}
 
 # ---------------------------------------------------------------------------
 # Internacionalización (UNL - Ecuador)
@@ -242,11 +250,12 @@ GOOGLE_OAUTH = {
 # Firma electrónica — proveedor
 # ---------------------------------------------------------------------------
 # La firma es una pieza intercambiable, no un supuesto del sistema.
-#   "deshabilitada" (por defecto): SIBU funciona sin firmar. Es el estado
-#       correcto mientras la UNL no esté registrada ante el MINTEL.
-#   "firmaec": FirmaEC del MINTEL.
+#   "local" (por defecto): SIBU genera el PDF, el profesional lo descarga y lo
+#       firma en su computador. Puede volver a subirlo o quedárselo.
+#   "deshabilitada": SIBU funciona sin firmar en absoluto.
+#   "firmaec": FirmaEC del MINTEL. Requiere el registro de SIBU ante el MINTEL.
 # Ver apps/firma/providers.py.
-FIRMA_PROVIDER = env("FIRMA_PROVIDER", default="deshabilitada")
+FIRMA_PROVIDER = env("FIRMA_PROVIDER", default="local")
 
 # ---------------------------------------------------------------------------
 # FirmaEC (MINTEL) — parámetros del proveedor "firmaec"

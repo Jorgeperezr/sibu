@@ -19,8 +19,22 @@ class EsProfesionalDelServicio(BasePermission):
 
 
 class EsAdministrador(BasePermission):
+    """
+    Administra la base institucional: por rol o por el permiso que lo dice.
+
+    El permiso explícito existe porque hay una cuenta que necesita cargar la
+    base Y ver contenido clínico, y el rol de administrador le quitaría lo
+    segundo (`rbac.es_admin()` filtra las atenciones). La misma regla que
+    aplica la vista web, para que la API y la pantalla no se contradigan.
+    """
+
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.rol_principal == Rol.ADMIN_GENERAL
+        usuario = request.user
+        return usuario.is_authenticated and (
+            usuario.is_superuser
+            or usuario.rol_principal == Rol.ADMIN_GENERAL
+            or usuario.has_perm("academico.add_cargainstitucional")
+        )
 
 
 class PuedeVerAtencion(BasePermission):
@@ -68,3 +82,29 @@ class EsDelServicio(BasePermission):
         if servicio is None:
             return False
         return servicio.pk in servicios_del_usuario(request.user)
+
+
+class EsPersonalDeLaUnidad(BasePermission):
+    """
+    Exige ser personal de la Unidad para llegar al endpoint.
+
+    Es el par de escritura de `rbac.visible_para_personal`. Filtrar el queryset
+    protege lo que se lee y el detalle por id, pero **no protege el `create`**:
+    un POST no pasa por el queryset. Sin esto, la autorización nunca llegaba a
+    correr y lo único que separaba a un estudiante de escribir en el sistema
+    era que su carga fuera válida. Se comprobó que a veces lo era: llegó a
+    concederse una beca y a crear la agenda de un profesional.
+
+    Un 400 no es protección, es la validación diciendo que la autorización dejó
+    pasar. Esto responde 403 antes.
+
+    Deja fuera al rol USUARIO_FINAL —la cuenta de un estudiante—, que trabaja
+    por el portal; y no estrecha más, porque quién puede escribir QUÉ es cosa
+    de cada endpoint. Esto es el suelo.
+    """
+
+    def has_permission(self, request, view):
+        from .rbac import puede_ver_expediente
+
+        usuario = request.user
+        return bool(usuario and usuario.is_authenticated and puede_ver_expediente(usuario))

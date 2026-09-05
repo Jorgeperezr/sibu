@@ -31,7 +31,7 @@ def escenario(db):
     # Psicología pertenece a la Sección Psicopedagógica en la estructura real,
     # no a Salud: usar la sección efectiva del servicio, no asumirla.
     _, psicologo = crear_profesional("psicologo", psico, psico.seccion)
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     escala = EscalaPsicometrica.objects.create(
         codigo="PHQ-9",
         nombre="Cuestionario de salud del paciente",

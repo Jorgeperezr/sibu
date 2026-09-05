@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.expediente.models import Expediente
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
 
 from . import services
 from .models import FichaSocioeconomica, VisitaDomiciliaria
@@ -27,7 +28,7 @@ from .serializers import (
 class FichaSocioeconomicaViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = FichaSocioeconomica.objects.select_related("expediente__persona")
     serializer_class = FichaSocioeconomicaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -71,7 +72,7 @@ class FichaSocioeconomicaViewSet(viewsets.ReadOnlyModelViewSet):
 class VisitaDomiciliariaViewSet(viewsets.ModelViewSet):
     queryset = VisitaDomiciliaria.objects.select_related("atencion").order_by("-fecha")
     serializer_class = VisitaDomiciliariaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def create(self, request, *args, **kwargs):
         from apps.expediente.models import Atencion

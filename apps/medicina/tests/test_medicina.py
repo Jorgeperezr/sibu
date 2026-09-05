@@ -14,7 +14,7 @@ from apps.medicina.models import AtencionMedicina, Diagnostico
 def escenario(db):
     est = crear_estructura()
     _, medico = crear_profesional("medico", est["medicina"], est["salud"])
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     # Catálogo mínimo CIE-10 para pruebas
     CIE10.objects.get_or_create(
         codigo="J00", defaults={"descripcion": "Rinofaringitis aguda (resfriado común)"}

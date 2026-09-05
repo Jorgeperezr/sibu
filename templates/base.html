@@ -1,78 +1,124 @@
 {% load static %}
+{% load estaticos %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}SIBU — Bienestar Universitario UNL{% endblock %}</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="{% static 'css/sibu.css' %}" rel="stylesheet">
-  {# Favicon en línea: evita el 404 de /favicon.ico sin añadir un archivo. #}
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%231b7f5a'/><text x='8' y='12' font-size='10' fill='white' text-anchor='middle' font-family='sans-serif'>S</text></svg>">
+  {% comment %}
+  Bootstrap se sirve desde el propio servidor, no desde un CDN. Es un sistema
+  interno de la Unidad: si la red de la UNL bloquea el CDN o este cae, la
+  interfaz aparecía sin estilos y con el menú móvil desplegado sobre la
+  página. WhiteNoise ya sirve los estáticos en producción.
+  {% endcomment %}
+  <link href="{% estatico 'vendor/montserrat/montserrat.css' %}" rel="stylesheet">
+  <link href="{% estatico 'vendor/bootstrap/bootstrap.min.css' %}" rel="stylesheet">
+  <link href="{% estatico 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}" rel="stylesheet">
+  <link href="{% estatico 'css/sibu.css' %}" rel="stylesheet">
+  <link rel="icon" href="{% static 'img/unl-escudo.png' %}">
   {% block extra_head %}{% endblock %}
 </head>
-<body class="d-flex flex-column min-vh-100">
-  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-    <div class="container">
-      <a class="navbar-brand" href="{% url 'inicio' %}">SIBU · UNL</a>
+<body>
 
-      {% if user.is_authenticated %}
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav-sibu"
-              aria-controls="nav-sibu" aria-expanded="false" aria-label="Menú">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="nav-sibu">
-        <ul class="navbar-nav me-auto">
-          {% for m in nav_modulos %}
-          <li class="nav-item">
-            <a class="nav-link{% if request.resolver_match.view_name == m.url_name %} active fw-semibold{% endif %}"
-               href="{% url m.url_name %}">{{ m.etiqueta }}</a>
-          </li>
-          {% endfor %}
-        </ul>
-        <div class="navbar-text text-white">
-          {{ user.get_full_name|default:user.username }}
-          · <a class="text-white" href="{% url 'logout' %}">Salir</a>
-        </div>
-      </div>
-      {% else %}
-      <div class="ms-auto navbar-text text-white">
-        <a class="text-white" href="{% url 'login' %}">Ingresar</a>
-      </div>
-      {% endif %}
-    </div>
-  </nav>
+{% comment %}
+Un solo armazón para toda la aplicación: barra lateral con la navegación y el
+contenido a su derecha.
 
-  <main class="container py-4 flex-grow-1">
-    {# Migas de pan opcionales: una plantilla puede rellenar el bloque. #}
-    {% block breadcrumb %}{% endblock %}
+La lateral agrupa los módulos por sección —Salud, Psicopedagógica, Becas…— y
+crece hacia abajo. Trece enlaces en una barra horizontal quedaban apretados e
+ilegibles, y cada módulo nuevo estrechaba a los demás.
 
+Sin sesión no hay nada que navegar, así que las piezas de navegación se omiten
+y el contenido ocupa la página. La estructura es la misma en ambos casos porque
+`{% templatetag openblock %} block content {% templatetag closeblock %}` solo
+puede declararse una vez.
+{% endcomment %}
+
+<div class="sibu-shell{% if not user.is_authenticated %} sibu-shell-publico{% endif %}">
+
+  {% if user.is_authenticated %}
+  <aside class="sibu-side d-none d-lg-flex flex-column">
     {% comment %}
-      Mensajes centralizados: antes cada plantilla repetía este bloque. Las que
-      aún lo traigan seguirán funcionando; las nuevas ya no lo necesitan.
+    El logotipo oficial se usa tal cual, en sus colores corporativos: el manual
+    prohíbe recomponerlo, cambiarle la escala relativa o teñirlo. Por eso la
+    lateral es blanca en vez del verde oscuro que tenía antes.
     {% endcomment %}
-    {% if messages %}
-    <div class="mb-3">
-      {% for m in messages %}
-      <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2" role="alert">
-        {{ m }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-      </div>
-      {% endfor %}
+    <a class="sibu-marca" href="{% url 'inicio' %}">
+      <img src="{% static 'img/unl-horizontal.png' %}"
+           alt="Universidad Nacional de Loja">
+    </a>
+    <nav class="sibu-nav flex-grow-1">{% include "_nav_lista.html" %}</nav>
+    <div class="sibu-usuario">
+      <div class="sibu-avatar">{{ user.get_full_name|default:user.username|slice:":1"|upper }}</div>
+      <a class="sibu-usuario-datos" href="{% url 'usuarios:mi_perfil' %}"
+         title="Mis datos">
+        <span>{{ user.get_full_name|default:user.username }}</span>
+        <small>{{ user.get_rol_principal_display }}</small>
+      </a>
+      <a href="{% url 'logout' %}" title="Cerrar sesión" class="sibu-salir">
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
     </div>
+  </aside>
+  {% endif %}
+
+  <div class="sibu-main">
+    {% if user.is_authenticated %}
+    <header class="sibu-top d-lg-none">
+      <button class="btn btn-sm btn-light" type="button" data-bs-toggle="offcanvas"
+              data-bs-target="#nav-movil" aria-label="Abrir menú">
+        <i class="bi bi-list"></i>
+      </button>
+      <a href="{% url 'inicio' %}">
+        <img src="{% static 'img/unl-horizontal.png' %}"
+             alt="Universidad Nacional de Loja">
+      </a>
+      <a href="{% url 'logout' %}" class="btn btn-sm btn-light" title="Cerrar sesión">
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
+    </header>
     {% endif %}
 
-    {% block content %}{% endblock %}
-  </main>
+    <main class="sibu-contenido">
+      {% block breadcrumb %}{% endblock %}
 
-  <footer class="sibu-footer">
-    <div class="container d-flex justify-content-between flex-wrap">
-      <span>SIBU — Unidad de Bienestar Universitario · Universidad Nacional de Loja</span>
-      <span>Sistema interno · uso institucional</span>
-    </div>
-  </footer>
+      {% comment %}
+        Único lugar donde se pintan los mensajes. Mientras las plantillas
+        conservaron su propio bloque, cada aviso salía DOS veces en pantalla.
+        Una plantilla nueva no debe volver a incluirlo.
+      {% endcomment %}
+      {% if messages %}
+      <div class="mb-3">
+        {% for m in messages %}
+        <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2" role="alert">
+          {{ m }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  {% block extra_js %}{% endblock %}
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="sibu-footer">
+      <span>Unidad de Bienestar Universitario · Universidad Nacional de Loja</span>
+    </footer>
+  </div>
+</div>
+
+{% if user.is_authenticated %}
+<div class="offcanvas offcanvas-start sibu-side-movil" tabindex="-1" id="nav-movil">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title">Unidad de Bienestar Universitario</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+  </div>
+  <div class="offcanvas-body sibu-nav">{% include "_nav_lista.html" %}</div>
+</div>
+{% endif %}
+
+<script src="{% estatico 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+{% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -20,7 +20,9 @@ urlpatterns = [
     path("", TemplateView.as_view(template_name="inicio.html"), name="inicio"),
     path("cuentas/", include("django.contrib.auth.urls")),  # login/logout/password
     # API v1
+    path("auditoria/", include("apps.auditoria.urls")),
     path("api/v1/", include("api.v1.urls")),
+    path("usuarios/", include("apps.usuarios.urls")),
     path("academico/", include("apps.academico.urls")),
     path("expediente/", include("apps.expediente.urls")),
     path("citas/", include("apps.citas.urls")),

@@ -77,6 +77,38 @@ def panel(request, pk):
 
 
 @login_required
+def subir_firmado(request, pk):
+    """
+    Recibe el PDF que el profesional firmó en su computador.
+
+    Es opcional: quien prefiera quedarse el documento en su equipo no pasa por
+    aquí. `verificar_acceso_atencion` es lo que impide subir un documento al
+    expediente de otro servicio cambiando el id de la URL.
+    """
+    solicitud = get_object_or_404(
+        SolicitudFirma.objects.select_related("atencion__servicio"), pk=pk
+    )
+    verificar_acceso_atencion(request.user, solicitud.atencion)
+
+    if request.method != "POST":
+        return redirect("firma:panel", pk=pk)
+
+    archivo = request.FILES.get("documento")
+    if archivo is None:
+        messages.error(request, "Seleccione el documento firmado.")
+        return redirect("firma:panel", pk=pk)
+
+    try:
+        services.asentar_firma_subida(solicitud, archivo.read(), request.user)
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+        return redirect("firma:panel", pk=pk)
+
+    messages.success(request, "Documento firmado guardado en el expediente.")
+    return redirect("firma:panel", pk=pk)
+
+
+@login_required
 def descargar(request, pk):
     """Entrega el PDF firmado."""
     solicitud = get_object_or_404(SolicitudFirma.objects.select_related("atencion"), pk=pk)
@@ -95,6 +127,7 @@ def descargar(request, pk):
         entidad="SolicitudFirma",
         entidad_id=str(solicitud.pk),
         expediente_id=solicitud.atencion.expediente_id,
+        servicio=solicitud.atencion.servicio.codigo,
         detalle={"hash_firmado": solicitud.hash_firmado},
     )
     respuesta = HttpResponse(bytes(solicitud.pdf_firmado), content_type="application/pdf")
@@ -122,6 +155,7 @@ def descargar_original(request, pk):
         entidad="SolicitudFirma",
         entidad_id=str(solicitud.pk),
         expediente_id=solicitud.atencion.expediente_id,
+        servicio=solicitud.atencion.servicio.codigo,
         detalle={"firmado": False, "hash_original": solicitud.hash_original},
     )
     respuesta = HttpResponse(bytes(solicitud.pdf_original), content_type="application/pdf")

@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from apps.core.models import Servicio
 from apps.expediente.models import Atencion
-from apps.usuarios.rbac import SERVICIOS_CONFIDENCIALES
+from apps.usuarios.rbac import SERVICIOS_CONFIDENCIALES, servicios_del_usuario
 
 from .models import Contrarreferencia, Derivacion, ReferenciaExterna
 
@@ -30,8 +30,39 @@ ACUSE_CONFIDENCIAL = (
 )
 
 
+# Una derivación en cualquiera de estos estados sigue viva: el destino aún no
+# la ha cerrado, así que emitir otra al mismo servicio duplicaría el caso.
+ESTADOS_ABIERTOS = (
+    Derivacion.Estado.ENVIADA,
+    Derivacion.Estado.ACEPTADA,
+    Derivacion.Estado.AGENDADA,
+)
+
+
 def _es_confidencial(servicio: Servicio) -> bool:
     return servicio.codigo in SERVICIOS_CONFIDENCIALES
+
+
+def destinos_con_derivacion_abierta(expediente) -> dict[int, str]:
+    """
+    Servicios a los que el paciente ya tiene una derivación viva, por id.
+
+    Es lo que `derivar` rechaza. La pantalla lo consulta antes para no ofrecer
+    un destino que va a fallar, y para decir por qué no lo ofrece.
+
+    No abre rendija en el sello de Psicología: la EXISTENCIA de una derivación
+    ya es visible para quien derivó —la trazabilidad la muestra—; lo que nunca
+    sale del servicio es su contenido clínico, y aquí no se toca.
+    """
+    filas = (
+        Derivacion.objects.filter(
+            atencion_origen__expediente=expediente,
+            estado__in=ESTADOS_ABIERTOS,
+        )
+        .select_related("servicio_destino")
+        .values_list("servicio_destino_id", "servicio_destino__nombre")
+    )
+    return dict(filas)
 
 
 @transaction.atomic
@@ -63,11 +94,7 @@ def derivar(
     abierta = Derivacion.objects.filter(
         atencion_origen__expediente=atencion_origen.expediente,
         servicio_destino=servicio_destino,
-        estado__in=[
-            Derivacion.Estado.ENVIADA,
-            Derivacion.Estado.ACEPTADA,
-            Derivacion.Estado.AGENDADA,
-        ],
+        estado__in=ESTADOS_ABIERTOS,
     ).exists()
     if abierta:
         raise ValidationError(
@@ -89,14 +116,7 @@ def bandeja_entrada(servicio: Servicio):
     from django.db.models import Case, IntegerField, Value, When
 
     return (
-        Derivacion.objects.filter(
-            servicio_destino=servicio,
-            estado__in=[
-                Derivacion.Estado.ENVIADA,
-                Derivacion.Estado.ACEPTADA,
-                Derivacion.Estado.AGENDADA,
-            ],
-        )
+        Derivacion.objects.filter(servicio_destino=servicio, estado__in=ESTADOS_ABIERTOS)
         .select_related("atencion_origen__expediente__persona", "atencion_origen__servicio")
         .annotate(
             _orden=Case(
@@ -190,25 +210,50 @@ def retornar(derivacion: Derivacion, texto: str) -> Derivacion:
     return derivacion
 
 
-def trazabilidad(expediente) -> list[dict]:
-    """Recorrido del paciente entre servicios: quién derivó a quién y cómo terminó."""
+def trazabilidad(expediente, usuario) -> list[dict]:
+    """
+    Recorrido del paciente entre servicios: quién derivó a quién y cómo terminó.
+
+    El `usuario` no es decorativo: sobre un destino confidencial esta lista
+    filtraba dos cosas a la vez. El `motivo` lo escribe quien deriva y suele
+    decir por qué —es contenido—; y la sola existencia de la fila
+    «→ Psicología» identifica a la persona como paciente de ese servicio,
+    aunque el motivo estuviera en blanco. La marca `confidencial` que se
+    devolvía no suprimía nada: solo pintaba un candado al lado del dato.
+
+    Una derivación a un servicio confidencial la ven dos partes y nadie más:
+    quien la emitió —escribió el motivo, y ocultárselo no protege a nadie
+    mientras le impide seguir su propio caso— y el servicio que la recibe. Ni
+    Dirección, ni Coordinación, ni administración, ni break-glass: es la misma
+    regla que aplica `rbac.puede_ver_atencion`, sin excepciones.
+
+    Lo abierto sigue abierto: una derivación de Medicina a Enfermería es
+    gestión, y estrecharla dejaría el recorrido inútil para el resto.
+    """
+    mis_servicios = servicios_del_usuario(usuario)
     derivaciones = (
         Derivacion.objects.filter(atencion_origen__expediente=expediente)
         .select_related("atencion_origen__servicio", "servicio_destino")
         .order_by("creado_en")
     )
-    return [
-        {
-            "fecha": d.creado_en,
-            "desde": d.atencion_origen.servicio.nombre,
-            "hacia": d.servicio_destino.nombre,
-            "motivo": d.motivo,
-            "estado": d.get_estado_display(),
-            "prioridad": d.prioridad,
-            "confidencial": _es_confidencial(d.servicio_destino),
-        }
-        for d in derivaciones
-    ]
+    filas = []
+    for d in derivaciones:
+        if _es_confidencial(d.servicio_destino) and not (
+            d.servicio_destino_id in mis_servicios or d.atencion_origen.servicio_id in mis_servicios
+        ):
+            continue
+        filas.append(
+            {
+                "fecha": d.creado_en,
+                "desde": d.atencion_origen.servicio.nombre,
+                "hacia": d.servicio_destino.nombre,
+                "motivo": d.motivo,
+                "estado": d.get_estado_display(),
+                "prioridad": d.prioridad,
+                "confidencial": _es_confidencial(d.servicio_destino),
+            }
+        )
+    return filas
 
 
 # ============================================================

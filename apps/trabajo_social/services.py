@@ -36,7 +36,12 @@ def _sbu() -> Decimal:
 
 
 def ficha_vigente(expediente: Expediente) -> FichaSocioeconomica | None:
-    """Versión vigente de la ficha socioeconómica del expediente."""
+    """
+    Versión vigente de la ficha socioeconómica del expediente.
+
+    La restricción `uniq_ficha_socio_vigente_por_expediente` garantiza que hay
+    como mucho una, así que el `.first()` es inequívoco.
+    """
     return FichaSocioeconomica.objects.filter(expediente=expediente, vigente=True).first()
 
 
@@ -68,11 +73,22 @@ def prepoblar_desde_matricula(expediente: Expediente, usuario=None) -> FichaSoci
 
 
 def calcular_totales(ingresos: dict, egresos: dict) -> tuple[Decimal, Decimal]:
-    """Suma los valores numéricos de los diccionarios de ingresos y egresos."""
+    """
+    Suma los valores numéricos de los diccionarios de ingresos y egresos.
+
+    Se excluyen los totales que el propio estudiante declaró en matrícula
+    (`ingreso_mensual`, `gastos_mensual_familia`): no son una línea más del
+    desglose sino su suma, y contarlos junto a sus componentes duplicaba el
+    ingreso del hogar. El puntaje resultante orienta la asignación de una beca,
+    así que ese duplicado no era un redondeo: movía de estrato.
+    """
+    from .campos import TOTALES_DECLARADOS
 
     def _suma(d: dict) -> Decimal:
         total = Decimal("0")
-        for valor in (d or {}).values():
+        for clave, valor in (d or {}).items():
+            if clave in TOTALES_DECLARADOS:
+                continue
             try:
                 total += Decimal(str(valor))
             except (TypeError, ValueError, ArithmeticError):
@@ -119,6 +135,13 @@ def verificar_ficha(
     nueva queda como v(n+1). Así se puede auditar con qué datos se otorgó una
     beca en cualquier momento del pasado.
     """
+    # Bloquear las fichas del expediente antes de leer la vigente: dos
+    # verificaciones simultáneas leían la misma `actual`, ambas creaban la
+    # v(n+1) y ambas desmarcaban la v(n). Sin el bloqueo, la restricción de
+    # vigencia única convertiría esa carrera en un IntegrityError en la cara
+    # del usuario en vez de serializarla.
+    list(FichaSocioeconomica.objects.select_for_update().filter(expediente=expediente))
+
     actual = ficha_vigente(expediente)
     version = (actual.version + 1) if actual else 1
 
@@ -137,6 +160,14 @@ def verificar_ficha(
         for campo in campos:
             valores.setdefault(campo, getattr(actual, campo) or {})
 
+    # Desmarcar la anterior ANTES de crear la nueva. El orden importa por dos
+    # razones: la restricción de vigencia única rechazaría la nueva mientras la
+    # vieja siga vigente, y hacerlo al revés —como estaba— dejaba dos vigentes
+    # si algo fallaba entre ambos pasos.
+    if actual is not None:
+        actual.vigente = False
+        actual.save(update_fields=["vigente", "actualizado_en"])
+
     nueva = FichaSocioeconomica(
         expediente=expediente,
         version=version,
@@ -149,10 +180,6 @@ def verificar_ficha(
     nueva.save()
     nueva.puntaje, nueva.estrato = calcular_puntaje(nueva)
     nueva.save(update_fields=["puntaje", "estrato"])
-
-    if actual is not None:
-        actual.vigente = False
-        actual.save(update_fields=["vigente", "actualizado_en"])
     return nueva
 
 

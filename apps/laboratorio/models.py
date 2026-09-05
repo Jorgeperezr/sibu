@@ -78,6 +78,29 @@ class ParametroExamen(models.Model):
         verbose_name = "parámetro de examen"
         verbose_name_plural = "parámetros de exámenes"
         ordering = ["examen", "orden", "nombre"]
+        constraints = [
+            # Un rango invertido no da error: hace que ningún resultado caiga
+            # nunca dentro de la referencia, así que todos salen marcados alto o
+            # bajo y la interpretación clínica queda falseada en silencio.
+            models.CheckConstraint(
+                condition=models.Q(ref_min__isnull=True)
+                | models.Q(ref_max__isnull=True)
+                | models.Q(ref_min__lte=models.F("ref_max")),
+                name="ck_parametro_referencia_coherente",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(critico_min__isnull=True)
+                | models.Q(critico_max__isnull=True)
+                | models.Q(critico_min__lte=models.F("critico_max")),
+                name="ck_parametro_critico_coherente",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(edad_min__isnull=True)
+                | models.Q(edad_max__isnull=True)
+                | models.Q(edad_min__lte=models.F("edad_max")),
+                name="ck_parametro_edad_coherente",
+            ),
+        ]
 
     def __str__(self):
         unidad = f" ({self.unidad})" if self.unidad else ""

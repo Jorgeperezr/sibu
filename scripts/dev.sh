@@ -14,14 +14,19 @@ export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-config.settings.dev}"
 # Sin CSRF_TRUSTED_ORIGINS la página carga pero TODOS los formularios fallan
 # con un error de CSRF que no explica su causa. Por eso se define aquí y no se
 # deja al olvido.
+# `localhost:8000` va en la lista incluso dentro de Codespaces, y no sobra: su
+# reenvío de puertos presenta ese Origin aunque el navegador muestre el dominio
+# *.app.github.dev. Sin él la pantalla de inicio de sesión carga y luego
+# responde 403 "La verificación CSRF ha fallado" al enviar el formulario.
+LOCALES="https://localhost:8000,http://localhost:8000,https://127.0.0.1:8000,http://127.0.0.1:8000"
 if [ -n "${CODESPACE_NAME:-}" ]; then
   DOM="${CODESPACE_NAME}-8000.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
   export ALLOWED_HOSTS="localhost,127.0.0.1,${DOM}"
-  export CSRF_TRUSTED_ORIGINS="https://${DOM}"
+  export CSRF_TRUSTED_ORIGINS="https://${DOM},${LOCALES}"
   URL="https://${DOM}/"
 else
   export ALLOWED_HOSTS="localhost,127.0.0.1"
-  export CSRF_TRUSTED_ORIGINS="http://localhost:8000,http://127.0.0.1:8000"
+  export CSRF_TRUSTED_ORIGINS="${LOCALES}"
   URL="http://localhost:8000/"
 fi
 
@@ -35,11 +40,18 @@ if ! python -c "import django; django.setup(); from django.db import connection;
 fi
 echo "base de datos: OK"
 
-# --- 3. Migraciones pendientes: aplicarlas, no fallar en silencio -----------
-if ! python manage.py migrate --check >/dev/null 2>&1; then
-  echo "Aplicando migraciones pendientes..."
-  python manage.py migrate --noinput
-fi
+# --- 3. Dejar la base al día -----------------------------------------------
+# Un servidor arrancado sobre una base sin preparar levanta bien y luego
+# rechaza cualquier usuario que se escriba en la pantalla de inicio de sesión,
+# porque no hay ninguna cuenta creada. Ese es el "error al iniciar sesión" que
+# no se explica solo.
+#
+# `--si-cambio` decide por su cuenta: prepara si la base está vacía y también
+# si la definición de la siembra cambió desde la última vez —lo que pasa tras
+# cada `git pull` que trae cuentas o servicios nuevos—. Antes eso obligaba a
+# acordarse de `make demo` a mano, y no acordarse se parecía mucho a "las
+# credenciales no funcionan".
+python manage.py preparar --si-cambio
 
 # --- 4. ¿Ya hay un servidor escuchando? -------------------------------------
 # El "That port is already in use" de Django no dice qué hacer. Esto sí.
@@ -53,6 +65,14 @@ fi
 
 echo ""
 echo "SIBU en marcha -> ${URL}"
-echo "Abra esa URL, o el puerto 8000 en la pestaña Ports de VS Code."
+echo ""
+echo "  Abra esa URL, o el puerto 8000 en la pestaña PORTS de VS Code."
+if [ -n "${CODESPACE_NAME:-}" ]; then
+  echo "  Si el navegador muestra 'Not Found' o pide iniciar sesión en GitHub,"
+  echo "  ponga el puerto 8000 en Public: pestaña PORTS, clic derecho sobre el"
+  echo "  puerto -> Port Visibility -> Public."
+fi
+echo ""
+echo "  Para ver o recordar las credenciales:  make cuentas"
 echo ""
 exec python manage.py runserver 0.0.0.0:8000

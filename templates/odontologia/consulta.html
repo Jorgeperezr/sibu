@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Odontología · SIBU{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3">
+<div class="sibu-cabecera mb-3">
   <div>
-    <h1 class="h4 mb-0">Consulta odontológica</h1>
+    <h1 class="h4 sibu-titulo mb-0">Consulta odontológica</h1>
     <small class="text-muted">
       {{ persona.nombre_completo }} · {{ persona.cedula }} ·
       <span class="badge bg-secondary">{{ atencion.get_estado_display }}</span>
@@ -12,10 +12,6 @@
   <a href="{% url 'expediente:detalle' atencion.expediente_id %}"
      class="btn btn-sm btn-outline-secondary">Expediente</a>
 </div>
-
-{% if messages %}{% for m in messages %}
-  <div class="alert alert-{{ m.tags }}">{{ m }}</div>
-{% endfor %}{% endif %}
 
 <div class="alert alert-info py-2">
   <strong>CPO-D: {{ indices.cpod }}</strong>
@@ -140,6 +136,50 @@
   </div>
 
   <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header">Diagnósticos (CIE-10)</div>
+      <ul class="list-group list-group-flush">
+        {% for d in diagnosticos %}
+        <li class="list-group-item">
+          <strong>{{ d.cie10.codigo }}</strong> {{ d.cie10.descripcion|truncatechars:50 }}
+          <br><small class="text-muted">{{ d.get_tipo_display }}</small>
+          {% if d.principal %}<span class="badge bg-primary">Principal</span>{% endif %}
+        </li>
+        {% empty %}
+          <li class="list-group-item text-muted">Sin diagnósticos.</li>
+        {% endfor %}
+      </ul>
+      {% if not atencion.inmutable %}
+      <div class="card-body border-top">
+        <form method="post" class="row g-2">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="diagnostico">
+          <div class="col-12">
+            {% comment %}
+            En una fila propia: "Código o nombre CIE-10" no cabía legible
+            junto al tipo y al botón en una columna angosta.
+            {% endcomment %}
+            <input name="cie10" list="lista-cie10-odonto" class="form-control form-control-sm"
+                   placeholder="Código o nombre CIE-10" required autocomplete="off">
+            <datalist id="lista-cie10-odonto">
+              {% for c in cie10_disponibles %}
+                <option value="{{ c.codigo }}">{{ c.codigo }} — {{ c.descripcion }}</option>
+              {% endfor %}
+            </datalist>
+          </div>
+          <div class="col-8">
+            <select name="tipo" class="form-select form-select-sm">
+              {% for val, lbl in tipos_dx %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-4">
+            <button class="btn btn-sm btn-outline-primary w-100">Agregar</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
     <div class="card">
       <div class="card-header">Plan de tratamiento</div>
       <div class="card-body">

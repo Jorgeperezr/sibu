@@ -1,15 +1,26 @@
 {% extends "base.html" %}
 {% block title %}Carga de ficha socioeconómica · SIBU{% endblock %}
 {% block content %}
-<h1 class="h3 mb-3">Carga de la base institucional</h1>
-<p class="text-muted">Ficha socioeconómica de matrícula (Excel/CSV). Sube el archivo,
-revisa la previsualización y confirma la aplicación.</p>
-
-{% if messages %}
-  {% for m in messages %}
-    <div class="alert alert-{{ m.tags }}">{{ m }}</div>
-  {% endfor %}
-{% endif %}
+<div class="sibu-cabecera mb-3">
+  <div>
+    <h1 class="h4 sibu-titulo mb-0">Carga de la base institucional</h1>
+    <small class="text-muted d-block">
+      Ficha socioeconómica de matrícula. Suba el archivo, revise la
+      previsualización y confirme la aplicación.
+    </small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'academico:plantilla' %}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-download"></i> Plantilla CSV
+    </a>
+    <a href="{% url 'academico:diccionario' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-list-columns"></i> Diccionario
+    </a>
+    <a href="{% url 'academico:padron' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-table"></i> Ver lo cargado
+    </a>
+  </div>
+</div>
 
 <div class="card mb-4">
   <div class="card-body">
