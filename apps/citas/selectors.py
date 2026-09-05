@@ -60,3 +60,41 @@ def citas_para_recordatorio(horas_anticipacion: int, tolerancia_minutos: int | N
         fecha_hora__range=(inicio, fin),
         estado__in={Cita.Estado.RESERVADA, Cita.Estado.CONFIRMADA},
     ).select_related("expediente__persona", "servicio")
+
+
+def citas_visibles(user, queryset):
+    """
+    Filtra un queryset de Cita según quién pregunta.
+
+    Una cita no es contenido clínico, pero lleva el nombre del paciente, su
+    cédula, el servicio y el motivo. Sobre un servicio confidencial eso es el
+    padrón del servicio: saber que alguien tiene hora con Psicología ya dice
+    que es paciente de Psicología.
+
+    Dos reglas, en este orden:
+
+    1. **Hay que ser personal de la Unidad.** `puede_ver_expediente` es el
+       mismo gate que usan las pantallas del expediente: deja fuera al rol
+       USUARIO_FINAL, que es la cuenta de un estudiante. Su propia agenda la
+       ve por el portal, que aísla por identidad.
+    2. **Lo confidencial, solo su servicio.** Ni Dirección, ni Coordinación,
+       ni ventanilla, ni administración. Es la regla que ya aplican
+       `rbac.puede_ver_atencion` y la pantalla `mi_agenda`.
+
+    No se filtra por servicio propio más allá de eso, y es deliberado: quien
+    reserva en ventanilla tiene rol ADMINISTRATIVO y ningún servicio asignado,
+    así que hacerlo le dejaría la pantalla vacía y rompería el trabajo que esta
+    consulta existe para hacer.
+    """
+    from apps.usuarios.rbac import (
+        SERVICIOS_CONFIDENCIALES,
+        puede_ver_expediente,
+        servicios_del_usuario,
+    )
+
+    if not user.is_authenticated or not puede_ver_expediente(user):
+        return queryset.none()
+    mis_servicios = servicios_del_usuario(user)
+    return queryset.exclude(
+        servicio__codigo__in=SERVICIOS_CONFIDENCIALES,
+    ) | queryset.filter(servicio_id__in=mis_servicios)
