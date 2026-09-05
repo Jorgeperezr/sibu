@@ -20,11 +20,18 @@ def verificar_acceso_atencion(user, atencion, break_glass: bool = False) -> None
     Psicología, `rbac.puede_ver_atencion` deniega a todo el que no sea del
     servicio, incluso con break_glass.
     """
+    from apps.auditoria import registro
+
     if not rbac.puede_ver_atencion(user, atencion, break_glass=break_glass):
+        # No se escribe aquí: el PermissionDenied de la línea siguiente aborta
+        # la transacción de la petición y se llevaría el registro por delante.
+        # Lo escribe el middleware, ya fuera del bloque atómico.
+        registro.anotar_rechazo(user, atencion)
         raise PermissionDenied(
             "No tiene acceso al contenido de este servicio. "
             "Si es un caso de emergencia, use el acceso justificado desde el expediente."
         )
+    registro.registrar_lectura(user, atencion)
 
 
 def verificar_es_del_servicio(user, servicio) -> None:

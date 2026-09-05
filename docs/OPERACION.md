@@ -51,6 +51,7 @@ restricción puede expresar, porque cruzan dos tablas.
 | Citas con un profesional de otro servicio | El paciente llega y quien lo espera no atiende ese servicio. |
 | Personas con más de un expediente | El expediente es único por persona: dos parten su historia en dos. |
 | Alertas clínicas sin persona detrás | Una alerta que no apunta a nadie no avisa a nadie. |
+| Entradas de bitácora clínicas sin servicio declarado | La pantalla no puede velarlas y mostraría al paciente de un servicio sellado. |
 
 **No corrige nada, y es a propósito.** Un descuadre de inventario puede ser un
 movimiento perdido o un ajuste sin registrar, y cada caso se arregla distinto.
@@ -58,6 +59,21 @@ Decidirlo por su cuenta convertiría un descuadre visible en uno silencioso.
 
 Devuelve código de salida 1 si encuentra algo, para encadenarlo en un guion de
 despliegue.
+
+## La bitácora
+
+**Gestión → Bitácora** responde «quién abrió esto y cuándo». Registra cada
+lectura de contenido clínico y **cada intento rechazado**, que es la consulta
+que más se va a hacer: el botón *Solo intentos rechazados* los aísla.
+
+La abre Dirección, Coordinación y administración. Un servicio confidencial ve
+además sus propias entradas, para poder auditarse: nadie de fuera puede revisar
+su trabajo, así que sin eso quedaría sin control ninguno. Un profesional
+corriente no la abre —recorrerla entera diría quién pasó por cada servicio—.
+
+De una entrada de un servicio confidencial se ve **quién** accedió y cuándo, no
+**sobre quién**: la identidad del paciente es lo que el sello protege, y una
+bitácora no es una excepción.
 
 ## Agendamiento
 

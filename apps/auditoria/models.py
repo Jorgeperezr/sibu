@@ -31,6 +31,11 @@ class LogAuditoria(models.Model):
     entidad = models.CharField(max_length=60, blank=True)
     entidad_id = models.CharField(max_length=40, blank=True)
     expediente_id = models.PositiveBigIntegerField(null=True, blank=True)
+    # El código del servicio al que pertenecía lo consultado. Sin él, aplicar
+    # el sello a la propia bitácora obligaría a abrir cada atención para saber
+    # si la entrada es confidencial —y eso sería otra lectura del contenido
+    # sellado, hecha por quien audita—.
+    servicio = models.CharField(max_length=60, blank=True, db_index=True)
     detalle = models.JSONField(default=dict, blank=True)
     ip = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=255, blank=True)

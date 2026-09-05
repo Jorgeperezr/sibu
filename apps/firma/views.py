@@ -127,6 +127,7 @@ def descargar(request, pk):
         entidad="SolicitudFirma",
         entidad_id=str(solicitud.pk),
         expediente_id=solicitud.atencion.expediente_id,
+        servicio=solicitud.atencion.servicio.codigo,
         detalle={"hash_firmado": solicitud.hash_firmado},
     )
     respuesta = HttpResponse(bytes(solicitud.pdf_firmado), content_type="application/pdf")
@@ -154,6 +155,7 @@ def descargar_original(request, pk):
         entidad="SolicitudFirma",
         entidad_id=str(solicitud.pk),
         expediente_id=solicitud.atencion.expediente_id,
+        servicio=solicitud.atencion.servicio.codigo,
         detalle={"firmado": False, "hash_original": solicitud.hash_original},
     )
     respuesta = HttpResponse(bytes(solicitud.pdf_original), content_type="application/pdf")

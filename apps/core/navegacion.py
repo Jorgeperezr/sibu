@@ -67,6 +67,16 @@ MODULOS = [
         ("roles", {Rol.ADMIN_GENERAL, Rol.DIRECTOR, Rol.COORDINADOR}),
         "Gestión",
     ),
+    # Los servicios confidenciales también la alcanzan —sobre sus propias
+    # entradas, para poder auditarse: nadie de fuera puede revisar su trabajo—,
+    # pero eso lo resuelve la vista. Aquí basta con ofrecerla a quien gobierna,
+    # que es quien la va a usar.
+    Modulo(
+        "Bitácora",
+        "auditoria:bitacora",
+        ("roles", {Rol.ADMIN_GENERAL, Rol.DIRECTOR, Rol.COORDINADOR}),
+        "Gestión",
+    ),
     # A diferencia del tablero de arriba —Dirección, agregados de TODA la
     # Unidad—, este lo genera cualquier profesional sobre su propio servicio:
     # es el mismo contenido que ya ve atención por atención.

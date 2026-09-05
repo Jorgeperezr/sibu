@@ -137,6 +137,7 @@ def iniciar_firma(solicitud: SolicitudFirma) -> InicioFirma:
         entidad="SolicitudFirma",
         entidad_id=str(solicitud.pk),
         expediente_id=solicitud.atencion.expediente_id,
+        servicio=solicitud.atencion.servicio.codigo,
         detalle={
             "documento": f"{solicitud.documento_ref_tipo}#{solicitud.documento_ref_id}",
             "hash_original": solicitud.hash_original,
@@ -166,6 +167,7 @@ def _registrar_rechazo(solicitud: SolicitudFirma, motivo: str) -> None:
             entidad="SolicitudFirma",
             entidad_id=str(solicitud.pk),
             expediente_id=solicitud.atencion.expediente_id,
+            servicio=solicitud.atencion.servicio.codigo,
             resultado="rechazado",
             detalle={"motivo": motivo},
         )
@@ -301,6 +303,7 @@ def _asentar_firma(solicitud: SolicitudFirma, pdf: bytes, certificado: list) -> 
         entidad="SolicitudFirma",
         entidad_id=str(solicitud.pk),
         expediente_id=solicitud.atencion.expediente_id,
+        servicio=solicitud.atencion.servicio.codigo,
         resultado="ok",
         detalle={
             "documento": f"{solicitud.documento_ref_tipo}#{solicitud.documento_ref_id}",
@@ -375,6 +378,7 @@ def asentar_firma_subida(solicitud: SolicitudFirma, pdf: bytes, usuario) -> Soli
         entidad="SolicitudFirma",
         entidad_id=str(solicitud.pk),
         expediente_id=solicitud.atencion.expediente_id,
+        servicio=solicitud.atencion.servicio.codigo,
         resultado="ok",
         detalle={
             "documento": f"{solicitud.documento_ref_tipo}#{solicitud.documento_ref_id}",

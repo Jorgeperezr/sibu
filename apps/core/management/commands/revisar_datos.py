@@ -63,6 +63,7 @@ class Command(BaseCommand):
                 self._citas_con_profesional_de_otro_servicio,
                 self._expedientes_duplicados_por_persona,
                 self._alertas_sin_expediente_con_persona,
+                self._bitacora_sin_servicio,
             )
         ]
         con_problema = [h for h in hallazgos if h]
@@ -227,6 +228,25 @@ class Command(BaseCommand):
         )
 
     # ---------------------------------------------------------- expediente
+
+    def _bitacora_sin_servicio(self):
+        """
+        La pantalla de la bitácora vela una entrada por su campo `servicio`.
+        Una que apunte a una atención y no lo declare se pinta como abierta, y
+        entonces enseña al paciente de una firma de Psicología. Estas son
+        anteriores a que el campo existiera.
+        """
+        from apps.auditoria.models import LogAuditoria
+
+        ENTIDADES_CLINICAS = ("Atencion", "SolicitudFirma", "FichaPsicologica")
+        sueltas = LogAuditoria.objects.filter(
+            servicio="", entidad__in=ENTIDADES_CLINICAS, expediente_id__isnull=False
+        )
+        return Hallazgo(
+            "Entradas de bitácora clínicas sin servicio declarado",
+            "La pantalla no puede velarlas y mostraría al paciente.",
+            [f"Registro {r.pk}: {r.accion} sobre {r.entidad} {r.entidad_id}" for r in sueltas],
+        )
 
     def _alertas_sin_expediente_con_persona(self):
         from apps.expediente.models import AlertaClinica

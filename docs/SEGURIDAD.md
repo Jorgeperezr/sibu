@@ -91,6 +91,23 @@ nunca de quién. Añada la comprobación que corresponda:
 `rbac.puede_ver_expediente`, `verificar_acceso_atencion` o
 `verificar_es_del_servicio`.
 
+## La bitácora
+
+`LogAuditoria` registra quién hizo qué. Dos cosas que conviene saber antes de
+tocarla:
+
+- **Un rechazo no se puede escribir dentro de la vista.** `ATOMIC_REQUESTS`
+  envuelve la petición y el `PermissionDenied` la aborta: el registro se iría
+  con el rollback. Se apunta en el contexto y lo escribe `AuditoriaMiddleware`,
+  que corre fuera del bloque atómico. Fuera de una petición no hay transacción
+  que revierta nada, así que ahí se escribe en el acto.
+- **La bitácora también está sellada.** Una línea que diga «X leyó la atención
+  47 del expediente de María Pérez, servicio Psicología» filtra por detrás lo
+  que el sello protege. La regla: el actor siempre se ve, el paciente no. El
+  velo se decide por el campo `servicio`, así que **todo registro sobre una
+  atención debe declararlo** —una prueba recorre el código y falla si alguno se
+  lo deja—.
+
 ## Los dos barridos
 
 No hay que acordarse de nada: dos pruebas recorren el sistema entero y una
