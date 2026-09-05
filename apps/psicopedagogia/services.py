@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from apps.core.models import PeriodoAcademico, Servicio
 from apps.expediente.models import Atencion, Expediente
-from apps.expediente.services import construir_snapshot
+from apps.expediente.services import construir_snapshot, verificar_profesional_del_servicio
 from apps.usuarios.models import PerfilProfesional
 
 from .models import FichaPsicopedagogica, SeguimientoAcademico
@@ -31,6 +31,8 @@ def crear_ficha(
         servicio = Servicio.objects.get(codigo="psicopedagogia")
     except Servicio.DoesNotExist as exc:
         raise ValidationError("El servicio 'psicopedagogia' no está configurado.") from exc
+
+    verificar_profesional_del_servicio(profesional, servicio)
 
     atencion = Atencion.objects.create(
         expediente=expediente,

@@ -445,3 +445,29 @@ def quitar_ajuste(expediente, servicio, variable: str, *, usuario=None) -> bool:
             detalle={"servicio": servicio.codigo, "variable": variable},
         )
     return bool(borrados)
+
+
+def verificar_profesional_del_servicio(perfil, servicio) -> None:
+    """
+    Un profesional abre atenciones en SU servicio, no en el de otro.
+
+    Ninguno de los servicios lo comprobaba: `crear_ficha`, `abrir_consulta` y
+    compañía recibían un `PerfilProfesional` cualquiera y lo grababan como
+    tratante. Sobre Psicología eso no era una incoherencia de datos sino una
+    escalada: `rbac.puede_ver_atencion` concede acceso al tratante ANTES de
+    mirar si el servicio es confidencial —«el propio profesional que la
+    realizó siempre puede verla»—, así que quien se nombraba tratante entraba
+    al servicio sellado por la puerta principal.
+
+    Va en la capa de servicios y no solo en las vistas porque por aquí pasan la
+    pantalla, la API y lo que se escriba mañana. La pantalla de Psicología ya
+    lo comprobaba por su cuenta; la API no, y ese fue todo el agujero.
+    """
+    from django.core.exceptions import ValidationError
+
+    if perfil is None:
+        raise ValidationError("Se requiere un perfil profesional para abrir la atención.")
+    if not perfil.servicios.filter(pk=servicio.pk).exists():
+        raise ValidationError(
+            f"No pertenece al servicio {servicio.nombre}: no puede abrir una atención en él."
+        )
