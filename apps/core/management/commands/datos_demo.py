@@ -215,6 +215,7 @@ class Command(BaseCommand):
 
     def _limpiar(self):
         from apps.expediente.models import Persona
+        from apps.farmacia.models import Lote
         from apps.usuarios.models import Usuario
 
         cedulas = [c for c, *_ in PACIENTES]
@@ -224,6 +225,12 @@ class Command(BaseCommand):
         # inventario que registraron y los talleres que facilitan. Todo eso es
         # dato de demostración y se va con ellas.
         self._borrar_protegido(Usuario.objects.filter(username__in=usuarios))
+        # Y los lotes DETRÁS de los movimientos, no antes: al borrarse las
+        # cuentas se llevan por delante la bitácora del inventario, y un lote
+        # con saldo y sin un solo movimiento que lo explique es exactamente la
+        # incoherencia que la pantalla de inventario existe para impedir. Lo
+        # detectó `revisar_datos` la primera vez que se ejecutó.
+        self._borrar_protegido(Lote.objects.all())
         self.stdout.write("Datos de demostración eliminados.")
 
     def _borrar_protegido(self, consulta, profundidad=0):
@@ -530,7 +537,7 @@ class Command(BaseCommand):
 
     def _farmacia(self):
         from apps.farmacia import services
-        from apps.farmacia.models import Medicamento
+        from apps.farmacia.models import Lote, Medicamento
 
         perfil = self.perfiles.get("farmacia")
         if perfil is None:
@@ -560,16 +567,23 @@ class Command(BaseCommand):
         for i, med in enumerate(medicamentos):
             # Dos lotes con caducidades distintas: así el FEFO se ve funcionar.
             for sufijo, dias, cantidad in (("A", 120, 200), ("B", 400, 300)):
-                try:
-                    services.ingresar_lote(
-                        med,
-                        f"L-{med.codigo}-{sufijo}",
-                        cantidad,
-                        hoy + timedelta(days=dias + i),
-                        usuario=perfil,
-                    )
-                except Exception:  # noqa: BLE001 - ya ingresado
-                    pass
+                numero = f"L-{med.codigo}-{sufijo}"
+                # Se pregunta si el lote ya está, en vez de ingresarlo y
+                # atrapar el fallo: `ingresar_lote` NO falla cuando el lote
+                # existe, SUMA. Con el `except Exception: pass` que había aquí
+                # —comentado «ya ingresado»— cada siembra añadía otras 200
+                # unidades, y tres siembras dejaban 600 donde se declaran 200.
+                # El comando se documenta como idempotente y el inventario no
+                # lo era.
+                if Lote.objects.filter(medicamento=med, numero_lote=numero).exists():
+                    continue
+                services.ingresar_lote(
+                    med,
+                    numero,
+                    cantidad,
+                    hoy + timedelta(days=dias + i),
+                    usuario=perfil,
+                )
 
         # Una receta pendiente en el mostrador, emitida desde una consulta.
         atencion = self._primera_atencion("medicina")

@@ -1,4 +1,4 @@
-.PHONY: install migrate run up preparar cuentas worker perfil demo seed setup test lint fmt help
+.PHONY: install migrate run up preparar revisar cuentas worker perfil demo seed setup test lint fmt help
 
 help:         ## Mostrar esta ayuda
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -17,6 +17,9 @@ up:           ## ARRANQUE. Prepara la base si hace falta y levanta el servidor
 
 preparar:     ## Migraciones + datos base + RBAC + CIE-10 + cuentas de prueba
 	python manage.py preparar
+
+revisar:      ## Buscar incoherencias en los datos ya guardados (no corrige)
+	python manage.py revisar_datos --detalle
 
 cuentas:      ## Recordar con qué usuario y contraseña iniciar sesión
 	python manage.py cuentas
