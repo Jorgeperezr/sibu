@@ -37,6 +37,10 @@ talleres, portal del estudiante y tablero de gestión.
   `1700000001` son válidas; `1104567890` NO.
 - **Zona horaria America/Guayaquil**: usar `timezone.localtime()`, no comparar
   UTC contra `localdate()`.
+- **Un atributo que no existe no da error en una plantilla: da un hueco.**
+  `{{ receta.codigo }}` sobre un modelo cuyo campo es `numero` responde 200 y
+  pinta vacío. Ninguna prueba de estado ni de contexto lo ve; lo ve una que
+  compruebe que lo propio APARECE (`assert receta.numero in contenido`).
 - **Comentarios de plantilla `{# #}` solo funcionan en una línea.** Para varias,
   `{% comment %}`.
 - `auto_now_add` sobre tabla existente falla sin default.

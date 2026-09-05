@@ -124,6 +124,17 @@ puerta nueva entra sola.
 Ambos **siembran el sistema entero antes de mirar**. Sin datos todas las listas
 salen vacías y la prueba pasaría afirmando nada, que es peor que no tenerla.
 
+## Una trampa que no es de acceso pero cuesta igual
+
+**Django no avisa de un atributo inexistente en una plantilla**: lo resuelve a
+cadena vacía y sigue. `{{ receta.codigo }}` sobre un modelo cuyo campo se llama
+`numero` no da error, da un hueco. La página responde 200, la prueba de estado
+pasa y el paciente ve una fila en blanco.
+
+Ninguna prueba que mire el contexto o el código de estado lo detecta. Lo que sí
+lo detecta es comprobar que **lo propio aparece**, no solo que lo ajeno no
+aparece: `assert receta.numero in contenido`.
+
 ## Lo que ya pasó
 
 Por si sirve de aviso sobre por dónde vuelven estas cosas:

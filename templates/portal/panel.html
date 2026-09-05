@@ -46,10 +46,31 @@
       <div class="card-body p-0">
         {% if recetas %}
         <ul class="list-group list-group-flush small">
+          {% comment %}
+          `r.numero`, no `r.codigo`: el modelo no tiene ese campo y Django lo
+          resuelve a cadena vacía sin decir nada, así que la fila salía con la
+          etiqueta de estado y nada más. Y los medicamentos, que `mis_recetas`
+          ya venía trayendo con prefetch: una receta sin decir qué le recetaron
+          no le sirve a quien va a la farmacia.
+          {% endcomment %}
           {% for r in recetas %}
-          <li class="list-group-item d-flex justify-content-between">
-            <span>{{ r.codigo }}</span>
-            <span class="badge bg-light text-dark border">{{ r.get_estado_display }}</span>
+          <li class="list-group-item">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <span class="fw-semibold">{{ r.numero }}</span>
+              <span class="badge bg-light text-dark border">{{ r.get_estado_display }}</span>
+            </div>
+            <div class="text-muted">
+              {% for d in r.detalles.all %}
+                {{ d.medicamento.dci }}{% if d.medicamento.concentracion %} {{ d.medicamento.concentracion }}{% endif %}
+                · {{ d.cantidad_prescrita }}{% if d.dosis %} · {{ d.dosis }}{% endif %}
+                {% if not forloop.last %}<br>{% endif %}
+              {% empty %}
+                Sin medicamentos registrados.
+              {% endfor %}
+            </div>
+            <div class="small text-muted mt-1">
+              Válida hasta {{ r.valida_hasta|date:"d/m/Y H:i" }}
+            </div>
           </li>
           {% endfor %}
         </ul>
