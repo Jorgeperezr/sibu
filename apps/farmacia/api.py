@@ -18,6 +18,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
 from apps.usuarios.rbac import visible_para_personal
 
 from . import services
@@ -40,7 +41,7 @@ def _perfil_o_none(request):
 class MedicamentoViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Medicamento.objects.filter(activo=True)
     serializer_class = MedicamentoSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["requiere_receta"]
     search_fields = ["codigo", "dci", "nombre_comercial"]
 
@@ -48,7 +49,7 @@ class MedicamentoViewSet(viewsets.ReadOnlyModelViewSet):
 class LoteViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Lote.objects.select_related("medicamento").order_by("fecha_caducidad")
     serializer_class = LoteSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["medicamento"]
 
     def get_queryset(self):
@@ -93,7 +94,7 @@ class RecetaViewSet(viewsets.ReadOnlyModelViewSet):
         "detalles__medicamento", "detalles__dispensaciones__lote"
     )
     serializer_class = RecetaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["estado"]
 
     def get_queryset(self):

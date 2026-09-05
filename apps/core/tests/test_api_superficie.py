@@ -1,6 +1,10 @@
 """
 Barrido de toda la superficie de la API, no de un endpoint a la vez.
 
+Dos mitades: lo que se lee y lo que se escribe. La segunda no la cubre el
+filtrado del queryset —un POST no pasa por él—, y ahí un estudiante llegó a
+concederse una beca y a crear la agenda de un profesional.
+
 Los agujeros de control de acceso aparecieron de uno en uno —nueve vistas web,
 después la trazabilidad de derivaciones, después la lista de citas— y siempre
 por el mismo camino: alguien registra un ViewSet nuevo con `IsAuthenticated` y
@@ -110,3 +114,31 @@ def test_un_estudiante_no_lee_datos_de_pacientes_por_ninguna_puerta(sistema_semb
             filtraron[f"/api/v1/{prefijo}/ ({nombre_viewset})"] = len(filas)
 
     assert filtraron == {}, f"le devolvieron filas a un estudiante: {filtraron}"
+
+
+@pytest.mark.django_db
+def test_un_estudiante_no_escribe_por_ninguna_puerta(sistema_sembrado):
+    """
+    Filtrar el queryset no protege el `create`: un POST no pasa por él. Y un
+    405 o un 400 no son protección, son casualidad —el primero dice que ese
+    verbo no existe, el segundo que la autorización dejó pasar y solo falló el
+    serializer—. Con una carga válida, ese 400 es un 201.
+
+    Se comprobó: un estudiante se concedía una beca
+    (`POST /becas/beneficiarios/` -> 201) y creaba la agenda de un profesional
+    (`POST /agendas/` -> 201).
+
+    Lo que se exige es que la autorización responda antes que la validación:
+    403 o 405, nunca 400.
+    """
+    Usuario.objects.create_user(username="sonda_w", password=CLAVE, rol_principal=Rol.USUARIO_FINAL)
+    cliente = Client()
+    assert cliente.login(username="sonda_w", password=CLAVE)
+
+    dejaron_pasar = {}
+    for prefijo, nombre_viewset in _rutas():
+        respuesta = cliente.post(f"/api/v1/{prefijo}/", "{}", content_type="application/json")
+        if respuesta.status_code not in (403, 405):
+            dejaron_pasar[f"POST /api/v1/{prefijo}/ ({nombre_viewset})"] = respuesta.status_code
+
+    assert dejaron_pasar == {}, f"la autorización no rechazó: {dejaron_pasar}"

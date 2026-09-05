@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.usuarios import rbac
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
 from apps.usuarios.rbac import visible_para_personal
 from apps.usuarios.services import registrar_break_glass
 
@@ -28,7 +29,7 @@ from .services import resolver_por_cedula
 class PersonaViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Persona.objects.all()
     serializer_class = PersonaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     lookup_field = "cedula"
 
     def get_queryset(self):
@@ -68,7 +69,7 @@ class PersonaViewSet(viewsets.ReadOnlyModelViewSet):
 class ExpedienteViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Expediente.objects.select_related("persona")
     serializer_class = ExpedienteSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         """`retrieve` ya lo comprobaba; `list` se quedó sin comprobar nada."""

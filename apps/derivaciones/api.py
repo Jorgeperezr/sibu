@@ -22,6 +22,7 @@ from rest_framework.response import Response
 
 from apps.core.models import Servicio
 from apps.expediente.models import Atencion, Expediente
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
 from apps.usuarios.rbac import puede_ver_expediente, servicios_del_usuario
 
 from . import services
@@ -46,7 +47,7 @@ class DerivacionViewSet(viewsets.ModelViewSet):
         "servicio_destino",
     ).order_by("-creado_en")
     serializer_class = DerivacionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         """
@@ -167,7 +168,7 @@ class DerivacionViewSet(viewsets.ModelViewSet):
 class ReferenciaExternaViewSet(viewsets.ModelViewSet):
     queryset = ReferenciaExterna.objects.select_related("atencion__servicio").order_by("-creado_en")
     serializer_class = ReferenciaExternaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         mis_servicios = servicios_del_usuario(self.request.user)

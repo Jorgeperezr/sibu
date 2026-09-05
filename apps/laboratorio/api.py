@@ -17,6 +17,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
 from apps.usuarios.rbac import visible_para_personal
 
 from . import services
@@ -53,7 +54,7 @@ class OrdenLaboratorioViewSet(viewsets.ReadOnlyModelViewSet):
         "atencion__expediente__persona"
     ).prefetch_related("examenes__resultados")
     serializer_class = OrdenLaboratorioSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["estado", "prioridad", "enviado_correo_paciente"]
 
     def get_queryset(self):

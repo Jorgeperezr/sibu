@@ -149,9 +149,15 @@ def test_un_estudiante_no_lista_citas_de_nadie(escenario):
     """
     Ni las de Psicología ni las de Medicina: el nombre y la cédula de quien
     tiene hora en la Unidad no son públicos para quien solo tiene una sesión.
+
+    Responde 403 y no una lista vacía: desde que `EsPersonalDeLaUnidad` cubre
+    también las escrituras, la autorización rechaza antes de llegar al
+    queryset. Lo uno no sustituye a lo otro —el filtrado sigue haciendo falta
+    para separar servicios entre sí— pero para quien no es personal la puerta
+    se cierra un paso antes.
     """
     respuesta = _cliente(escenario["estudiante"]).get("/api/v1/citas/")
-    assert _ids(respuesta) == set()
+    assert respuesta.status_code == 403
 
 
 @pytest.mark.django_db

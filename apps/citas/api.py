@@ -18,6 +18,7 @@ from rest_framework.response import Response
 from apps.core.models import Servicio
 from apps.expediente.models import Expediente
 from apps.usuarios.models import PerfilProfesional
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
 from apps.usuarios.rbac import visible_para_personal
 
 from . import services
@@ -38,7 +39,7 @@ from .serializers import (
 class AgendaViewSet(viewsets.ModelViewSet):
     queryset = Agenda.objects.select_related("profesional__usuario", "servicio")
     serializer_class = AgendaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["profesional", "servicio", "dia_semana", "activa"]
 
     def get_queryset(self):
@@ -51,7 +52,7 @@ class AgendaViewSet(viewsets.ModelViewSet):
 class BloqueoAgendaViewSet(viewsets.ModelViewSet):
     queryset = BloqueoAgenda.objects.all()
     serializer_class = BloqueoAgendaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["profesional"]
 
     def get_queryset(self):
@@ -64,7 +65,7 @@ class CitaViewSet(viewsets.ModelViewSet):
         "expediente__persona", "servicio", "profesional__usuario"
     )
     serializer_class = CitaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["servicio", "profesional", "estado", "expediente"]
 
     def get_queryset(self):
