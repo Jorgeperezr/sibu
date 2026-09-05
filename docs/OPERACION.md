@@ -60,6 +60,23 @@ Decidirlo por su cuenta convertiría un descuadre visible en uno silencioso.
 Devuelve código de salida 1 si encuentra algo, para encadenarlo en un guion de
 despliegue.
 
+## Notificaciones
+
+La campana del pie de la barra lateral lleva el número de avisos sin leer, y
+está en todas las pantallas: una bandeja a la que hay que acordarse de entrar
+no sirve para avisar de un **valor crítico** de laboratorio, que es el aviso
+que más urge.
+
+Cada quien ve los suyos y nadie más los ve: la consulta parte del usuario de la
+sesión, no de un id de la URL. No hay pantalla que liste los de otro, y no es
+un olvido —el título de una notificación de Psicología ya diría de qué servicio
+es su destinatario—.
+
+Se guarda **cuándo** se leyó, no solo si se leyó, y la primera lectura es la
+que cuenta: sobre un valor crítico, «a qué hora se enteró» es lo que habría que
+poder responder después, y volver a abrir la bandeja tres días más tarde no
+puede mover esa hora.
+
 ## La bitácora
 
 **Gestión → Bitácora** responde «quién abrió esto y cuándo». Registra cada

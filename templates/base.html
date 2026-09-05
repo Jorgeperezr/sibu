@@ -56,9 +56,23 @@ puede declararse una vez.
         <span>{{ user.get_full_name|default:user.username }}</span>
         <small>{{ user.get_rol_principal_display }}</small>
       </a>
-      <a href="{% url 'logout' %}" title="Cerrar sesión" class="sibu-salir">
-        <i class="bi bi-box-arrow-right"></i>
-      </a>
+      {% comment %}
+      El aviso va siempre a la vista y no solo dentro de un menú: una bandeja a
+      la que hay que acordarse de entrar no sirve para avisar de un valor
+      crítico de laboratorio.
+      {% endcomment %}
+      <div class="sibu-usuario-acciones">
+        <a href="{% url 'notificaciones:bandeja' %}" class="sibu-avisos"
+           title="{{ notificaciones_sin_leer }} notificación(es) sin leer">
+          <i class="bi bi-bell{% if notificaciones_sin_leer %}-fill{% endif %}"></i>
+          {% if notificaciones_sin_leer %}
+          <span class="badge rounded-pill bg-danger">{{ notificaciones_sin_leer }}</span>
+          {% endif %}
+        </a>
+        <a href="{% url 'logout' %}" title="Cerrar sesión" class="sibu-salir">
+          <i class="bi bi-box-arrow-right"></i>
+        </a>
+      </div>
     </div>
   </aside>
   {% endif %}

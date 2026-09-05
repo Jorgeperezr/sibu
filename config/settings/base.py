@@ -105,6 +105,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.navegacion.navegacion",
                 "apps.core.navegacion.entorno",
+                "apps.notificaciones.context.notificaciones",
             ],
         },
     },

@@ -30,20 +30,30 @@ from apps.usuarios.models import Rol, Usuario
 
 CLAVE = "clave-larga-12345"
 
-# Pantallas que un estudiante debe poder abrir, y por qué.
+# Pantallas que un estudiante debe poder abrir, POR RUTA y con su razón.
+#
+# Por ruta y no por nombre de URL, y esto importa: `bandeja` es el nombre que
+# usan Medicina, Psicología, Laboratorio, Farmacia, Becas, Talleres y
+# Derivaciones. Permitir «bandeja» habría abierto la lista blanca a las siete y
+# dejado el barrido ciego justo para las pantallas que vino a vigilar.
 PERMITIDAS = {
-    "inicio": "portada pública",
-    "login": "iniciar sesión",
-    "logout": "cerrar sesión",
-    "password_change": "cambiar su propia contraseña",
-    "password_change_done": "confirmación de lo anterior",
-    "password_reset": "recuperar su propia contraseña",
-    "password_reset_done": "confirmación de lo anterior",
-    "password_reset_confirm": "recuperar su propia contraseña",
-    "password_reset_complete": "confirmación de lo anterior",
-    "mi_perfil": "su propia ficha",
-    "vincular": "portal del estudiante: vincula SU expediente, por identidad",
+    "/": "portada pública",
+    "/cuentas/login/": "iniciar sesión",
+    "/cuentas/logout/": "cerrar sesión",
+    "/cuentas/password_change/": "cambiar su propia contraseña",
+    "/cuentas/password_change/done/": "confirmación de lo anterior",
+    "/cuentas/password_reset/": "recuperar su propia contraseña",
+    "/cuentas/password_reset/done/": "confirmación de lo anterior",
+    "/cuentas/reset/1/1/": "recuperar su propia contraseña",
+    "/cuentas/reset/done/": "confirmación de lo anterior",
+    "/usuarios/mi-perfil/": "su propia ficha",
+    "/portal/vincular/": "portal del estudiante: vincula SU expediente, por identidad",
+    # El recordatorio de su propia cita le llega aquí cuando tiene cuenta del
+    # portal vinculada. La vista parte del usuario de la sesión, así que solo
+    # ve las suyas: aislamiento por identidad, igual que el portal.
+    "/notificaciones/": "sus propias notificaciones, filtradas por el usuario de la sesión",
 }
+
 # Prefijos que este barrido no cubre: la API tiene el suyo.
 FUERA = ("api/", "admin/", "__debug__", "static", "media", "portal/")
 
@@ -85,10 +95,10 @@ def test_un_estudiante_no_abre_ninguna_pantalla_de_gestion(sembrado):
 
     abiertas = {}
     for patron, nombre in _rutas():
-        if patron.startswith(FUERA) or "format" in patron or nombre in PERMITIDAS:
+        if patron.startswith(FUERA) or "format" in patron:
             continue
         url = "/" + re.sub(r"<[^>]+>", "1", patron)
-        if "(" in url:
+        if "(" in url or url in PERMITIDAS:
             continue
         try:
             respuesta = cliente.get(url)
