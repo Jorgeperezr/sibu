@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from apps.core.models import Servicio
 from apps.expediente.models import Atencion
-from apps.usuarios.rbac import SERVICIOS_CONFIDENCIALES
+from apps.usuarios.rbac import SERVICIOS_CONFIDENCIALES, servicios_del_usuario
 
 from .models import Contrarreferencia, Derivacion, ReferenciaExterna
 
@@ -210,25 +210,50 @@ def retornar(derivacion: Derivacion, texto: str) -> Derivacion:
     return derivacion
 
 
-def trazabilidad(expediente) -> list[dict]:
-    """Recorrido del paciente entre servicios: quién derivó a quién y cómo terminó."""
+def trazabilidad(expediente, usuario) -> list[dict]:
+    """
+    Recorrido del paciente entre servicios: quién derivó a quién y cómo terminó.
+
+    El `usuario` no es decorativo: sobre un destino confidencial esta lista
+    filtraba dos cosas a la vez. El `motivo` lo escribe quien deriva y suele
+    decir por qué —es contenido—; y la sola existencia de la fila
+    «→ Psicología» identifica a la persona como paciente de ese servicio,
+    aunque el motivo estuviera en blanco. La marca `confidencial` que se
+    devolvía no suprimía nada: solo pintaba un candado al lado del dato.
+
+    Una derivación a un servicio confidencial la ven dos partes y nadie más:
+    quien la emitió —escribió el motivo, y ocultárselo no protege a nadie
+    mientras le impide seguir su propio caso— y el servicio que la recibe. Ni
+    Dirección, ni Coordinación, ni administración, ni break-glass: es la misma
+    regla que aplica `rbac.puede_ver_atencion`, sin excepciones.
+
+    Lo abierto sigue abierto: una derivación de Medicina a Enfermería es
+    gestión, y estrecharla dejaría el recorrido inútil para el resto.
+    """
+    mis_servicios = servicios_del_usuario(usuario)
     derivaciones = (
         Derivacion.objects.filter(atencion_origen__expediente=expediente)
         .select_related("atencion_origen__servicio", "servicio_destino")
         .order_by("creado_en")
     )
-    return [
-        {
-            "fecha": d.creado_en,
-            "desde": d.atencion_origen.servicio.nombre,
-            "hacia": d.servicio_destino.nombre,
-            "motivo": d.motivo,
-            "estado": d.get_estado_display(),
-            "prioridad": d.prioridad,
-            "confidencial": _es_confidencial(d.servicio_destino),
-        }
-        for d in derivaciones
-    ]
+    filas = []
+    for d in derivaciones:
+        if _es_confidencial(d.servicio_destino) and not (
+            d.servicio_destino_id in mis_servicios or d.atencion_origen.servicio_id in mis_servicios
+        ):
+            continue
+        filas.append(
+            {
+                "fecha": d.creado_en,
+                "desde": d.atencion_origen.servicio.nombre,
+                "hacia": d.servicio_destino.nombre,
+                "motivo": d.motivo,
+                "estado": d.get_estado_display(),
+                "prioridad": d.prioridad,
+                "confidencial": _es_confidencial(d.servicio_destino),
+            }
+        )
+    return filas
 
 
 # ============================================================

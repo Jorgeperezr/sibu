@@ -203,8 +203,15 @@ def test_bandeja_prioriza_urgentes(escenario):
 
 @pytest.mark.django_db
 def test_trazabilidad_marca_confidenciales(escenario):
+    """
+    Marcarlas está bien; lo que no bastaba era marcarlas. La marca se conserva
+    —la pantalla pinta el candado con ella— pero ahora quien no es de ninguno
+    de los dos servicios ni siquiera recibe la fila: ver que existe ya dice que
+    la persona es paciente de Psicología. El caso completo está en
+    `test_trazabilidad_sello.py`.
+    """
     services.derivar(escenario["atencion_med"], escenario["psico"], motivo="Depresión")
-    traza = services.trazabilidad(escenario["exp"])
+    traza = services.trazabilidad(escenario["exp"], escenario["medico"].usuario)
     assert len(traza) == 1
     assert traza[0]["hacia"] == escenario["psico"].nombre
     assert traza[0]["confidencial"] is True

@@ -22,7 +22,7 @@ from rest_framework.response import Response
 
 from apps.core.models import Servicio
 from apps.expediente.models import Atencion, Expediente
-from apps.usuarios.rbac import servicios_del_usuario
+from apps.usuarios.rbac import puede_ver_expediente, servicios_del_usuario
 
 from . import services
 from .models import Derivacion, ReferenciaExterna
@@ -142,13 +142,26 @@ class DerivacionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def trazabilidad(self, request):
+        """
+        El recorrido del paciente entre servicios.
+
+        No comprobaba nada: bastaba con estar autenticado y pasar cualquier id
+        de expediente. La misma puerta que la vista web tenía abierta, por
+        duplicado. El filtrado de lo confidencial lo hace el servicio, que sabe
+        a qué servicios pertenece quien pregunta.
+        """
         expediente_id = request.query_params.get("expediente")
         if not expediente_id:
             return Response({"detail": "Indique el parámetro 'expediente'."}, status=400)
+        if not puede_ver_expediente(request.user):
+            return Response(
+                {"detail": "No tiene permisos para consultar expedientes."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         expediente = Expediente.objects.filter(pk=expediente_id).first()
         if expediente is None:
             return Response({"detail": "Expediente no encontrado."}, status=404)
-        return Response(services.trazabilidad(expediente))
+        return Response(services.trazabilidad(expediente, request.user))
 
 
 class ReferenciaExternaViewSet(viewsets.ModelViewSet):

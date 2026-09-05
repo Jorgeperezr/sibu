@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.core.models import Servicio
 from apps.expediente.models import Atencion, Expediente
+from apps.usuarios import rbac
 from apps.usuarios.rbac import SERVICIOS_CONFIDENCIALES, servicios_del_usuario
 
 from . import services
@@ -140,10 +141,21 @@ def gestionar(request, pk):
 
 @login_required
 def trazabilidad(request, expediente_id):
-    """Recorrido del paciente entre servicios."""
+    """
+    Recorrido del paciente entre servicios.
+
+    Llevaba solo `@login_required`, igual que las nueve vistas que el Sprint 7b
+    corrigió: cualquier autenticado —un estudiante incluido— cambiaba el id del
+    expediente y leía a qué servicios fue esa persona y por qué.
+    """
+    if not rbac.puede_ver_expediente(request.user):
+        raise PermissionDenied("No tiene permisos para consultar expedientes.")
     expediente = get_object_or_404(Expediente.objects.select_related("persona"), pk=expediente_id)
     return render(
         request,
         "derivaciones/trazabilidad.html",
-        {"expediente": expediente, "traza": services.trazabilidad(expediente)},
+        {
+            "expediente": expediente,
+            "traza": services.trazabilidad(expediente, request.user),
+        },
     )
