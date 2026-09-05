@@ -18,6 +18,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from apps.core.models import Servicio
 from apps.expediente.models import Expediente
 from apps.expediente.services import resolver_por_cedula
+from apps.usuarios import rbac
 from apps.usuarios.models import PerfilProfesional
 from apps.usuarios.rbac import servicios_del_usuario
 
@@ -55,9 +56,27 @@ def _volver(request):
     return redirect("citas:mi_agenda")
 
 
+def _solo_personal(request) -> None:
+    """
+    Estas pantallas son de trabajo: reservan, buscan personas y listan agendas
+    con nombres de pacientes. `@login_required` solo pregunta si hay sesión,
+    nunca de quién; es el mismo descuido que el Sprint 7b corrigió en nueve
+    vistas. El estudiante tiene el portal, que aísla por identidad.
+    """
+    if not rbac.puede_ver_expediente(request.user):
+        raise PermissionDenied("No tiene permisos para gestionar citas.")
+
+
 @login_required
 def mi_agenda(request):
-    """Agenda del día del profesional autenticado (o del elegido si tiene permisos)."""
+    """
+    Agenda del día del profesional autenticado (o del elegido si tiene permisos).
+
+    Un estudiante la abría y salía vacía —no tiene perfil—, que es la clase de
+    protección que deja de funcionar en cuanto alguien le asigna uno. La
+    pantalla lista nombres de pacientes y motivos: se pide ser personal.
+    """
+    _solo_personal(request)
     perfil = getattr(request.user, "perfil", None)
     fecha_str = request.GET.get("fecha")
     fecha = parse_date(fecha_str) if fecha_str else timezone.localdate()
@@ -98,7 +117,11 @@ def reservar(request):
     """
     Formulario de reserva: busca por cédula, elige servicio/profesional/fecha
     y muestra los turnos disponibles (vía fetch al endpoint de disponibilidad).
+
+    Llevaba solo `@login_required`: un estudiante reservaba para cualquier
+    expediente con cualquier profesional, Psicología incluida.
     """
+    _solo_personal(request)
     contexto = {
         "servicios": Servicio.objects.filter(activo=True).select_related("seccion"),
     }
@@ -129,7 +152,14 @@ def reservar(request):
 
 @login_required
 def buscar_persona_json(request):
-    """Endpoint ligero para el JS del formulario de reserva."""
+    """
+    Endpoint ligero para el JS del formulario de reserva.
+
+    Tercera puerta a `resolver_por_cedula`, después de la vista `buscar` y de
+    la API. No solo devuelve los datos institucionales de quien sea: esa
+    llamada CREA la persona y su expediente si no existían.
+    """
+    _solo_personal(request)
     cedula = request.GET.get("cedula", "").strip()
     if not cedula:
         return JsonResponse({"error": "cedula requerida"}, status=400)
@@ -150,7 +180,13 @@ def buscar_persona_json(request):
 
 @login_required
 def profesionales_json(request):
-    """Devuelve los profesionales asignados a un servicio."""
+    """
+    Devuelve los profesionales asignados a un servicio.
+
+    Alimenta el formulario de reserva, así que se cierra con él: quién atiende
+    en cada servicio es directorio interno.
+    """
+    _solo_personal(request)
     servicio_id = request.GET.get("servicio")
     if not servicio_id:
         return JsonResponse({"profesionales": []})

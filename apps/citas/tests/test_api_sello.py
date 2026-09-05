@@ -176,3 +176,63 @@ def test_ventanilla_no_ve_las_del_servicio_sellado(escenario):
     """Que agende no le da derecho a leer quién va a Psicología."""
     respuesta = _cliente(escenario["ventanilla"]).get("/api/v1/citas/")
     assert escenario["cita_psico"].pk not in _ids(respuesta)
+
+
+# ------------------------------------------------- las pantallas de reserva
+
+
+@pytest.mark.django_db
+def test_un_estudiante_no_reserva_citas_para_nadie(escenario):
+    """
+    `/citas/reservar/` llevaba solo `@login_required`: un estudiante reservaba
+    para cualquier expediente con cualquier profesional, Psicología incluida.
+    """
+    from django.urls import reverse
+
+    from apps.citas.models import Cita
+
+    cliente = _cliente(escenario["estudiante"])
+    assert cliente.get(reverse("citas:reservar")).status_code in (302, 403)
+
+    antes = Cita.objects.count()
+    cliente.post(
+        reverse("citas:reservar"),
+        {
+            "expediente": escenario["cita"].expediente_id,
+            "servicio": escenario["est"]["psicologia"].pk,
+            "profesional": escenario["cita_psico"].profesional_id,
+            "fecha_hora": "2027-01-04T10:40",
+            "motivo": "x",
+        },
+    )
+    assert Cita.objects.count() == antes, "un estudiante reservó una cita"
+
+
+@pytest.mark.django_db
+def test_un_estudiante_no_resuelve_cedulas_por_el_json_de_la_reserva(escenario):
+    """
+    La tercera puerta a `resolver_por_cedula`, después de la vista `buscar` y
+    de la API: no solo devuelve los datos de la persona, es que le ABRE un
+    expediente a quien no lo tenía.
+    """
+    from django.urls import reverse
+
+    from apps.expediente.models import Expediente, Persona
+
+    cedula = "1100000007"
+    Persona.objects.filter(cedula=cedula).delete()
+    antes = Expediente.objects.count()
+
+    respuesta = _cliente(escenario["estudiante"]).get(reverse("citas:_persona"), {"cedula": cedula})
+
+    assert respuesta.status_code in (302, 403)
+    assert Expediente.objects.count() == antes
+    assert not Persona.objects.filter(cedula=cedula).exists()
+
+
+@pytest.mark.django_db
+def test_quien_agenda_sigue_pudiendo_reservar(escenario):
+    """La otra cara: la pantalla existe para que ventanilla y los servicios la usen."""
+    from django.urls import reverse
+
+    assert _cliente(escenario["medico"]).get(reverse("citas:reservar")).status_code == 200
