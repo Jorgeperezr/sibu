@@ -98,7 +98,7 @@ def despachar(request, pk):
                 services.anular_receta(receta, request.POST.get("motivo", ""))
                 messages.warning(request, "Receta anulada.")
 
-        except (ValidationError, RecetaDetalle.DoesNotExist) as exc:
+        except (ValidationError, KeyError, ValueError, RecetaDetalle.DoesNotExist) as exc:
             msg = "; ".join(exc.messages) if hasattr(exc, "messages") else "Ítem no encontrado."
             messages.error(request, msg)
         return redirect("farmacia:despachar", pk=receta.pk)

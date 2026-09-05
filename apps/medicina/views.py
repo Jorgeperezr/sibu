@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core.mensajes import detalle_de_error
 from apps.core.models import CIE10, Servicio
 from apps.core.selectors import diagnosticos_por_servicio
 from apps.enfermeria.services import ultimo_triaje
@@ -17,11 +18,6 @@ from apps.usuarios.decorators import verificar_acceso_atencion, verificar_es_del
 
 from . import services
 from .models import AtencionMedicina
-
-
-def _detalle(exc, por_defecto: str) -> str:
-    """El texto de un ValidationError, o un mensaje claro si no lo trae."""
-    return "; ".join(exc.messages) if hasattr(exc, "messages") else por_defecto
 
 
 @login_required
@@ -103,7 +99,7 @@ def consulta(request, pk):
                     principal=request.POST.get("principal") == "on",
                 )
                 messages.success(request, "Diagnóstico agregado.")
-            except (ValidationError, CIE10.DoesNotExist) as exc:
+            except (ValidationError, KeyError, CIE10.DoesNotExist) as exc:
                 msg = (
                     "; ".join(exc.messages)
                     if hasattr(exc, "messages")
@@ -134,7 +130,7 @@ def consulta(request, pk):
                     )
                     messages.success(request, f"Receta {receta.numero} emitida.")
             except (ValidationError, KeyError, ValueError, Medicamento.DoesNotExist) as exc:
-                messages.error(request, _detalle(exc, "Medicamento no encontrado."))
+                messages.error(request, detalle_de_error(exc, "Medicamento no encontrado."))
 
         elif accion == "examenes":
             try:
@@ -147,7 +143,7 @@ def consulta(request, pk):
                 )
                 messages.success(request, f"Orden de laboratorio #{orden.pk} creada.")
             except (ValidationError, Examen.DoesNotExist) as exc:
-                messages.error(request, _detalle(exc, "Examen no encontrado."))
+                messages.error(request, detalle_de_error(exc, "Examen no encontrado."))
 
         elif accion == "cerrar":
             try:

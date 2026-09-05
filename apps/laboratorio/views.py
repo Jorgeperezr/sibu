@@ -12,11 +12,12 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core.mensajes import detalle_de_error
 from apps.core.models import Servicio
 from apps.usuarios.decorators import verificar_es_del_servicio
 
 from . import services
-from .models import OrdenLaboratorio, ParametroExamen
+from .models import OrdenExamen, OrdenLaboratorio, ParametroExamen
 
 
 def _servicio():
@@ -89,8 +90,13 @@ def detalle_orden(request, pk):
                 messages.success(
                     request, "Resultados publicados y enviados al correo del paciente."
                 )
-        except ValidationError as exc:
-            messages.error(request, "; ".join(exc.messages))
+        except (
+            ValidationError,
+            KeyError,
+            OrdenExamen.DoesNotExist,
+            ParametroExamen.DoesNotExist,
+        ) as exc:
+            messages.error(request, detalle_de_error(exc, "Dato del formulario incompleto."))
 
         return redirect("laboratorio:detalle", pk=orden.pk)
 

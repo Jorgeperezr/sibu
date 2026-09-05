@@ -198,7 +198,12 @@ def consulta(request, pk):
                 messages.success(request, "Atención cerrada.")
                 return redirect("expediente:detalle", pk=hc.atencion.expediente_id)
 
-        except (ValidationError, CatalogoProcedimiento.DoesNotExist, CIE10.DoesNotExist) as exc:
+        except (
+            ValidationError,
+            KeyError,
+            CatalogoProcedimiento.DoesNotExist,
+            CIE10.DoesNotExist,
+        ) as exc:
             msg = (
                 "; ".join(exc.messages)
                 if hasattr(exc, "messages")
