@@ -133,3 +133,14 @@ datos reales en entornos de desarrollo.
 - **Fase 1:** base institucional por carga Excel/CSV, servicios clínicos,
   becas (beneficiarios + seguimiento), talleres con evidencias en Google Drive.
 - **Fase 2:** integración API con el SGA y con el sistema de becas institucional.
+
+## Documentación
+
+| | |
+|---|---|
+| [`docs/OPERACION.md`](docs/OPERACION.md) | Qué se ejecuta cada día y qué significa lo que responde. |
+| [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) | El control de acceso tal como está montado, y qué hacer al añadir un endpoint o una pantalla. |
+| [`docs/COMO_CARGAR_LA_BASE.md`](docs/COMO_CARGAR_LA_BASE.md) | La carga de la base institucional, paso a paso. |
+| [`docs/CARGA_BASE_INSTITUCIONAL.md`](docs/CARGA_BASE_INSTITUCIONAL.md) | El diccionario de las 157 columnas. |
+| [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) | Lo que el código no puede verificar por sí mismo. |
+| [`docs/Informe_Tecnico_SIBU_UNL.md`](docs/Informe_Tecnico_SIBU_UNL.md) | El informe técnico: alcance, modelo de datos, requerimientos, flujos. |
