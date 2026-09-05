@@ -75,3 +75,28 @@ def test_el_profesional_del_servicio_sí_la_abre(codigo, abrir, dos_servicios):
     resultado = abrir(expediente=crear_expediente(), profesional=perfil, motivo="Consulta")
     atencion = resultado if hasattr(resultado, "servicio") else resultado.atencion
     assert atencion.servicio.codigo == codigo
+
+
+@pytest.mark.django_db
+def test_la_pantalla_tampoco_deja_abrir_consulta_en_un_servicio_ajeno(dos_servicios):
+    """
+    La comprobación vive en la capa de servicios, así que la pantalla la hereda
+    sin repetirla. Esto lo prueba de punta a punta: `medicina:iniciar` no lleva
+    control propio —solo `@login_required` y «¿tiene perfil?»— y sin la regla
+    del servicio, un odontólogo abría una consulta médica a su nombre.
+    """
+    from django.test import Client
+    from django.urls import reverse
+
+    from apps.expediente.models import Atencion
+
+    usuario = dos_servicios["perfil_ajeno"].usuario  # es de Odontología
+    usuario.set_password("clave-larga-12345")
+    usuario.save()
+    cliente = Client()
+    assert cliente.login(username=usuario.username, password="clave-larga-12345")
+
+    expediente = crear_expediente()
+    cliente.post(reverse("medicina:iniciar", args=[expediente.pk]), {"motivo": "x"})
+
+    assert not Atencion.objects.filter(servicio__codigo="medicina").exists()
