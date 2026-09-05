@@ -37,6 +37,10 @@ talleres, portal del estudiante y tablero de gestión.
   `1700000001` son válidas; `1104567890` NO.
 - **Zona horaria America/Guayaquil**: usar `timezone.localtime()`, no comparar
   UTC contra `localdate()`.
+- **`Decimal("8,5")` lanza `InvalidOperation`, que NO es `ValidationError`.** Y
+  con coma es como se escribe un decimal aquí. Un `except (ValidationError,
+  KeyError)` no lo atrapa y sale una página de error. Convertir siempre dentro
+  de un `try` que traduzca a `ValidationError`.
 - **Un atributo que no existe no da error en una plantilla: da un hueco.**
   `{{ receta.codigo }}` sobre un modelo cuyo campo es `numero` responde 200 y
   pinta vacío. Ninguna prueba de estado ni de contexto lo ve; lo ve una que

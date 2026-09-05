@@ -8,7 +8,7 @@ de la Unidad (S9).
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -64,11 +64,17 @@ def _historial_desde_academico(expediente: Expediente) -> dict:
         .select_related("periodo")
         .order_by("-periodo__codigo")[:5]
     )
+    # Sin `promedio`: `DatoAcademico` no tiene ese campo y leerlo reventaba con
+    # AttributeError en cuanto la persona tenía UNA fila cargada. Con la tabla
+    # vacía el bucle no itera y el defecto no se notaba; el caso normal en
+    # producción es el contrario, porque la carga institucional es lo primero
+    # que se hace. El promedio no está en la ficha de matrícula: lo registra el
+    # profesional en cada seguimiento, que es de donde sale el impacto.
     return {
         d.periodo.codigo: {
             "carrera": d.carrera,
             "nivel": d.nivel,
-            "promedio": str(d.promedio) if d.promedio is not None else None,
+            "estado": d.estado,
         }
         for d in datos
     }
@@ -93,7 +99,19 @@ def registrar_seguimiento(
         raise ValidationError(f"El periodo académico '{periodo}' no existe.")
 
     for etiqueta, valor in (("antes", promedio_antes), ("después", promedio_despues)):
-        if valor is not None and not (Decimal("0") <= Decimal(str(valor)) <= Decimal("10")):
+        if valor is None:
+            continue
+        try:
+            numero = Decimal(str(valor))
+        except InvalidOperation as exc:
+            # `Decimal("8,5")` lanza InvalidOperation, que no es
+            # ValidationError: la vista no la captura y salía una página de
+            # error. Y «8,5» con coma es como se escribe un decimal aquí.
+            raise ValidationError(
+                f"El promedio {etiqueta} debe ser un número entre 0 y 10 "
+                f"con punto decimal (recibido: «{valor}»)."
+            ) from exc
+        if not (Decimal("0") <= numero <= Decimal("10")):
             raise ValidationError(f"El promedio {etiqueta} debe estar entre 0 y 10.")
 
     seguimiento, _ = SeguimientoAcademico.objects.update_or_create(
