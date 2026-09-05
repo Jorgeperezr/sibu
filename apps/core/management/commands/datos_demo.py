@@ -23,6 +23,7 @@ from datetime import date, timedelta
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models import ProtectedError
 from django.utils import timezone
 
 CLAVE = "sibu-demo-2026"
@@ -42,10 +43,15 @@ CLAVE = "sibu-demo-2026"
 # ADVERTENCIA: una contraseña igual al usuario, y además la cédula de una
 # persona real, no puede salir de aquí. Este comando se niega a correr con
 # DEBUG=False, que es lo que impide que llegue al servidor de la Unidad.
+# Sin correo, y a propósito: `jorge.perez@unl.edu.ec` es el buzón de la cuenta
+# de Psicología, y una dirección institucional identifica a UNA cuenta. Con la
+# misma en dos, cualquier flujo que parta del correo —recuperar la contraseña,
+# avisar de algo— quedaría sin saber a cuál de las dos se refiere. Esta cuenta
+# se identifica por la cédula, que es lo que se teclea para entrar.
 ADMIN = {
     "username": "1104346091",
     "cedula": "1104346091",
-    "email": "jorge.perez@unl.edu.ec",
+    "email": "",
     "first_name": "Jorge",
     "last_name": "Pérez",
     "clave": "1104346091",
@@ -161,6 +167,12 @@ PROFESIONALES = [
     },
 ]
 
+# Las tres cuentas que no atienden un servicio. Se listan aquí, y no sueltas
+# dentro de cada método, porque `_limpiar` se olvidaba de `administrador` y la
+# dejaba viva —con su contraseña conocida— después de un borrado que decía
+# haberlo limpiado todo.
+OTRAS_CUENTAS = ["administrador", "director", "estudiante"]
+
 
 def clave_de(profesional: dict) -> str:
     """
@@ -206,16 +218,44 @@ class Command(BaseCommand):
         from apps.usuarios.models import Usuario
 
         cedulas = [c for c, *_ in PACIENTES]
-        usuarios = [p["usuario"] for p in PROFESIONALES] + [
-            "director",
-            "estudiante",
-            ADMIN["username"],
-        ]
-        # Las atenciones cuelgan del expediente con PROTECT, así que se borra
-        # desde la persona hacia abajo con el borrado en cascada de Django.
-        Persona.objects.filter(cedula__in=cedulas).delete()
-        Usuario.objects.filter(username__in=usuarios).delete()
+        usuarios = [p["usuario"] for p in PROFESIONALES] + OTRAS_CUENTAS + [ADMIN["username"]]
+        self._borrar_protegido(Persona.objects.filter(cedula__in=cedulas))
+        # Las cuentas también están protegidas: su perfil, los movimientos de
+        # inventario que registraron y los talleres que facilitan. Todo eso es
+        # dato de demostración y se va con ellas.
+        self._borrar_protegido(Usuario.objects.filter(username__in=usuarios))
         self.stdout.write("Datos de demostración eliminados.")
+
+    def _borrar_protegido(self, consulta, profundidad=0):
+        """
+        Borra apartando primero lo que lo protege.
+
+        El comentario anterior decía que bastaba con borrar «desde la persona
+        hacia abajo con el borrado en cascada de Django», y no era cierto:
+        `Expediente.persona` es PROTECT, así que `--limpiar` reventaba con
+        ProtectedError y no borraba nada. Debajo hay cuatro niveles más
+        —atención, orden de laboratorio, receta, derivación—, y cablear ese
+        orden a mano lo dejaría roto la próxima vez que se añada un modelo.
+
+        En lugar de eso se le pregunta a Django: cuando se planta, la excepción
+        trae exactamente qué filas estorban. Se borran esas y se reintenta.
+        """
+        if profundidad > 10:
+            raise CommandError(
+                "No se pudo borrar: hay una cadena de claves protegidas más larga de lo "
+                "esperado. Revise si un modelo nuevo usa on_delete=PROTECT en ciclo."
+            )
+        try:
+            consulta.delete()
+            return
+        except ProtectedError as error:
+            estorban: dict = {}
+            for objeto in error.protected_objects:
+                estorban.setdefault(type(objeto), []).append(objeto.pk)
+
+        for modelo, pks in estorban.items():
+            self._borrar_protegido(modelo.objects.filter(pk__in=pks), profundidad + 1)
+        self._borrar_protegido(consulta, profundidad + 1)
 
     # ----------------------------------------------------------------- sembrar
 

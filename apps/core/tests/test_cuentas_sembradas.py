@@ -13,7 +13,13 @@ from django.core.management import call_command
 from django.test import Client
 from django.urls import reverse
 
-from apps.core.management.commands.datos_demo import ADMIN, CLAVE, PROFESIONALES, clave_de
+from apps.core.management.commands.datos_demo import (
+    ADMIN,
+    CLAVE,
+    OTRAS_CUENTAS,
+    PROFESIONALES,
+    clave_de,
+)
 from apps.expediente.models import Atencion
 from apps.usuarios import rbac
 from apps.usuarios.models import Rol, Usuario
@@ -42,7 +48,7 @@ def test_todas_las_cuentas_anunciadas_entran(sembrado):
     """
     credenciales = [(ADMIN["username"], ADMIN["clave"])]
     credenciales += [(p["usuario"], clave_de(p)) for p in PROFESIONALES]
-    credenciales += [("administrador", CLAVE), ("director", CLAVE), ("estudiante", CLAVE)]
+    credenciales += [(usuario, CLAVE) for usuario in OTRAS_CUENTAS]
 
     for username, clave in credenciales:
         _entra(username, clave)
@@ -56,6 +62,37 @@ def test_no_hay_cuentas_duplicadas_ni_cedulas_repetidas(sembrado):
 
     cedulas = [c for c in usuarios.values_list("cedula", flat=True) if c]
     assert len(cedulas) == len(set(cedulas))
+
+    # Y tampoco correos: una dirección institucional identifica a UNA cuenta.
+    # `jorge.perez@unl.edu.ec` llegó a estar en dos —la de Psicología y la de
+    # administración—, y con la misma en dos cualquier flujo que parta del
+    # correo no sabe a cuál se refiere.
+    correos = [c for c in usuarios.values_list("email", flat=True) if c]
+    assert len(correos) == len(set(correos)), f"correo repetido en {correos}"
+
+
+@pytest.mark.django_db
+def test_el_correo_de_psicologia_es_de_la_cuenta_de_psicologia(sembrado):
+    """
+    Quién es dueño de `jorge.perez@unl.edu.ec`: la cuenta que atiende
+    Psicología. La de administración se identifica por la cédula y no reclama
+    ese buzón.
+    """
+    assert Usuario.objects.get(username="jorge.perez").email == "jorge.perez@unl.edu.ec"
+    assert Usuario.objects.get(username=ADMIN["username"]).email == ""
+
+
+@pytest.mark.django_db
+def test_no_queda_ninguna_cuenta_fuera_de_las_anunciadas(sembrado):
+    """
+    La siembra no deja cuentas sueltas de versiones anteriores. Una credencial
+    que existe pero que `make cuentas` no anuncia es una puerta que nadie
+    revisa: no se sabe quién la usa ni con qué contraseña.
+    """
+    anunciadas = {ADMIN["username"], "AnonymousUser", *OTRAS_CUENTAS}
+    anunciadas |= {p["usuario"] for p in PROFESIONALES}
+    sobrantes = set(Usuario.objects.values_list("username", flat=True)) - anunciadas
+    assert sobrantes == set(), f"cuentas sin anunciar: {sorted(sobrantes)}"
 
 
 @pytest.mark.django_db
@@ -140,3 +177,36 @@ def test_el_autocompletado_responde_para_quien_atiende(sembrado):
     respuesta = cliente.get(reverse("academico:autocompletar"), {"q": "Jaramillo"})
     assert respuesta.status_code == 200
     assert "resultados" in respuesta.json()
+
+
+@pytest.mark.django_db
+def test_limpiar_borra_de_verdad_todas_las_cuentas_sembradas(sembrado):
+    """
+    `--limpiar` borra y vuelve a sembrar en la misma ejecución, así que
+    comprobar que la cuenta existe después no distingue «se borró y se
+    recreó» de «nunca se tocó». Lo que sí lo distingue es la clave primaria:
+    si cambió, la fila es nueva.
+
+    Se dejaba viva `administrador` —rol de administración y contraseña
+    pública— sobreviviendo a un borrado que decía haberlo limpiado todo.
+    """
+    from apps.core.management.commands.datos_demo import OTRAS_CUENTAS as _otras
+
+    esperadas = [ADMIN["username"], *_otras] + [p["usuario"] for p in PROFESIONALES]
+    antes = dict(Usuario.objects.filter(username__in=esperadas).values_list("username", "pk"))
+    assert set(antes) == set(esperadas), "la siembra no dejó todas las cuentas"
+
+    call_command("datos_demo", "--limpiar", verbosity=0)
+
+    despues = dict(Usuario.objects.filter(username__in=esperadas).values_list("username", "pk"))
+    assert set(despues) == set(esperadas), "alguna cuenta no se volvió a sembrar"
+    sobrevivieron = [u for u in esperadas if antes[u] == despues[u]]
+    assert sobrevivieron == [], f"no se borraron: {sobrevivieron}"
+
+
+@pytest.mark.django_db
+def test_limpiar_se_puede_repetir(sembrado):
+    """Dos veces seguidas: `--limpiar` no puede depender de encontrarlo todo."""
+    call_command("datos_demo", "--limpiar", verbosity=0)
+    call_command("datos_demo", "--limpiar", verbosity=0)
+    assert Usuario.objects.filter(username=ADMIN["username"]).exists()
