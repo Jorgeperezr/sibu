@@ -18,6 +18,7 @@ from rest_framework.response import Response
 from apps.core.models import Servicio
 from apps.expediente.models import Expediente
 from apps.usuarios.models import PerfilProfesional
+from apps.usuarios.rbac import visible_para_personal
 
 from . import services
 from .models import Agenda, BloqueoAgenda, Cita
@@ -40,12 +41,22 @@ class AgendaViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filterset_fields = ["profesional", "servicio", "dia_semana", "activa"]
 
+    def get_queryset(self):
+        """Quién atiende, cuándo y en qué servicio: operación interna."""
+        return visible_para_personal(
+            self.request.user, super().get_queryset(), campo_servicio="servicio"
+        )
+
 
 class BloqueoAgendaViewSet(viewsets.ModelViewSet):
     queryset = BloqueoAgenda.objects.all()
     serializer_class = BloqueoAgendaSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ["profesional"]
+
+    def get_queryset(self):
+        """Igual que la agenda de la que cuelga."""
+        return visible_para_personal(self.request.user, super().get_queryset())
 
 
 class CitaViewSet(viewsets.ModelViewSet):

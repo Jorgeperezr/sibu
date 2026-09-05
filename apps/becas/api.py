@@ -16,6 +16,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.models import PeriodoAcademico
+from apps.usuarios.rbac import visible_para_personal
 
 from . import services
 from .models import BecaBeneficiario, TipoBeca
@@ -42,6 +43,10 @@ class BecaBeneficiarioViewSet(viewsets.ModelViewSet):
     )
     serializer_class = BecaBeneficiarioSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """Quién recibe una beca es dato socioeconómico de una persona."""
+        return visible_para_personal(self.request.user, super().get_queryset())
 
     def perform_create(self, serializer):
         datos = serializer.validated_data

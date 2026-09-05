@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.usuarios import rbac
+from apps.usuarios.rbac import visible_para_personal
 from apps.usuarios.services import registrar_break_glass
 
 from .models import Expediente, Persona
@@ -30,8 +31,25 @@ class PersonaViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     lookup_field = "cedula"
 
+    def get_queryset(self):
+        """La lista era el padrón entero: nombre y cédula de cada persona atendida."""
+        return visible_para_personal(self.request.user, super().get_queryset())
+
     def retrieve(self, request, cedula=None):
-        """Resuelve por cédula (base local o proveedor académico)."""
+        """
+        Resuelve por cédula (base local o proveedor académico).
+
+        La comprobación no es cosmética: `resolver_por_cedula` consulta la
+        fuente institucional y CREA la persona y su expediente si no existían.
+        Sin ella, cualquiera con sesión abría expediente a quien quisiera con
+        solo teclear una cédula. Es el defecto que ya se corrigió en la vista
+        web `buscar` y que seguía vivo por aquí.
+        """
+        if not rbac.puede_ver_expediente(request.user):
+            return Response(
+                {"detalle": "No tiene permisos para consultar expedientes."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         resultado = resolver_por_cedula(cedula, usuario=request.user)
         if resultado is None:
             return Response(
@@ -51,6 +69,10 @@ class ExpedienteViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Expediente.objects.select_related("persona")
     serializer_class = ExpedienteSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """`retrieve` ya lo comprobaba; `list` se quedó sin comprobar nada."""
+        return visible_para_personal(self.request.user, super().get_queryset())
 
     def retrieve(self, request, *args, **kwargs):
         if not rbac.puede_ver_expediente(request.user):

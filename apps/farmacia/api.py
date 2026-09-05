@@ -18,6 +18,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.usuarios.rbac import visible_para_personal
+
 from . import services
 from .models import Lote, Medicamento, Receta, RecetaDetalle
 from .serializers import (
@@ -48,6 +50,10 @@ class LoteViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = LoteSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ["medicamento"]
+
+    def get_queryset(self):
+        """Inventario: no es de pacientes, pero tampoco es público."""
+        return visible_para_personal(self.request.user, super().get_queryset())
 
     @action(detail=False, methods=["post"])
     def ingresar(self, request):
@@ -89,6 +95,12 @@ class RecetaViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = RecetaSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ["estado"]
+
+    def get_queryset(self):
+        """Una receta lleva el paciente y qué se le prescribió."""
+        return visible_para_personal(
+            self.request.user, super().get_queryset(), campo_servicio="atencion__servicio"
+        )
 
     @action(detail=False, methods=["get"])
     def pendientes(self, request):

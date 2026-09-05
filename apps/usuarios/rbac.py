@@ -118,3 +118,39 @@ def atenciones_visibles(user, queryset, break_glass: bool = False):
         return queryset.exclude(servicio__codigo__in=SERVICIOS_CONFIDENCIALES)
 
     return queryset.none()
+
+
+def visible_para_personal(user, queryset, campo_servicio: str | None = None):
+    """
+    Mínimo de acceso para un queryset que lleva datos de la Unidad.
+
+    Existe porque el mismo descuido se repitió endpoint a endpoint: un ViewSet
+    registrado con `IsAuthenticated` y sin filtrar el queryset devuelve la
+    tabla entera a cualquiera con sesión. Pasó con personas, expedientes,
+    órdenes de laboratorio, recetas, beneficiarios de beca, agendas y lotes.
+
+    Dos reglas, en este orden:
+
+    1. **Hay que ser personal de la Unidad**: `puede_ver_expediente`, el mismo
+       gate de las pantallas del expediente. Deja fuera al rol USUARIO_FINAL,
+       que es la cuenta de un estudiante; lo suyo lo ve por el portal, que
+       aísla por identidad.
+    2. **Lo confidencial, solo su servicio**, cuando `campo_servicio` dice por
+       dónde llegar al servicio (`"servicio"`, `"atencion__servicio"`...). Ni
+       Dirección, ni Coordinación, ni ventanilla, ni administración.
+
+    No estrecha más que eso, y es deliberado. `atenciones_visibles` devuelve
+    cero para los roles FARMACIA y LABORATORIO por separación de funciones
+    clínica; usarla aquí dejaría al farmacéutico sin recetas que despachar y al
+    laboratorista sin órdenes que procesar. Esto es el suelo común, no el techo:
+    un endpoint que necesite una regla más estrecha la aplica encima.
+    """
+    if not getattr(user, "is_authenticated", False) or not puede_ver_expediente(user):
+        return queryset.none()
+    if not campo_servicio:
+        return queryset
+    mis_servicios = servicios_del_usuario(user)
+    return (
+        queryset.exclude(**{f"{campo_servicio}__codigo__in": SERVICIOS_CONFIDENCIALES})
+        | queryset.filter(**{f"{campo_servicio}_id__in": mis_servicios})
+    ).distinct()

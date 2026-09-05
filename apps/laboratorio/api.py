@@ -17,6 +17,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.usuarios.rbac import visible_para_personal
+
 from . import services
 from .models import Examen, OrdenExamen, OrdenLaboratorio, ParametroExamen
 from .serializers import (
@@ -53,6 +55,12 @@ class OrdenLaboratorioViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = OrdenLaboratorioSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ["estado", "prioridad", "enviado_correo_paciente"]
+
+    def get_queryset(self):
+        """Una orden lleva el paciente y qué se le pidió: es contenido clínico."""
+        return visible_para_personal(
+            self.request.user, super().get_queryset(), campo_servicio="atencion__servicio"
+        )
 
     @action(detail=False, methods=["get"])
     def pendientes(self, request):
