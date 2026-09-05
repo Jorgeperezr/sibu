@@ -2,6 +2,8 @@
 
 from datetime import date, timedelta
 
+from django.db.models import Count
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from apps.usuarios.models import PerfilProfesional
@@ -22,6 +24,33 @@ def citas_del_dia(profesional: PerfilProfesional, fecha: date | None = None):
         .select_related("expediente__persona", "servicio")
         .order_by("fecha_hora")
     )
+
+
+def conteo_por_dia(profesional: PerfilProfesional, anio: int, mes: int) -> dict[date, int]:
+    """
+    Cuántas citas VIVAS tiene el profesional cada día de un mes.
+
+    Una consulta agregada, no una por día: un calendario que preguntara 31
+    veces sería el N+1 que ninguna otra pantalla tiene.
+
+    Cuenta solo los estados activos. Una cita cancelada no es trabajo, y
+    contarla haría parecer lleno un día libre —que es justo lo contrario de lo
+    que un calendario viene a decir—.
+
+    Devuelve solo los días con algo: treinta ceros ocupan sitio y no informan.
+    """
+    filas = (
+        Cita.objects.filter(
+            profesional=profesional,
+            estado__in=ESTADOS_ACTIVOS,
+            fecha_hora__year=anio,
+            fecha_hora__month=mes,
+        )
+        .annotate(dia=TruncDate("fecha_hora"))
+        .values("dia")
+        .annotate(n=Count("id"))
+    )
+    return {fila["dia"]: fila["n"] for fila in filas}
 
 
 def proximas_del_expediente(expediente, limite=5):

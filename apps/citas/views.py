@@ -6,6 +6,9 @@ comprobaba: cualquier usuario autenticado cancelaba o marcaba como atendida
 cualquier cita conociendo su id, incluida una de Psicología.
 """
 
+import calendar
+from datetime import date
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -24,7 +27,24 @@ from apps.usuarios.rbac import servicios_del_usuario
 
 from . import services
 from .models import Cita
-from .selectors import citas_del_dia
+from .selectors import citas_del_dia, conteo_por_dia
+
+# En español y escritos aquí: `calendar.month_name` sale en el idioma del
+# sistema operativo, que en el contenedor es inglés.
+MESES = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+]
 
 
 def _cita_del_usuario(user, pk) -> Cita:
@@ -56,6 +76,30 @@ def _volver(request):
     return redirect("citas:mi_agenda")
 
 
+def _perfil_pedido(request):
+    """
+    El perfil cuya agenda se mira: el propio, o el pedido si se comparte
+    servicio con él.
+
+    Ver la agenda de otro exige compartir servicio, no `is_staff` —una bandera
+    del panel de Django que no dice nada sobre el servicio, y con la que se
+    leía la agenda de Psicología—. La regla vive aquí porque la usan la agenda
+    del día y el calendario, y dos copias se separan.
+    """
+    profesional_id = request.GET.get("profesional")
+    if not profesional_id:
+        return getattr(request.user, "perfil", None)
+    mis_servicios = servicios_del_usuario(request.user)
+    perfil = (
+        PerfilProfesional.objects.filter(pk=profesional_id, servicios__in=mis_servicios).first()
+        if mis_servicios
+        else None
+    )
+    if perfil is None:
+        raise PermissionDenied("Ese profesional no comparte servicio con usted.")
+    return perfil
+
+
 def _solo_personal(request) -> None:
     """
     Estas pantallas son de trabajo: reservan, buscan personas y listan agendas
@@ -77,24 +121,9 @@ def mi_agenda(request):
     pantalla lista nombres de pacientes y motivos: se pide ser personal.
     """
     _solo_personal(request)
-    perfil = getattr(request.user, "perfil", None)
+    perfil = _perfil_pedido(request)
     fecha_str = request.GET.get("fecha")
     fecha = parse_date(fecha_str) if fecha_str else timezone.localdate()
-
-    # Ver la agenda de otro profesional exige compartir servicio con él. Antes
-    # bastaba `is_staff`, una bandera del panel de administración de Django que
-    # no dice nada sobre el servicio: con ella se leía la agenda de Psicología,
-    # que lista los nombres de los pacientes y el motivo de cada cita.
-    profesional_id = request.GET.get("profesional")
-    if profesional_id:
-        mis_servicios = servicios_del_usuario(request.user)
-        perfil = (
-            PerfilProfesional.objects.filter(pk=profesional_id, servicios__in=mis_servicios).first()
-            if mis_servicios
-            else None
-        )
-        if perfil is None:
-            raise PermissionDenied("Ese profesional no comparte servicio con usted.")
 
     citas = citas_del_dia(perfil, fecha) if perfil else []
     return render(
@@ -108,6 +137,70 @@ def mi_agenda(request):
             # Reprogramar y cancelar solo tienen sentido antes de atender; el
             # servicio lo valida igual, pero un botón que siempre falla molesta.
             "reprogramables": {Cita.Estado.RESERVADA, Cita.Estado.CONFIRMADA},
+        },
+    )
+
+
+@login_required
+def calendario(request):
+    """
+    El mes de un vistazo: qué días tienen citas y cuántas.
+
+    La agenda solo mostraba UN día, elegido en una casilla de fecha: para saber
+    si el martes había consulta había que teclear el martes. Esto responde la
+    pregunta que faltaba —dónde hay algo— y deja el detalle donde estaba.
+
+    Da conteos, nunca contenido: ni paciente ni motivo. Un calendario que
+    imprimiera el nombre haría innecesario abrir el día, y con eso se saltaría
+    el control que vive en la agenda.
+    """
+    _solo_personal(request)
+    perfil = _perfil_pedido(request)
+
+    hoy = timezone.localdate()
+    # Los parámetros llegan de la URL: puede llegar cualquier cosa, y un
+    # `?mes=13` no puede ser una pantalla de error.
+    try:
+        anio = int(request.GET.get("anio", hoy.year))
+        mes = int(request.GET.get("mes", hoy.month))
+    except (TypeError, ValueError):
+        anio, mes = hoy.year, hoy.month
+    if not 1 <= mes <= 12 or not 2000 <= anio <= 2100:
+        anio, mes = hoy.year, hoy.month
+
+    conteo = conteo_por_dia(perfil, anio, mes) if perfil else {}
+
+    # `Calendar(0)`: la semana empieza en lunes, como el calendario que se usa
+    # en Ecuador; `monthdatescalendar` completa los bordes con días del mes
+    # vecino para que la cuadrícula no quede coja.
+    semanas = [
+        [
+            {
+                "fecha": dia,
+                "de_otro_mes": dia.month != mes,
+                "es_hoy": dia == hoy,
+                "citas": conteo.get(dia, 0),
+            }
+            for dia in semana
+        ]
+        for semana in calendar.Calendar(0).monthdatescalendar(anio, mes)
+    ]
+
+    anterior = date(anio - 1, 12, 1) if mes == 1 else date(anio, mes - 1, 1)
+    siguiente = date(anio + 1, 1, 1) if mes == 12 else date(anio, mes + 1, 1)
+    return render(
+        request,
+        "citas/calendario.html",
+        {
+            "semanas": semanas,
+            "anio": anio,
+            "mes": mes,
+            "nombre_mes": MESES[mes - 1],
+            "perfil": perfil,
+            "anterior": anterior,
+            "siguiente": siguiente,
+            "total": sum(conteo.values()),
+            "dias_semana": ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"],
         },
     )
 

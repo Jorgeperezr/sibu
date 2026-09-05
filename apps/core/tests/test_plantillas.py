@@ -140,3 +140,25 @@ def test_la_cabecera_de_pagina_permite_bajar_de_linea():
     css = (RAIZ / "static" / "css" / "sibu.css").read_text(encoding="utf-8")
     bloque = css.split(".sibu-cabecera {", 1)[1].split("}", 1)[0]
     assert "flex-wrap: wrap" in bloque
+
+
+def test_ningun_comentario_de_plantilla_abre_sin_cerrar_en_su_linea():
+    """
+    `{# … #}` solo funciona en UNA línea: abierto en una y cerrado en otra,
+    Django no lo trata como comentario y lo imprime en la página.
+
+    Está anotado en la guía del proyecto y aun así volvió a pasar, escribiendo
+    tres párrafos de comentario dentro de las celdas del calendario. Ninguna
+    prueba lo vio porque todas miraban el contexto, no el HTML. Para varias
+    líneas, `{% comment %}`.
+    """
+    import pathlib
+
+    malos = []
+    for archivo in pathlib.Path("templates").rglob("*.html"):
+        for numero, linea in enumerate(archivo.read_text().split("\n"), 1):
+            if "{#" in linea and "#}" not in linea:
+                malos.append(f"{archivo}:{numero}")
+    assert malos == [], (
+        "comentarios {# #} repartidos en varias líneas (use {% comment %}): " + ", ".join(malos)
+    )

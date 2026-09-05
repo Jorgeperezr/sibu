@@ -451,3 +451,16 @@ details[open] > summary {
 .sibu-orden.activo {
   color: var(--unl-verde-oscuro);
 }
+
+/* --- Calendario de citas -------------------------------------------------
+   Las celdas son enlaces de bloque: se pulsa el día entero, no el número.
+   Alto mínimo para que un mes con días vacíos no salga aplastado y otro con
+   citas no dé saltos de altura entre semanas. */
+.sibu-calendario td { width: 14.28%; }
+.sibu-calendario .sibu-dia { min-height: 4.2rem; color: inherit; }
+.sibu-calendario .sibu-dia:hover { background: var(--sibu-verde-suave, #eef6ef); }
+.sibu-calendario .sibu-dia-hoy { box-shadow: inset 0 0 0 2px var(--sibu-verde, #1f7a3f); }
+@media (max-width: 575.98px) {
+  .sibu-calendario .sibu-dia { min-height: 3rem; padding: .25rem !important; }
+  .sibu-calendario .badge { font-size: .65rem; }
+}

@@ -34,6 +34,10 @@ class Modulo:
 # nombre del seed (p. ej. "Becas y Ayudas Económicas" -> "becas-y-ayudas-economicas").
 MODULOS = [
     Modulo("Mi agenda", "citas:mi_agenda", ("siempre", None), "General"),
+    # Dos entradas y no una: responden preguntas distintas. La agenda dice qué
+    # hay HOY; el calendario, en qué días del mes hay algo, que era justo lo
+    # que no se podía saber sin teclear fecha por fecha.
+    Modulo("Calendario", "citas:calendario", ("siempre", None), "General"),
     Modulo("Medicina", "medicina:bandeja", ("servicio", "medicina"), "Salud"),
     Modulo("Enfermería", "enfermeria:bandeja", ("servicio", "enfermeria"), "Salud"),
     Modulo("Odontología", "odontologia:bandeja", ("servicio", "odontologia"), "Salud"),
