@@ -25,6 +25,7 @@ class Modulo:
     #   ("roles", {Rol, ...})      -> su rol_principal está en el conjunto
     #   ("siempre", None)          -> visible para cualquier autenticado
     #   ("tiene_servicio", None)   -> tiene AL MENOS un servicio, cualquiera
+    #   ("servicio_exportable", None) -> tiene al menos uno NO confidencial
     #   ("permiso", "app.codigo")  -> tiene ese permiso de Django
     regla: tuple
     grupo: str  # para agrupar en la portada
@@ -78,7 +79,7 @@ MODULOS = [
     Modulo(
         "Exportar historial",
         "reportes:exportar_hoja",
-        ("tiene_servicio", None),
+        ("servicio_exportable", None),
         "Gestión",
     ),
     Modulo(
@@ -128,6 +129,18 @@ def _ve_modulo(user, modulo: Modulo, servicios_ids: set, codigos_por_id: dict) -
         return dato in codigos
     if tipo == "tiene_servicio":
         return bool(servicios_ids)
+    if tipo == "servicio_exportable":
+        # Al menos un servicio NO confidencial. Quien solo atiende en uno
+        # sellado no puede exportar nada, y ofrecerle el enlace sería llevarlo
+        # a una pantalla que siempre diría «0 atenciones».
+        from apps.core.models import Servicio
+        from apps.usuarios.rbac import SERVICIOS_CONFIDENCIALES
+
+        return (
+            Servicio.objects.filter(pk__in=servicios_ids)
+            .exclude(codigo__in=SERVICIOS_CONFIDENCIALES)
+            .exists()
+        )
     if tipo == "permiso":
         return user.has_perm(dato)
     return False
@@ -240,6 +253,19 @@ def navegacion(request):
         "nav_modulos": modulos_visibles(request.user),
         "nav_grupos": modulos_por_grupo(request.user),
     }
+
+
+def confidenciales(request):
+    """
+    Los códigos de servicio sellados, para las plantillas.
+
+    Lo usa el fragmento del botón de exportar: sin esto haría falta repetir el
+    literal «psicologia» en cada bandeja, y el día que cambie la lista habría
+    que acordarse de ocho sitios.
+    """
+    from apps.usuarios.rbac import SERVICIOS_CONFIDENCIALES
+
+    return {"servicios_confidenciales": SERVICIOS_CONFIDENCIALES}
 
 
 def entorno(request):

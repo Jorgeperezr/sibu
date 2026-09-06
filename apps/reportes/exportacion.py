@@ -76,20 +76,44 @@ def id_de_hoja(enlace: str) -> str:
 # ------------------------------------------------------------ qué se exporta
 
 
-def _atenciones_exportables(usuario):
+def verificar_exportable(codigo_servicio: str) -> None:
+    """
+    Lanza si el servicio no puede exportar su historial.
+
+    Se comprueba aparte de filtrar porque hay que poder DECIRLO: un servicio
+    confidencial que pulsara el botón obtendría un archivo vacío sin entender
+    por qué, y un vacío inexplicado se lee como un fallo del sistema.
+    """
+    if codigo_servicio in rbac.SERVICIOS_CONFIDENCIALES:
+        raise ValidationError(
+            "Este servicio no exporta su historial: su contenido es confidencial "
+            "y un archivo descargado sale de la Unidad igual que una hoja "
+            "compartida. Los conteos agregados sí están en el informe estadístico."
+        )
+
+
+def _atenciones_exportables(usuario, servicio: str = ""):
     """
     Lo que este usuario puede ver, menos los servicios confidenciales.
 
     El `exclude` va DESPUÉS del filtro del RBAC y no en su lugar: si mañana
     `atenciones_visibles` se afloja, esto sigue sin dejar salir lo sellado.
+
+    `servicio` acota a uno solo, para el botón que vive en cada bandeja: quien
+    atiende en dos no quiere el revuelto de los dos. No amplía nada —el filtro
+    del RBAC ya corrió—, así que pedir un servicio ajeno por la URL devuelve
+    vacío en vez de datos.
     """
     from apps.expediente.models import Atencion
 
     visibles = rbac.atenciones_visibles(usuario, Atencion.objects.all())
-    return visibles.exclude(servicio__codigo__in=rbac.SERVICIOS_CONFIDENCIALES)
+    consulta = visibles.exclude(servicio__codigo__in=rbac.SERVICIOS_CONFIDENCIALES)
+    if servicio:
+        consulta = consulta.filter(servicio__codigo=servicio)
+    return consulta
 
 
-def _retenidas(usuario) -> int:
+def _retenidas(usuario, servicio: str = "") -> int:
     from apps.expediente.models import Atencion
 
     return (
@@ -99,10 +123,10 @@ def _retenidas(usuario) -> int:
     )
 
 
-def historial(usuario, desde=None, hasta=None) -> list[dict]:
+def historial(usuario, desde=None, hasta=None, servicio: str = "") -> list[dict]:
     """Las filas que se volcarían, en el orden en que van a la hoja."""
     consulta = (
-        _atenciones_exportables(usuario)
+        _atenciones_exportables(usuario, servicio)
         .select_related("expediente__persona", "servicio", "profesional__usuario")
         .order_by("-fecha_hora")
     )
@@ -151,7 +175,7 @@ def _academicos_de(consulta) -> dict:
     return academicos
 
 
-def resumen_de_exportacion(usuario, desde=None, hasta=None) -> dict:
+def resumen_de_exportacion(usuario, desde=None, hasta=None, servicio: str = "") -> dict:
     """
     Qué saldría y qué se queda. Se muestra ANTES de volcar.
 
@@ -159,8 +183,8 @@ def resumen_de_exportacion(usuario, desde=None, hasta=None) -> dict:
     recibe: por eso las retenidas se cuentan y se dicen.
     """
     return {
-        "exportables": len(historial(usuario, desde, hasta)),
-        "retenidas_por_confidencialidad": _retenidas(usuario),
+        "exportables": len(historial(usuario, desde, hasta, servicio)),
+        "retenidas_por_confidencialidad": _retenidas(usuario, servicio),
     }
 
 

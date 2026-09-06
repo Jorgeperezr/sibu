@@ -196,13 +196,23 @@ def exportar_hoja(request):
         raise PermissionDenied("La exportación del historial es para el personal de la Unidad.")
 
     desde, hasta = _rango(request)
+    servicio = (request.GET.get("servicio") or "").strip()
+    if servicio:
+        # Se comprueba y se DICE: un archivo vacío sin explicación se lee como
+        # un fallo del sistema.
+        try:
+            exportacion.verificar_exportable(servicio)
+        except ValidationError as exc:
+            raise PermissionDenied("; ".join(exc.messages)) from exc
 
-    if request.GET.get("formato") == "csv":
-        return _historial_csv(request, desde, hasta)
+    formato = request.GET.get("formato")
+    if formato in ("csv", "xlsx"):
+        return _historial_archivo(request, desde, hasta, servicio, formato)
 
     proveedor = exportacion.get_proveedor()
     contexto = {
-        "resumen": exportacion.resumen_de_exportacion(request.user, desde, hasta),
+        "servicio": servicio,
+        "resumen": exportacion.resumen_de_exportacion(request.user, desde, hasta, servicio),
         "encabezados": exportacion.ENCABEZADOS,
         "desde": desde,
         "hasta": hasta,
@@ -214,7 +224,7 @@ def exportar_hoja(request):
     if request.method == "POST":
         try:
             hoja_id = exportacion.id_de_hoja(request.POST.get("enlace", ""))
-            filas = exportacion.historial(request.user, desde, hasta)
+            filas = exportacion.historial(request.user, desde, hasta, servicio)
             url = proveedor.volcar(
                 hoja_id,
                 exportacion.ENCABEZADOS,
@@ -245,45 +255,90 @@ def exportar_hoja(request):
     return render(request, "reportes/exportar_hoja.html", contexto)
 
 
-def _historial_csv(request, desde, hasta):
+def _historial_archivo(request, desde, hasta, servicio, formato):
     """
-    El mismo historial, descargado en vez de volcado.
+    El mismo historial, descargado en vez de volcado, en CSV o en Excel.
 
-    Existe porque sin credenciales de Google la pantalla no puede volcar nada,
-    y decirle al usuario «descargue el CSV» sin darle el botón sería mandarlo a
-    un sitio que no está. Lleva exactamente las mismas filas y el mismo filtro:
-    es la misma exportación por otro camino, no una puerta más ancha.
+    El Excel lleva la línea gráfica de la Universidad; el CSV existe para quien
+    va a seguir procesando los datos con otra herramienta. Los dos traen
+    exactamente las mismas filas y el mismo filtro: son la misma exportación
+    por otro camino, no una puerta más ancha.
     """
+    from apps.core.xlsx import libro_institucional, nombre_de_archivo
+
     from . import exportacion
 
-    filas = exportacion.historial(request.user, desde, hasta)
+    filas = exportacion.historial(request.user, desde, hasta, servicio)
+    resumen = exportacion.resumen_de_exportacion(request.user, desde, hasta, servicio)
     LogAuditoria.objects.create(
         usuario=request.user,
         accion=LogAuditoria.Accion.EXPORT,
         modulo="reportes",
         entidad="HistorialAtenciones",
-        entidad_id="csv",
+        entidad_id=servicio or "todos",
+        servicio=servicio,
         detalle={
-            "formato": "csv",
+            "formato": formato,
             "filas": len(filas),
-            "retenidas": exportacion.resumen_de_exportacion(request.user, desde, hasta)[
-                "retenidas_por_confidencialidad"
-            ],
+            "retenidas": resumen["retenidas_por_confidencialidad"],
+            "servicio": servicio,
             "desde": str(desde or ""),
             "hasta": str(hasta or ""),
         },
     )
+
+    matriz = [[fila[c] for c in exportacion.ENCABEZADOS] for fila in filas]
+    if formato == "xlsx":
+        return _respuesta_xlsx(
+            libro_institucional(
+                titulo="Historial de atenciones",
+                subtitulo=_subtitulo(servicio, desde, hasta, len(filas)),
+                encabezados=exportacion.ENCABEZADOS,
+                filas=matriz,
+                nota_pie=(
+                    "Documento con datos personales de pacientes. Su custodia y "
+                    "difusión quedan bajo responsabilidad de quien lo descargó. "
+                    "No incluye contenido clínico ni atenciones de servicios "
+                    "confidenciales."
+                ),
+            ),
+            nombre_de_archivo("historial-atenciones", servicio=servicio),
+        )
 
     respuesta = HttpResponse(content_type="text/csv; charset=utf-8")
     respuesta["Content-Disposition"] = (
         f'attachment; filename="historial-atenciones-{timezone.localdate()}.csv"'
     )
     # BOM: sin él, Excel en Windows abre el archivo en Latin-1 y parte las
-    # tildes de «atención» y de los apellidos. Es el mismo cuidado que ya se
-    # tiene con la plantilla de carga.
+    # tildes de «atención» y de los apellidos.
     respuesta.write("\ufeff")
     escritor = csv.writer(respuesta)
     escritor.writerow(exportacion.ENCABEZADOS)
-    for fila in filas:
-        escritor.writerow([fila[c] for c in exportacion.ENCABEZADOS])
+    for fila in matriz:
+        escritor.writerow(fila)
+    return respuesta
+
+
+def _subtitulo(servicio, desde, hasta, cuantas) -> str:
+    # «atención»/«atenciones» escrito a mano: el plural pierde la tilde, así
+    # que ni `pluralize` ni un «(es)» pegado dan la palabra correcta.
+    partes = [f"{cuantas} {'atención' if cuantas == 1 else 'atenciones'}"]
+    if servicio:
+        partes.append(f"servicio: {servicio}")
+    if desde or hasta:
+        partes.append(f"del {desde or '…'} al {hasta or '…'}")
+    partes.append(f"generado el {timezone.localtime():%d/%m/%Y %H:%M}")
+    return " · ".join(partes)
+
+
+def _respuesta_xlsx(libro, nombre):
+    import io
+
+    memoria = io.BytesIO()
+    libro.save(memoria)
+    respuesta = HttpResponse(
+        memoria.getvalue(),
+        content_type=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    )
+    respuesta["Content-Disposition"] = f'attachment; filename="{nombre}"'
     return respuesta

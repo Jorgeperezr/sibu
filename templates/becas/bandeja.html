@@ -10,7 +10,8 @@
   {% for r in resumen %}
   <div class="col-auto">
     <div class="card"><div class="card-body py-2 px-3">
-      <div class="small text-muted">{{ r.tipo }}</div>
+      <div class="small text-muted">{{ r.tipo }}  {% include "_exportar_servicio.html" with codigo="becas-y-ayudas-economicas" %}
+</div>
       <div class="fs-5 fw-semibold">{{ r.total }}</div>
     </div></div>
   </div>

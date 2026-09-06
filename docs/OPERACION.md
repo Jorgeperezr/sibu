@@ -100,9 +100,20 @@ Lo exporta **quien atiende**, sobre su propio trabajo, no la Dirección:
 funciones, así que ofrecérselo sería ofrecer una pantalla que siempre diría
 «0 atenciones». La Dirección tiene el tablero y su CSV de agregados.
 
-Sin credenciales de Google (`SIBU.GOOGLE_CREDENCIALES_JSON`) el volcado no está
-disponible y la pantalla lo dice; la descarga en CSV funciona igual y trae las
-mismas filas. Para habilitar el volcado hace falta una cuenta de servicio y
+**Está en la bandeja de cada servicio**, no solo en el menú de Gestión: el
+botón «Exportar historial» acota a ese servicio, porque quien atiende en dos no
+quiere el revuelto de los dos. En la bandeja de un servicio confidencial no
+aparece —ofrecer un botón que va a decir que no se puede es peor que no
+ofrecerlo—.
+
+Se descarga en **Excel con la línea gráfica de la Universidad** (encabezado
+institucional, cabecera en el verde de la UNL, paneles congelados, autofiltro y
+una nota al pie sobre la custodia del archivo) o en CSV, para quien vaya a
+seguir procesando los datos con otra herramienta. Los dos traen las mismas
+filas y el mismo filtro.
+
+Sin credenciales de Google (`SIBU.GOOGLE_CREDENCIALES_JSON`) el volcado a la
+hoja no está disponible y la pantalla lo dice; las descargas funcionan igual. Para habilitar el volcado hace falta una cuenta de servicio y
 compartir la hoja con su correo **con permiso de editor**.
 
 Toda exportación queda en la bitácora: quién, cuándo, cuántas filas, cuántas se

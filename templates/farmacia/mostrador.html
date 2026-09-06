@@ -3,6 +3,7 @@
 {% block content %}
 <div class="sibu-cabecera mb-3"><h1 class="h4 sibu-titulo mb-0">Mostrador de farmacia</h1>
   <a href="{% url 'farmacia:inventario' %}" class="btn btn-sm btn-outline-secondary">Inventario</a>
+  {% include "_exportar_servicio.html" with codigo="farmacia" %}
 </div>
 
 {% if alertas_stock %}
