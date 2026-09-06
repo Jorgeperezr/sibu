@@ -108,6 +108,36 @@ tocarla:
   atención debe declararlo** —una prueba recorre el código y falla si alguno se
   lo deja—.
 
+## Lo que sale de la Unidad en un documento
+
+El informe estadístico de un servicio se puede acompañar de **anexos**: la
+nómina de las personas atendidas y la evidencia de cada valor reportado —quiénes
+componen el «14 mujeres»—. Un anexo nombra pacientes en un archivo que sale de
+la Unidad, así que se rige por tres reglas:
+
+- **Los servicios confidenciales no llevan anexo.** El informe agregado sí se
+  genera —lo hace el propio servicio y son sus datos—, pero la lista de nombres
+  cae bajo la misma regla que impide exportar su historial, y se comprueba con
+  la misma función (`exportacion.verificar_exportable`) para que no haya dos
+  criterios capaces de separarse.
+- **La identidad va protegida salvo decisión expresa.** Cédula, teléfono, correo
+  institucional y número de expediente no se imprimen a menos que quien genera
+  el informe los marque y desactive la protección. El número de expediente está
+  en esa lista porque se compone como `EXP-<cédula>`: publicarlo mientras se
+  oculta la cédula sería publicar la cédula. En su lugar cada fila lleva un
+  código correlativo del propio anexo (`A-001`), que permite citar una fila sin
+  identificar a nadie fuera de él.
+- **Lo que llevaba el documento queda en la bitácora.** El registro `EXPORT`
+  guarda las variables, los anexos y si la identidad iba protegida: un informe
+  con nómina identificada es una salida de datos personales y tiene que poder
+  distinguirse después de una tabla de porcentajes.
+
+Y una regla que no es de acceso sino de honestidad del dato: **el anexo no puede
+contradecir al informe**. Las dos cosas se construyen sobre
+`reportes.services.etiquetar`, no sobre dos consultas parecidas, y una prueba
+comprueba que la suma de atenciones de cada bloque de evidencia es exactamente
+la cifra reportada. Un anexo que no cuadra es peor que no tenerlo.
+
 ## Los dos barridos
 
 No hay que acordarse de nada: dos pruebas recorren el sistema entero y una

@@ -4,8 +4,22 @@
 > Este documento es el diccionario: qué formato, qué encabezados y cuántas
 > variables.
 
-Cómo se entrega a SIBU la base de datos de estudiantes, qué debe traer el
+Cómo se entrega a SIBU la base de datos institucional, qué debe traer el
 archivo y qué hace el sistema con él.
+
+## Una base por estamento
+
+Son cuatro y se cargan por separado: **estudiantes, docentes, administrativos y
+trabajadores**. No traen la misma información —solo la de estudiantes tiene
+`nivel`, `modalidad`, `ciclo`, `oferta_academica`, `paralelo` y `jornada`—, así
+que la plantilla y el diccionario que se descargan son los del estamento
+elegido; lo demás (identificación, procedencia, residencia, contacto,
+situación laboral, salud y la ficha socioeconómica) es común a los cuatro.
+
+El archivo no dice a quién describe. Lo declara quien carga, en el asistente, y
+queda registrado en la bitácora de la carga junto al hash del archivo. Es lo que
+decide con qué vínculo entra cada persona y, por tanto, cómo la cuenta después
+el informe por estamento.
 
 ## En qué formato se entrega
 

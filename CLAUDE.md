@@ -22,6 +22,14 @@ talleres, portal del estudiante y tablero de gestión.
   expediente vinculado; ningún recurso se busca por id de URL sin filtrar.
 - **Ausencia de dato no es prueba de ausencia.** Sin datos académicos cargados
   no se concluye "no matriculado".
+- **El estamento es `Persona.tipo_vinculo`, no un campo nuevo.** Cuatro
+  estamentos (estudiante, docente, administrativo, trabajador) más «externo»,
+  que no lo es. Cada estamento tiene su propia base con columnas distintas y se
+  declara al cargar; sin declararlo no se escribe.
+- **Un anexo nombra a personas.** La nómina y las evidencias del informe
+  estadístico llevan la identidad protegida por omisión (sin cédula, teléfono,
+  correo ni número de expediente —que es `EXP-<cédula>`—) y no existen para los
+  servicios confidenciales.
 
 ## Trampas técnicas que ya nos costaron caro
 
@@ -47,6 +55,13 @@ talleres, portal del estudiante y tablero de gestión.
   compruebe que lo propio APARECE (`assert receta.numero in contenido`).
 - **Comentarios de plantilla `{# #}` solo funcionan en una línea.** Para varias,
   `{% comment %}`.
+- **Un formulario no envía las casillas desmarcadas.** «Quité todas las
+  variables» y «acabo de abrir la pantalla» llegan idénticos al servidor: hace
+  falta un testigo oculto (`elegir=1`) para distinguirlos, o el informe sale con
+  todo justo cuando se pidió que no.
+- **Una cifra y su evidencia no pueden calcularse dos veces.** El informe y sus
+  anexos comparten `reportes.services.etiquetar`; dos consultas parecidas se
+  separan y el anexo acaba desmintiendo lo que respalda.
 - `auto_now_add` sobre tabla existente falla sin default.
 
 ## Convenciones

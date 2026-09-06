@@ -47,16 +47,29 @@ def _es_admin(user):
 @login_required
 @user_passes_test(_es_admin)
 def asistente(request):
+    from apps.expediente.models import Persona
+
     periodos = PeriodoAcademico.objects.all()
-    contexto = {"periodos": periodos}
+    contexto = {"periodos": periodos, "estamentos": Persona.ESTAMENTOS_CHOICES}
 
     if request.method == "POST":
         accion = request.POST.get("accion")
         periodo_id = request.POST.get("periodo")
+        estamento = (request.POST.get("estamento") or "").strip()
         archivo = request.FILES.get("archivo")
+        contexto["estamento"] = estamento
 
         if not (periodo_id and archivo):
             messages.error(request, "Seleccione el período y el archivo.")
+            return render(request, "academico/asistente.html", contexto)
+
+        # Lista blanca: el estamento decide con qué vínculo se da de alta a
+        # cada persona del archivo, así que un valor llegado del formulario sin
+        # comprobar podría escribir cualquier cadena en `Persona.tipo_vinculo`
+        # —«externo» incluido, que no es un estamento— y el informe contaría
+        # sobre una categoría que nadie eligió.
+        if estamento not in dict(Persona.ESTAMENTOS_CHOICES):
+            messages.error(request, "Seleccione a qué estamento corresponde el archivo.")
             return render(request, "academico/asistente.html", contexto)
 
         periodo = PeriodoAcademico.objects.get(pk=periodo_id)
@@ -70,6 +83,7 @@ def asistente(request):
         try:
             carga = CargaInstitucional.objects.create(
                 periodo=periodo,
+                estamento=estamento,
                 nombre_archivo=archivo.name,
                 hash_archivo=hash_archivo(tmp.name),
                 formato=formato,
@@ -157,6 +171,9 @@ def padron(request):
             "columnas": [
                 ("cedula", "Cédula"),
                 ("nombre", "Apellidos y nombres"),
+                # Sin columna de estamento, cuatro bases cargadas se ven como
+                # una sola lista indistinta.
+                ("estamento", "Estamento"),
                 ("facultad", "Facultad"),
                 ("carrera", "Carrera"),
                 ("ciclo", "Ciclo"),
@@ -187,7 +204,7 @@ def padron(request):
                 ("ciclo", "Ciclo"),
                 ("paralelo", "Paralelo"),
                 ("sexo", "Sexo"),
-                ("vinculo", "Vínculo"),
+                ("estamento", "Estamento"),
             ],
             "hay_filtro": bool(texto or periodo_id or filtros),
             "periodos": PeriodoAcademico.objects.all(),
@@ -201,17 +218,42 @@ def padron(request):
 @user_passes_test(_es_admin)
 def diccionario(request):
     """El diccionario de columnas que debe traer el archivo, y su conteo."""
+    from apps.expediente.models import Persona
+
     from . import selectors
 
+    estamento = _estamento_pedido(request)
     return render(
         request,
         "academico/diccionario.html",
         {
-            "grupos": selectors.diccionario(),
-            "total_columnas": selectors.total_columnas(),
+            "grupos": selectors.diccionario(estamento),
+            "total_columnas": selectors.total_columnas(estamento),
             "obligatorias": mapping.COLUMNAS_OBLIGATORIAS,
+            "estamento": estamento,
+            "estamentos": Persona.ESTAMENTOS_CHOICES,
+            "solo_estudiante": mapping.COLUMNAS_SOLO_ESTUDIANTE,
         },
     )
+
+
+def _estamento_pedido(request) -> str:
+    """
+    El estamento del querystring, o estudiante si no se pidió uno válido.
+
+    Se cae al valor por defecto en vez de dar error: aquí el estamento solo
+    decide qué columnas se muestran o se descargan, y una plantilla de más
+    nunca hizo daño. Donde sí se rechaza lo desconocido es en el asistente, que
+    es donde el estamento escribe en la base.
+    """
+    from apps.expediente.models import Persona
+
+    from . import selectors
+
+    pedido = (request.GET.get("estamento") or "").strip()
+    if pedido in dict(Persona.ESTAMENTOS_CHOICES):
+        return pedido
+    return selectors.ESTAMENTO_POR_DEFECTO
 
 
 @login_required
@@ -228,10 +270,14 @@ def plantilla(request):
 
     from . import selectors
 
+    estamento = _estamento_pedido(request)
     respuesta = HttpResponse(
-        selectors.plantilla_csv().encode("utf-8-sig"), content_type="text/csv; charset=utf-8"
+        selectors.plantilla_csv(estamento).encode("utf-8-sig"),
+        content_type="text/csv; charset=utf-8",
     )
-    respuesta["Content-Disposition"] = 'attachment; filename="plantilla-base-institucional.csv"'
+    respuesta["Content-Disposition"] = (
+        f'attachment; filename="plantilla-base-institucional-{estamento}.csv"'
+    )
     return respuesta
 
 

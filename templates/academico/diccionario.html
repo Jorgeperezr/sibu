@@ -6,10 +6,31 @@
     <h1 class="h4 sibu-titulo mb-0">Diccionario de columnas</h1>
     <small class="text-muted d-block">Lo que debe traer el archivo de la base institucional.</small>
   </div>
-  <a href="{% url 'academico:plantilla' %}" class="btn btn-sm btn-primary">
+  <a href="{% url 'academico:plantilla' %}?estamento={{ estamento }}" class="btn btn-sm btn-primary">
     <i class="bi bi-download"></i> Descargar plantilla CSV
   </a>
 </div>
+
+{% comment %}
+El diccionario no es el mismo para los cuatro estamentos: la base del
+estudiante trae las columnas de matrícula y las demás no. Se elige aquí, y la
+plantilla que se descarga al lado es la de este mismo estamento.
+{% endcomment %}
+<ul class="nav nav-pills mb-3">
+  {% for valor, etiqueta in estamentos %}
+    <li class="nav-item">
+      <a class="nav-link {% if valor == estamento %}active{% endif %}"
+         href="?estamento={{ valor }}">{{ etiqueta }}</a>
+    </li>
+  {% endfor %}
+</ul>
+{% if estamento != 'estudiante' %}
+<div class="alert alert-light border small">
+  Este estamento no trae las columnas de matrícula
+  (<code>{{ solo_estudiante|join:", " }}</code>): no se piden en la plantilla ni
+  se listan abajo.
+</div>
+{% endif %}
 
 <div class="card mb-4">
   <div class="card-body">

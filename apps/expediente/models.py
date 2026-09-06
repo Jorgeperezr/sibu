@@ -17,11 +17,35 @@ class Persona(ModeloBase):
     """Datos demográficos consolidados. Clave de vinculación: cédula."""
 
     class TipoVinculo(models.TextChoices):
+        """
+        El vínculo con la UNL. Los cuatro primeros valores son los ESTAMENTOS
+        universitarios; el quinto no lo es.
+
+        No se añade un campo `estamento` aparte teniendo esto: serían dos
+        columnas con los mismos cuatro valores, y el día que una se actualice y
+        la otra no, el informe y el expediente dirán cosas distintas de la
+        misma persona. `estamento` es el nombre de dominio de este campo cuando
+        se reporta —así lo pide la Unidad— y `ESTAMENTOS` es la lista que
+        excluye a quien no pertenece a la comunidad universitaria.
+        """
+
         ESTUDIANTE = "estudiante", "Estudiante"
         DOCENTE = "docente", "Docente"
         ADMINISTRATIVO = "administrativo", "Administrativo"
         TRABAJADOR = "trabajador", "Trabajador"
         EXTERNO = "externo", "Externo/Particular"
+
+    # Los cuatro estamentos, en el orden en que la Unidad los nombra. Un
+    # externo —un familiar, alguien de la comunidad— se atiende igual, pero no
+    # es un estamento y por eso no puede ser el destino de una carga
+    # institucional: no hay base institucional de externos.
+    ESTAMENTOS = [
+        TipoVinculo.ESTUDIANTE,
+        TipoVinculo.DOCENTE,
+        TipoVinculo.ADMINISTRATIVO,
+        TipoVinculo.TRABAJADOR,
+    ]
+    ESTAMENTOS_CHOICES = [(v.value, v.label) for v in ESTAMENTOS]
 
     cedula = models.CharField(max_length=13, unique=True, db_index=True)
     tipo_documento = models.CharField(max_length=20, default="cedula")

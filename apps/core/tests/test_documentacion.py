@@ -62,10 +62,18 @@ def test_seguridad_nombra_funciones_que_existen():
     se renombra, el documento pasa a describir un sistema que no está.
     """
     from apps.expediente import services as expediente
+    from apps.reportes import exportacion
+    from apps.reportes import services as reportes
     from apps.usuarios import permissions, rbac
 
     texto = (RAIZ / "docs" / "SEGURIDAD.md").read_text()
     for nombre, modulo in (
+        # Las dos que sostienen lo que el documento promete de los anexos: una
+        # decide si un servicio puede sacar nombres, la otra es el único sitio
+        # donde se clasifica, que es lo que impide que un anexo contradiga a la
+        # cifra que respalda.
+        ("verificar_exportable", exportacion),
+        ("etiquetar", reportes),
         ("puede_ver_expediente", rbac),
         ("puede_ver_atencion", rbac),
         ("atenciones_visibles", rbac),

@@ -97,9 +97,14 @@ class ResultadoCarga:
 class ProcesadorCarga:
     """Aplica el mapeo, valida y hace upsert. `aplicar=False` = solo previsualiza."""
 
-    def __init__(self, carga, mapeo: dict | None = None):
+    def __init__(self, carga, mapeo: dict | None = None, estamento: str = ""):
         self.carga = carga
         self.periodo = carga.periodo
+        # A quién describe el archivo. Se toma de la carga —que es donde queda
+        # registrado— y el parámetro solo sirve para forzarlo en pruebas; antes
+        # esto era la constante ESTUDIANTE escrita en el upsert, y cargar la
+        # base de docentes daba de alta a todo el claustro como estudiantes.
+        self.estamento = estamento or carga.estamento
         # mapeo: alias_en_archivo -> columna_canonica. Por defecto, identidad.
         self.mapeo = mapeo or {}
         self.dominio = settings.SIBU["DOMINIO_CORREO_INSTITUCIONAL"]
@@ -172,7 +177,7 @@ class ProcesadorCarga:
             "celular": self._get(fila, "celular") or "",
             "telefono": self._get(fila, "telefono") or "",
             "correo_institucional": self._get(fila, "email_institucional") or "",
-            "tipo_vinculo": Persona.TipoVinculo.ESTUDIANTE,
+            "tipo_vinculo": self.estamento,
             "fecha_nacimiento": validators.a_fecha(self._get(fila, "fecha_nacimiento")),
             "procedencia": self._subdict(fila, mapping.PERSONA_JSONB["procedencia"]),
             "residencia_actual": self._subdict(fila, mapping.PERSONA_JSONB["residencia_actual"]),

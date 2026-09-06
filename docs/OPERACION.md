@@ -119,6 +119,36 @@ compartir la hoja con su correo **con permiso de editor**.
 Toda exportación queda en la bitácora: quién, cuándo, cuántas filas, cuántas se
 retuvieron y a qué hoja.
 
+## El informe estadístico, a medida
+
+**Gestión → Informe estadístico** es el perfil de la población que atendió un
+servicio en un rango de fechas. Lo genera el profesional sobre SU servicio, y
+todo lo del formulario es opcional salvo el rango:
+
+- **Qué variables se informan.** Nueve: estamento, sexo, género, identidad u
+  orientación sexual, discapacidad, embarazo, lactancia, enfermedad catastrófica
+  y necesidad educativa especial. Quitar las que no vienen al caso es parte del
+  informe: una tabla que siempre sale vacía enseña a saltarse tablas.
+- **Qué anexos se adjuntan.** La *nómina* lista a las personas atendidas, una
+  fila por persona con las atenciones que suma cada una. La *evidencia* parte esa
+  misma lista por el valor de cada variable: quiénes componen el «14 mujeres».
+  La suma de la columna «Atenciones» de un bloque es exactamente la cifra
+  informada arriba —de eso vive el anexo—.
+- **Qué columnas llevan los anexos**, y si la identidad va protegida.
+  **Protegida es lo que sale por omisión**: sin cédula, sin teléfono, sin correo
+  institucional y sin número de expediente (se compone como `EXP-<cédula>`, así
+  que publicarlo sería publicar la cédula). Cada fila lleva un código correlativo
+  —`A-001`— para poder citarla sin nombrar a nadie. Marcar «mostrar» y elegir las
+  columnas identificativas es una decisión, y como tal queda registrada.
+- **Los servicios confidenciales no llevan anexo.** El informe agregado sí se
+  genera. La lista de nombres cae bajo la misma regla que impide exportar su
+  historial.
+
+Sale en **PDF** con el membrete institucional —es el documento que se archiva o
+se entrega— y la nómina también en **Excel con la línea gráfica de la UNL**, para
+cruzarla con otra lista. Cada generación queda en la bitácora con lo que llevaba
+el documento: las variables, los anexos y si la identidad iba protegida.
+
 ## La bitácora
 
 **Gestión → Bitácora** responde «quién abrió esto y cuándo». Registra cada

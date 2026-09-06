@@ -16,14 +16,29 @@ Si el menú de la izquierda no muestra **Base institucional** bajo *Gestión*,
 esa cuenta no tiene el permiso de carga. Compruébelo con `make cuentas` y
 recréela con `make preparar`.
 
-## Paso 1 — Descargar la plantilla
+## Paso 1 — Elegir el estamento
+
+Hay cuatro bases, una por estamento: **estudiantes, docentes, administrativos y
+trabajadores**. No traen las mismas columnas —solo la de estudiantes tiene
+nivel, modalidad, ciclo, oferta académica, paralelo y jornada— y se cargan por
+separado.
+
+El archivo no dice a quién describe, así que lo declara usted en el asistente.
+Es lo que decide con qué vínculo entra cada persona: cargar la base de docentes
+sin elegir «Docente» daría de alta al claustro como estudiantes, y el informe
+por estamento contaría cero docentes.
+
+## Paso 2 — Descargar la plantilla
 
 **Base institucional → Diccionario de columnas → Descargar plantilla CSV**
 
 Baja un archivo con los encabezados exactos y una fila de ejemplo. Es la forma
-de no equivocarse escribiéndolos a mano.
+de no equivocarse escribiéndolos a mano. La plantilla y el diccionario son los
+del estamento seleccionado arriba: el archivo se llama
+`plantilla-base-institucional-docente.csv`, y por eso las cuatro descargas no
+se confunden entre sí.
 
-## Paso 2 — Llenar el archivo
+## Paso 3 — Llenar el archivo
 
 Borre la fila de ejemplo y ponga una fila por persona.
 
@@ -43,16 +58,16 @@ Tres cosas que rompen una carga, por orden de frecuencia:
 3. **Fechas en `AAAA-MM-DD`.** También se aceptan `DD/MM/AAAA` y `DD-MM-AAAA`;
    cualquier otra cosa queda vacía sin avisar.
 
-## Paso 3 — Previsualizar
+## Paso 4 — Previsualizar
 
-**Base institucional → Cargar archivo**, elija el período, adjunte el archivo y
-pulse **Previsualizar**.
+**Base institucional → Cargar archivo**, elija el período y el estamento,
+adjunte el archivo y pulse **Previsualizar**.
 
 No escribe nada en la base. Dice cuántas altas, cuántas actualizaciones y
 cuántos errores saldrían, con el número de fila y el motivo de cada error.
 Corrija el archivo y repita hasta que los errores sean los que espera.
 
-## Paso 4 — Aplicar
+## Paso 5 — Aplicar
 
 El mismo formulario, botón **Aplicar carga**. Ahora sí escribe.
 
@@ -65,17 +80,19 @@ correspondan (violencia familiar a Trabajo Social, necesidad educativa especial
 a Psicopedagogía, gestación y lactancia a Medicina, consumo declarado a
 Psicología).
 
-## Paso 5 — Verificar que quedó cargado
+## Paso 6 — Verificar que quedó cargado
 
 **Base institucional → Ver lo cargado**
 
 Lista fila por fila. Busque por cédula, nombre, facultad o carrera, y ordene por
-cualquier columna pulsando su cabecera (otra vez, para invertir el sentido).
+cualquier columna pulsando su cabecera (otra vez, para invertir el sentido). El
+panel de filtros incluye **Estamento**: es la forma de comprobar que la base de
+docentes entró como docentes y no como estudiantes.
 
 Abajo, el historial de cargas con sus conteos: fecha, archivo, período, filas,
 altas, actualizaciones y errores.
 
-## Paso 6 — Comprobar el autocompletado
+## Paso 7 — Comprobar el autocompletado
 
 Es lo que la carga viene a alimentar, y conviene verificarlo con una cuenta de
 profesional, no con la de administración.

@@ -124,7 +124,10 @@ def test_la_plantilla_se_descarga_como_csv(db):
     respuesta = cliente.get(reverse("academico:plantilla"))
     assert respuesta.status_code == 200
     assert "text/csv" in respuesta["Content-Type"]
-    assert "plantilla-base-institucional.csv" in respuesta["Content-Disposition"]
+    # El nombre lleva el estamento: quien descarga las cuatro plantillas
+    # acaba con cuatro archivos en la carpeta de descargas y necesita
+    # distinguirlos sin abrirlos.
+    assert "plantilla-base-institucional-estudiante.csv" in respuesta["Content-Disposition"]
     # BOM: sin él Excel abre el archivo en Latin-1 y parte las tildes.
     assert respuesta.content.startswith(b"\xef\xbb\xbf")
 

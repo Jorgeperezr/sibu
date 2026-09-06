@@ -54,7 +54,18 @@ GRUPOS = [
 COLUMNAS_CON_ALERTA = set(mapping.REGLAS_ALERTA)
 
 
-def columnas_ordenadas() -> list[str]:
+ESTAMENTO_POR_DEFECTO = "estudiante"
+
+
+def _omitidas(estamento: str) -> set[str]:
+    """Columnas que no aplican al estamento pedido."""
+    estamento = estamento or ESTAMENTO_POR_DEFECTO
+    if estamento == ESTAMENTO_POR_DEFECTO:
+        return set()
+    return set(mapping.COLUMNAS_SOLO_ESTUDIANTE)
+
+
+def columnas_ordenadas(estamento: str = ESTAMENTO_POR_DEFECTO) -> list[str]:
     """
     Los encabezados del archivo, en el orden de `GRUPOS` y sin repetir.
 
@@ -62,31 +73,36 @@ def columnas_ordenadas() -> list[str]:
     `discapacidad_tipo` y `discapacidad_porcentaje`, que alimentan dos destinos
     distintos—. En el archivo van una sola vez: quien lo prepara escribe el dato
     una vez y el sistema lo reparte.
+
+    `estamento` recorta las columnas de matrícula que solo tiene el estudiante.
     """
+    omitidas = _omitidas(estamento)
     vistas: list[str] = []
     conocidas: set[str] = set()
     for _grupo, _destino, columnas in GRUPOS:
         for columna in columnas:
-            if columna not in conocidas:
+            if columna not in conocidas and columna not in omitidas:
                 conocidas.add(columna)
                 vistas.append(columna)
     return vistas
 
 
-def diccionario() -> list[dict]:
+def diccionario(estamento: str = ESTAMENTO_POR_DEFECTO) -> list[dict]:
     """
     El diccionario de columnas, grupo por grupo, para mostrarlo en pantalla.
 
     Cada columna se lista una sola vez, en el primer grupo donde aparece: es el
     mismo criterio que `columnas_ordenadas()`, así que lo que se ve en pantalla
-    y lo que trae la plantilla descargada no pueden discrepar.
+    y lo que trae la plantilla descargada no pueden discrepar. El estamento
+    recorta lo mismo en los dos sitios, por la misma razón.
     """
+    omitidas = _omitidas(estamento)
     ya_listadas: set[str] = set()
     filas = []
     for grupo, destino, columnas in GRUPOS:
         propias = []
         for columna in columnas:
-            if columna in ya_listadas:
+            if columna in ya_listadas or columna in omitidas:
                 continue
             ya_listadas.add(columna)
             propias.append(
@@ -101,9 +117,9 @@ def diccionario() -> list[dict]:
     return filas
 
 
-def total_columnas() -> int:
-    """Cuántas columnas distintas espera el archivo."""
-    return len(columnas_ordenadas())
+def total_columnas(estamento: str = ESTAMENTO_POR_DEFECTO) -> int:
+    """Cuántas columnas distintas espera el archivo de ese estamento."""
+    return len(columnas_ordenadas(estamento))
 
 
 # Fila de ejemplo de la plantilla. Solo se llenan las columnas que ilustran algo
@@ -140,7 +156,7 @@ EJEMPLO = {
 }
 
 
-def plantilla_csv() -> str:
+def plantilla_csv(estamento: str = ESTAMENTO_POR_DEFECTO) -> str:
     """
     La plantilla del archivo: encabezados canónicos y una fila de ejemplo.
 
@@ -152,7 +168,7 @@ def plantilla_csv() -> str:
     import csv
     import io
 
-    columnas = columnas_ordenadas()
+    columnas = columnas_ordenadas(estamento)
     buffer = io.StringIO()
     escritor = csv.DictWriter(buffer, fieldnames=columnas, extrasaction="ignore")
     escritor.writeheader()
@@ -178,6 +194,7 @@ ORDENES = {
     "cedula": ["persona__cedula"],
     "facultad": ["facultad", "persona__apellidos", "persona__nombres"],
     "carrera": ["carrera", "persona__apellidos", "persona__nombres"],
+    "estamento": ["persona__tipo_vinculo", "persona__apellidos", "persona__nombres"],
     "ciclo": ["ciclo", "persona__apellidos", "persona__nombres"],
     "estado": ["estado", "persona__apellidos", "persona__nombres"],
     "periodo": ["periodo__fecha_inicio", "persona__apellidos", "persona__nombres"],
@@ -210,7 +227,9 @@ FILTROS = {
     "ciclo": "ciclo",
     "paralelo": "paralelo",
     "sexo": "persona__sexo",
-    "vinculo": "persona__tipo_vinculo",
+    # El estamento de la persona. La clave se llama como el concepto que la
+    # Unidad reporta; el campo sigue siendo `tipo_vinculo`, que es donde vive.
+    "estamento": "persona__tipo_vinculo",
 }
 
 

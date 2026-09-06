@@ -7,10 +7,12 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.auditoria.models import LogAuditoria
+from apps.core.mensajes import detalle_de_error
 from apps.core.models import Servicio
 from apps.core.pdf import render_pdf
 from apps.usuarios import rbac
@@ -132,23 +134,120 @@ def _servicio_o_403(request, mis_servicios):
     return servicio
 
 
+ANEXOS = {"nomina": "Nómina de personas atendidas", "evidencias": "Evidencia de los valores"}
+
+
+def _eleccion(request) -> dict:
+    """
+    Qué pidió incluir el profesional: variables, anexos, columnas e identidad.
+
+    `elegir=1` es lo que distingue «no elegí nada» de «desmarqué todo»: un
+    formulario no envía las casillas sin marcar, así que sin ese testigo un
+    informe al que se le quitaron todas las variables llegaría aquí idéntico a
+    uno recién abierto, y saldría con las nueve.
+
+    La identidad se protege salvo que se pida lo contrario, y no al revés: la
+    opción por defecto de un documento que va a salir de la Unidad tiene que
+    ser la que no identifica a nadie.
+    """
+    from . import anexos as modulo_anexos
+
+    eligio = request.GET.get("elegir") == "1"
+    variables = request.GET.getlist("variables") if eligio else None
+    columnas = request.GET.getlist("columnas") if eligio else None
+    pedidos = [a for a in request.GET.getlist("anexos") if a in ANEXOS]
+    proteger = request.GET.get("identidad") != "mostrar"
+    elegidas, _retiradas = modulo_anexos.normalizar_columnas(columnas, proteger)
+    return {
+        "variables": services.normalizar_variables(variables),
+        "anexos": pedidos,
+        "columnas": elegidas,
+        "columnas_pedidas": columnas,
+        # Lo que se queda marcado en el formulario es lo que se PIDIÓ, no lo que
+        # sobrevivió a la protección: una casilla que se desmarca sola al enviar
+        # parece un fallo. Que la columna no salió se dice al pie del anexo,
+        # nombrándola.
+        "columnas_marcadas": elegidas if columnas is None else columnas,
+        "proteger": proteger,
+    }
+
+
+def _anexos_de(servicio, desde, hasta, eleccion: dict) -> dict:
+    """
+    Los anexos pedidos, o el motivo por el que no salen.
+
+    Un servicio confidencial no puede anexar la nómina, y `anexos` lo dice
+    lanzando: aquí se traduce a un aviso en pantalla en vez de a un error,
+    porque el informe agregado sí es legítimo y debe seguir generándose.
+    """
+    from . import anexos as modulo_anexos
+
+    resultado = {"nomina": None, "evidencias": None, "aviso": ""}
+    if not eleccion["anexos"]:
+        return resultado
+    comunes = {
+        "columnas": eleccion["columnas_pedidas"],
+        "proteger": eleccion["proteger"],
+    }
+    try:
+        if "nomina" in eleccion["anexos"]:
+            resultado["nomina"] = modulo_anexos.nomina(servicio, desde, hasta, **comunes)
+        if "evidencias" in eleccion["anexos"]:
+            resultado["evidencias"] = modulo_anexos.evidencias(
+                servicio, desde, hasta, variables=eleccion["variables"], **comunes
+            )
+    except ValidationError as exc:
+        resultado["aviso"] = detalle_de_error(exc, "No se pudo generar el anexo.")
+    return resultado
+
+
 @login_required
 def informe_servicio(request):
     """Perfil demográfico de las atenciones de un servicio propio, por fechas."""
+    from . import anexos as modulo_anexos
+
     mis_servicios = _mis_servicios(request.user)
     servicio = _servicio_o_403(request, mis_servicios)
     desde, hasta = _rango(request)
+    eleccion = _eleccion(request)
+    datos = services.informe_estadistico(servicio, desde, hasta, eleccion["variables"])
     return render(
         request,
         "reportes/informe_servicio.html",
         {
-            "datos": services.informe_estadistico(servicio, desde, hasta),
+            "datos": datos,
             "servicios": mis_servicios,
             "servicio": servicio,
             "desde": desde,
             "hasta": hasta,
+            "eleccion": eleccion,
+            "anexos": _anexos_de(servicio, desde, hasta, eleccion),
+            # Lo que la pantalla ofrece marcar, derivado de donde se calcula.
+            "variables_disponibles": services.VARIABLES.items(),
+            "anexos_disponibles": ANEXOS.items(),
+            "columnas_disponibles": modulo_anexos.COLUMNAS.items(),
+            "confidencial": servicio.codigo in rbac.SERVICIOS_CONFIDENCIALES,
+            "parametros": _parametros(request),
         },
     )
+
+
+def _parametros(request) -> str:
+    """Lo elegido, listo para colgar de un enlace (PDF, Excel) sin perderlo."""
+    from urllib.parse import urlencode
+
+    campos = [
+        "servicio",
+        "desde",
+        "hasta",
+        "elegir",
+        "variables",
+        "anexos",
+        "columnas",
+        "identidad",
+    ]
+    datos = {c: request.GET.getlist(c) for c in campos if request.GET.getlist(c)}
+    return urlencode(datos, doseq=True)
 
 
 @login_required
@@ -157,7 +256,9 @@ def informe_servicio_pdf(request):
     mis_servicios = _mis_servicios(request.user)
     servicio = _servicio_o_403(request, mis_servicios)
     desde, hasta = _rango(request)
-    datos = services.informe_estadistico(servicio, desde, hasta)
+    eleccion = _eleccion(request)
+    datos = services.informe_estadistico(servicio, desde, hasta, eleccion["variables"])
+    anexos = _anexos_de(servicio, desde, hasta, eleccion)
 
     LogAuditoria.objects.create(
         usuario=request.user,
@@ -165,14 +266,110 @@ def informe_servicio_pdf(request):
         modulo="reportes",
         entidad="InformeEstadistico",
         entidad_id=servicio.codigo,
-        detalle={"desde": str(desde or ""), "hasta": str(hasta or "")},
+        # Qué llevaba el documento queda en el log: un informe con la nómina y
+        # sin proteger la identidad es una salida de datos personales, y
+        # distinguirla después de una tabla de porcentajes es justo lo que la
+        # bitácora tiene que permitir.
+        detalle={
+            "desde": str(desde or ""),
+            "hasta": str(hasta or ""),
+            "variables": eleccion["variables"],
+            "anexos": eleccion["anexos"],
+            "identidad_protegida": eleccion["proteger"],
+        },
+        servicio=servicio.codigo,
     )
 
-    pdf = render_pdf("reportes/informe_servicio_pdf.html", {"datos": datos})
+    pdf = render_pdf(
+        "reportes/informe_servicio_pdf.html",
+        {"datos": datos, "anexos": anexos, "eleccion": eleccion},
+    )
     respuesta = HttpResponse(pdf, content_type="application/pdf")
     nombre = f"informe-demografico-{servicio.codigo}-{timezone.localdate():%Y%m%d}.pdf"
     respuesta["Content-Disposition"] = f'attachment; filename="{nombre}"'
     return respuesta
+
+
+@login_required
+def informe_servicio_xlsx(request):
+    """
+    La nómina del informe en Excel, con la línea gráfica de la Universidad.
+
+    El PDF es el documento que se archiva; esto es la misma nómina para seguir
+    trabajándola. No se exporta el desglose de porcentajes —eso ya está en el
+    PDF y en pantalla—: lo que no se puede hacer con un PDF es cruzar la lista
+    con otra, y para eso hace falta la tabla.
+    """
+    from apps.core.xlsx import libro_institucional, nombre_de_archivo
+
+    from . import anexos as modulo_anexos
+
+    mis_servicios = _mis_servicios(request.user)
+    servicio = _servicio_o_403(request, mis_servicios)
+    desde, hasta = _rango(request)
+    eleccion = _eleccion(request)
+
+    try:
+        nomina = modulo_anexos.nomina(
+            servicio,
+            desde,
+            hasta,
+            columnas=eleccion["columnas_pedidas"],
+            proteger=eleccion["proteger"],
+        )
+    except ValidationError as exc:
+        messages.error(request, detalle_de_error(exc, "No se pudo generar la nómina."))
+        return redirect(f"{reverse('reportes:informe_servicio')}?{_parametros(request)}")
+
+    LogAuditoria.objects.create(
+        usuario=request.user,
+        accion=LogAuditoria.Accion.EXPORT,
+        modulo="reportes",
+        entidad="InformeEstadistico",
+        entidad_id=servicio.codigo,
+        detalle={
+            "formato": "xlsx",
+            "anexo": "nomina",
+            "filas": nomina["total"],
+            "identidad_protegida": eleccion["proteger"],
+        },
+        servicio=servicio.codigo,
+    )
+
+    libro = libro_institucional(
+        titulo="Nómina de personas atendidas",
+        subtitulo=_subtitulo_de_nomina(nomina["total"], desde, hasta, servicio.codigo),
+        encabezados=nomina["encabezados"],
+        filas=nomina["filas"],
+        nota_pie=_nota_de_nomina(nomina),
+        nombre_hoja="Nómina",
+    )
+    return _respuesta_xlsx(libro, nombre_de_archivo("nomina", servicio=servicio.codigo))
+
+
+def _subtitulo_de_nomina(cuantas, desde, hasta, servicio) -> str:
+    """Cuenta PERSONAS, no atenciones: por eso no reutiliza `_subtitulo`."""
+    partes = [f"{cuantas} {'persona atendida' if cuantas == 1 else 'personas atendidas'}"]
+    partes.append(f"servicio: {servicio}")
+    if desde or hasta:
+        partes.append(f"del {desde or '…'} al {hasta or '…'}")
+    partes.append(f"generado el {timezone.localtime():%d/%m/%Y %H:%M}")
+    return " · ".join(partes)
+
+
+def _nota_de_nomina(nomina: dict) -> str:
+    """El pie que explica qué se retiró: una lista recortada en silencio miente."""
+    if nomina["protegida"]:
+        return (
+            "Identidad protegida: no se reportan cédula, teléfono, correo "
+            "institucional ni número de expediente. Cada fila se cita por su "
+            "código. Documento con datos personales bajo custodia de la Unidad."
+        )
+    return (
+        "Este anexo incluye datos identificativos de las personas atendidas. "
+        "Custodia de la Unidad de Bienestar Universitario: no se difunde ni se "
+        "comparte fuera del servicio que lo generó."
+    )
 
 
 @login_required

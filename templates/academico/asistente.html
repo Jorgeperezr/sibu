@@ -10,10 +10,12 @@
     </small>
   </div>
   <div class="d-flex gap-2">
-    <a href="{% url 'academico:plantilla' %}" class="btn btn-sm btn-outline-primary">
+    <a href="{% url 'academico:plantilla' %}?estamento={{ estamento|default:'estudiante' }}"
+       class="btn btn-sm btn-outline-primary">
       <i class="bi bi-download"></i> Plantilla CSV
     </a>
-    <a href="{% url 'academico:diccionario' %}" class="btn btn-sm btn-outline-secondary">
+    <a href="{% url 'academico:diccionario' %}?estamento={{ estamento|default:'estudiante' }}"
+       class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-list-columns"></i> Diccionario
     </a>
     <a href="{% url 'academico:padron' %}" class="btn btn-sm btn-outline-secondary">
@@ -32,6 +34,22 @@
           <option value="">— Seleccione —</option>
           {% for p in periodos %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.nombre }}</option>{% endfor %}
         </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Estamento</label>
+        <select name="estamento" class="form-select" required>
+          <option value="">— Seleccione —</option>
+          {% for valor, etiqueta in estamentos %}
+            <option value="{{ valor }}" {% if estamento == valor %}selected{% endif %}>{{ etiqueta }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">
+          A quién describe este archivo. Cada estamento tiene su propia base y
+          sus propias columnas: la del estudiante trae nivel, ciclo, paralelo y
+          jornada, y las de docentes, administrativos y trabajadores no. El
+          archivo no lo dice por sí solo, así que se declara aquí y queda
+          registrado en la bitácora de la carga.
+        </div>
       </div>
       <div class="mb-3">
         <label class="form-label">Archivo (.xlsx o .csv)</label>

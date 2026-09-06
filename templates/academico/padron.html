@@ -147,6 +147,7 @@
         <tr>
           <td class="font-monospace">{{ d.persona.cedula }}</td>
           <td>{{ d.persona.apellidos }} {{ d.persona.nombres }}</td>
+          <td><span class="badge bg-light text-dark border">{{ d.persona.get_tipo_vinculo_display }}</span></td>
           <td>{{ d.facultad|default:"—" }}</td>
           <td>{{ d.carrera|default:"—" }}</td>
           <td>{{ d.ciclo|default:"—" }}</td>
@@ -195,7 +196,7 @@
   <div class="table-responsive">
     <table class="table table-sm mb-0">
       <thead class="table-light">
-        <tr><th>Fecha</th><th>Archivo</th><th>Período</th><th>Estado</th>
+        <tr><th>Fecha</th><th>Archivo</th><th>Período</th><th>Estamento</th><th>Estado</th>
             <th class="text-end">Filas</th><th class="text-end">Altas</th>
             <th class="text-end">Actualizaciones</th><th class="text-end">Errores</th></tr>
       </thead>
@@ -205,6 +206,7 @@
           <td>{{ c.creado_en|date:"d/m/Y H:i" }}</td>
           <td>{{ c.nombre_archivo }}</td>
           <td>{{ c.periodo.codigo }}</td>
+          <td>{{ c.get_estamento_display }}</td>
           <td><span class="badge bg-light text-dark border">{{ c.get_estado_display }}</span></td>
           <td class="text-end">{{ c.total_filas }}</td>
           <td class="text-end">{{ c.altas }}</td>
