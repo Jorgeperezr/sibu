@@ -3,8 +3,9 @@
 import csv
 from datetime import datetime
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -12,6 +13,7 @@ from django.utils import timezone
 from apps.auditoria.models import LogAuditoria
 from apps.core.models import Servicio
 from apps.core.pdf import render_pdf
+from apps.usuarios import rbac
 from apps.usuarios.models import Rol
 from apps.usuarios.rbac import servicios_del_usuario
 
@@ -170,4 +172,118 @@ def informe_servicio_pdf(request):
     respuesta = HttpResponse(pdf, content_type="application/pdf")
     nombre = f"informe-demografico-{servicio.codigo}-{timezone.localdate():%Y%m%d}.pdf"
     respuesta["Content-Disposition"] = f'attachment; filename="{nombre}"'
+    return respuesta
+
+
+@login_required
+def exportar_hoja(request):
+    """
+    Vuelca el historial de atenciones a una hoja de Google compartida.
+
+    Lo abre quien atiende, no la Dirección, y no es un olvido: el historial que
+    se exporta es el que cada uno ve, y `rbac.atenciones_visibles` le devuelve
+    cero a quien gobierna por separación de funciones. La Dirección tiene el
+    tablero y su CSV de agregados.
+
+    La pantalla dice, antes de pulsar nada, cuántas filas saldrían, cuántas se
+    retienen por confidencialidad y qué implica compartir la hoja. Eso último
+    importa: a partir del volcado SIBU no controla quién lo lee, no puede
+    impedir que lo modifiquen y no puede revocarlo.
+    """
+    from . import exportacion
+
+    if not rbac.puede_ver_expediente(request.user):
+        raise PermissionDenied("La exportación del historial es para el personal de la Unidad.")
+
+    desde, hasta = _rango(request)
+
+    if request.GET.get("formato") == "csv":
+        return _historial_csv(request, desde, hasta)
+
+    proveedor = exportacion.get_proveedor()
+    contexto = {
+        "resumen": exportacion.resumen_de_exportacion(request.user, desde, hasta),
+        "encabezados": exportacion.ENCABEZADOS,
+        "desde": desde,
+        "hasta": hasta,
+        "proveedor": proveedor,
+        "disponible": proveedor.disponible(),
+        "motivo": "" if proveedor.disponible() else proveedor.motivo_no_disponible(),
+    }
+
+    if request.method == "POST":
+        try:
+            hoja_id = exportacion.id_de_hoja(request.POST.get("enlace", ""))
+            filas = exportacion.historial(request.user, desde, hasta)
+            url = proveedor.volcar(
+                hoja_id,
+                exportacion.ENCABEZADOS,
+                [[fila[c] for c in exportacion.ENCABEZADOS] for fila in filas],
+            )
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+        else:
+            # Sacar el historial de la Unidad es de lo que más falta hace poder
+            # revisar después: quién, cuándo, cuántas filas y a qué hoja.
+            LogAuditoria.objects.create(
+                usuario=request.user,
+                accion=LogAuditoria.Accion.EXPORT,
+                modulo="reportes",
+                entidad="HistorialAtenciones",
+                entidad_id=hoja_id,
+                detalle={
+                    "hoja": hoja_id,
+                    "filas": len(filas),
+                    "retenidas": contexto["resumen"]["retenidas_por_confidencialidad"],
+                    "desde": str(desde or ""),
+                    "hasta": str(hasta or ""),
+                },
+            )
+            messages.success(request, f"{len(filas)} atención(es) volcadas en la hoja.")
+            contexto["url_hoja"] = url
+
+    return render(request, "reportes/exportar_hoja.html", contexto)
+
+
+def _historial_csv(request, desde, hasta):
+    """
+    El mismo historial, descargado en vez de volcado.
+
+    Existe porque sin credenciales de Google la pantalla no puede volcar nada,
+    y decirle al usuario «descargue el CSV» sin darle el botón sería mandarlo a
+    un sitio que no está. Lleva exactamente las mismas filas y el mismo filtro:
+    es la misma exportación por otro camino, no una puerta más ancha.
+    """
+    from . import exportacion
+
+    filas = exportacion.historial(request.user, desde, hasta)
+    LogAuditoria.objects.create(
+        usuario=request.user,
+        accion=LogAuditoria.Accion.EXPORT,
+        modulo="reportes",
+        entidad="HistorialAtenciones",
+        entidad_id="csv",
+        detalle={
+            "formato": "csv",
+            "filas": len(filas),
+            "retenidas": exportacion.resumen_de_exportacion(request.user, desde, hasta)[
+                "retenidas_por_confidencialidad"
+            ],
+            "desde": str(desde or ""),
+            "hasta": str(hasta or ""),
+        },
+    )
+
+    respuesta = HttpResponse(content_type="text/csv; charset=utf-8")
+    respuesta["Content-Disposition"] = (
+        f'attachment; filename="historial-atenciones-{timezone.localdate()}.csv"'
+    )
+    # BOM: sin él, Excel en Windows abre el archivo en Latin-1 y parte las
+    # tildes de «atención» y de los apellidos. Es el mismo cuidado que ya se
+    # tiene con la plantilla de carga.
+    respuesta.write("\ufeff")
+    escritor = csv.writer(respuesta)
+    escritor.writerow(exportacion.ENCABEZADOS)
+    for fila in filas:
+        escritor.writerow([fila[c] for c in exportacion.ENCABEZADOS])
     return respuesta

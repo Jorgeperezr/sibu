@@ -228,6 +228,11 @@ SIBU = {
     "GDRIVE_CARPETA_RAIZ": "SIBU/Talleres",
     # Servicios de la Sección Salud habilitados para registrar talleres:
     "TALLERES_SALUD_HABILITADO": env.bool("TALLERES_SALUD_HABILITADO", default=False),
+    # Cuenta de servicio para volcar el historial de atenciones a una hoja de
+    # Google. Vacío por defecto: sin ella la pantalla lo dice y ofrece el CSV,
+    # que trae las mismas filas. La hoja debe estar compartida con el correo de
+    # esa cuenta CON PERMISO DE EDITOR.
+    "GOOGLE_CREDENCIALES_JSON": env("GOOGLE_CREDENCIALES_JSON", default=""),
 }
 
 # Cifrado a nivel de campo (datos sensibles). Clave separada de SECRET_KEY.

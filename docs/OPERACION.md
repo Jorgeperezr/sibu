@@ -77,6 +77,37 @@ que cuenta: sobre un valor crítico, «a qué hora se enteró» es lo que habrí
 poder responder después, y volver a abrir la bandeja tres días más tarde no
 puede mover esa hora.
 
+## Exportar el historial de atenciones
+
+**Gestión → Exportar historial** vuelca las atenciones a una hoja de Google
+compartida, o las descarga en CSV. Tres cosas que decidir bien antes de usarlo:
+
+- **Lo que sale deja de estar bajo control de SIBU.** Con permiso de editor,
+  quien reciba la hoja puede leerla, copiarla y modificarla; el sistema no
+  registra quién la abre ni puede revocarla. La pantalla lo dice arriba, no en
+  letra pequeña.
+- **Psicología no sale nunca**, ni para Psicología. El sello dice «no accesible
+  fuera del servicio» y una hoja compartida es fuera: mismo razonamiento que
+  impide a un servicio confidencial emitir referencias externas. La pantalla
+  cuenta cuántas filas se retuvieron, porque una exportación parcial que calla
+  que es parcial hace contar mal a quien la recibe.
+- **No sale texto clínico**: ni motivo de consulta, ni diagnósticos, ni notas.
+  Salen fecha, servicio, profesional, paciente, vínculo, facultad y carrera —
+  gestión, que es lo que sirve para un informe.
+
+Lo exporta **quien atiende**, sobre su propio trabajo, no la Dirección:
+`atenciones_visibles` le devuelve cero a quien gobierna por separación de
+funciones, así que ofrecérselo sería ofrecer una pantalla que siempre diría
+«0 atenciones». La Dirección tiene el tablero y su CSV de agregados.
+
+Sin credenciales de Google (`SIBU.GOOGLE_CREDENCIALES_JSON`) el volcado no está
+disponible y la pantalla lo dice; la descarga en CSV funciona igual y trae las
+mismas filas. Para habilitar el volcado hace falta una cuenta de servicio y
+compartir la hoja con su correo **con permiso de editor**.
+
+Toda exportación queda en la bitácora: quién, cuándo, cuántas filas, cuántas se
+retuvieron y a qué hoja.
+
 ## La bitácora
 
 **Gestión → Bitácora** responde «quién abrió esto y cuándo». Registra cada

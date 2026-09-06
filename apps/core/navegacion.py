@@ -71,6 +71,16 @@ MODULOS = [
     # entradas, para poder auditarse: nadie de fuera puede revisar su trabajo—,
     # pero eso lo resuelve la vista. Aquí basta con ofrecerla a quien gobierna,
     # que es quien la va a usar.
+    # `tiene_servicio`, no un rol: quien exporta es quien atiende, sobre su
+    # propio trabajo. `atenciones_visibles` le devuelve cero a la Dirección por
+    # separación de funciones, así que ofrecérselo sería ofrecer una pantalla
+    # que siempre diría «0 atenciones».
+    Modulo(
+        "Exportar historial",
+        "reportes:exportar_hoja",
+        ("tiene_servicio", None),
+        "Gestión",
+    ),
     Modulo(
         "Bitácora",
         "auditoria:bitacora",
