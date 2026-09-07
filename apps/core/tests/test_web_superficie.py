@@ -104,9 +104,45 @@ def test_un_estudiante_no_abre_ninguna_pantalla_de_gestion(sembrado):
             respuesta = cliente.get(url)
         except Exception:
             # Una vista que revienta con un id inventado no es un agujero de
-            # acceso; es otra cosa y no la juzga este barrido.
+            # acceso; es otra cosa, y la juzga
+            # `test_ninguna_ruta_revienta_con_un_id_que_no_existe`, más abajo.
             continue
         if respuesta.status_code == 200:
             abiertas[url] = nombre
 
     assert abiertas == {}, f"pantallas abiertas a un estudiante: {abiertas}"
+
+
+@pytest.mark.django_db
+def test_ninguna_ruta_revienta_con_un_id_que_no_existe(sembrado):
+    """
+    Pedir algo que no está es un 404, nunca una página de error.
+
+    El barrido de acceso de arriba se traga las excepciones a propósito —una
+    vista que revienta no es un agujero de permisos—, y esa «otra cosa» no la
+    miraba nadie. Aquí sí: se recorren TODAS las rutas con una cuenta que llega
+    a casi todo y se exige que ninguna devuelva 5xx ni deje escapar una
+    excepción.
+
+    Con un id inventado, lo correcto es 404 (no existe), 403 (no le
+    corresponde) o 302 (a iniciar sesión). Un 500 es un fallo del sistema
+    delante de quien solo tecleó mal una dirección.
+    """
+    from apps.core.management.commands.datos_demo import ADMIN
+
+    cliente = Client()
+    assert cliente.login(username=ADMIN["username"], password=ADMIN["clave"])
+
+    rotas = []
+    for patron, nombre in _rutas():
+        if patron.startswith(FUERA) or "format" in patron or "(" in patron:
+            continue
+        url = "/" + re.sub(r"<[^>]+>", "999999", patron)
+        try:
+            respuesta = cliente.get(url)
+        except Exception as exc:  # noqa: BLE001 - se reporta con su ruta
+            rotas.append(f"{url} ({nombre}): {type(exc).__name__}: {exc}")
+            continue
+        if respuesta.status_code >= 500:
+            rotas.append(f"{url} ({nombre}): HTTP {respuesta.status_code}")
+    assert rotas == [], "rutas que revientan con un id inexistente: " + "; ".join(rotas)

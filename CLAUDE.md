@@ -78,6 +78,12 @@ talleres, portal del estudiante y tablero de gestión.
   `{{ receta.codigo }}` sobre un modelo cuyo campo es `numero` responde 200 y
   pinta vacío. Ninguna prueba de estado ni de contexto lo ve; lo ve una que
   compruebe que lo propio APARECE (`assert receta.numero in contenido`).
+- **Un `<a href>` es un GET: no vale para una vista de solo POST.** Django 5
+  retiró el GET de `LogoutView`, así que el icono de cerrar sesión devolvía
+  405. Se arregla en la PLANTILLA —formulario POST con su `csrf_token`—, nunca
+  aflojando la vista: el GET es lo que permitiría cerrar la sesión ajena con un
+  `<img src="/cuentas/logout/">`. Un barrido comprueba que todo `{% url %}`
+  dentro de un `href` responda a GET.
 - **Comentarios de plantilla `{# #}` solo funcionan en una línea.** Para varias,
   `{% comment %}`.
 - **`pluralize` no sirve para una palabra con tilde en la última sílaba.**

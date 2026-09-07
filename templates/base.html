@@ -69,9 +69,19 @@ puede declararse una vez.
           <span class="badge rounded-pill bg-danger">{{ notificaciones_sin_leer }}</span>
           {% endif %}
         </a>
-        <a href="{% url 'logout' %}" title="Cerrar sesión" class="sibu-salir">
-          <i class="bi bi-box-arrow-right"></i>
-        </a>
+        {% comment %}
+        Cerrar sesión va por POST, no por enlace. Django 5 retiró el GET de
+        `LogoutView` y devuelve 405: era un enlace y eso es lo que veía quien
+        pulsaba el icono. El motivo por el que Django lo retiró importa aquí:
+        con un GET, un tercero cierra la sesión ajena con un
+        `<img src="/cuentas/logout/">` metido en cualquier página.
+        {% endcomment %}
+        <form method="post" action="{% url 'logout' %}" class="sibu-salir-form">
+          {% csrf_token %}
+          <button type="submit" title="Cerrar sesión" class="sibu-salir">
+            <i class="bi bi-box-arrow-right"></i>
+          </button>
+        </form>
       </div>
     </div>
   </aside>
@@ -88,9 +98,12 @@ puede declararse una vez.
         <img src="{% static 'img/unl-horizontal.png' %}"
              alt="Universidad Nacional de Loja">
       </a>
-      <a href="{% url 'logout' %}" class="btn btn-sm btn-light" title="Cerrar sesión">
-        <i class="bi bi-box-arrow-right"></i>
-      </a>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-light" title="Cerrar sesión">
+          <i class="bi bi-box-arrow-right"></i>
+        </button>
+      </form>
     </header>
     {% endif %}
 

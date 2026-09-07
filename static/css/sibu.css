@@ -185,12 +185,24 @@ body {
   color: var(--sibu-muted);
   font-size: 0.71rem;
 }
+/* Cerrar sesión es un botón dentro de un formulario POST —Django 5 retiró el
+   GET de `LogoutView`—, así que se le quita el aspecto de botón para que siga
+   viéndose como el icono que era. */
 .sibu-salir {
   color: var(--sibu-muted);
   font-size: 1.1rem;
+  background: none;
+  border: 0;
+  padding: 0;
+  line-height: 1;
+  cursor: pointer;
 }
 .sibu-salir:hover {
   color: var(--unl-rojo);
+}
+.sibu-salir-form {
+  display: inline;
+  margin: 0;
 }
 
 /* ---- Cabecera solo para pantallas pequeñas ---- */
