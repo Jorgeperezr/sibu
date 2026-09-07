@@ -33,6 +33,11 @@ talleres, portal del estudiante y tablero de gestión.
 
 ## Trampas técnicas que ya nos costaron caro
 
+- **Insertar una función encima de otra decorada le roba el decorador.** Meter
+  un `def` nuevo entre `@transaction.atomic` y la función que decoraba deja a
+  la original sin transacción y a la nueva envuelta en una. No lo ve ninguna
+  prueba de comportamiento normal: lo ve una que compruebe que un fallo a mitad
+  no deja el dato partido.
 - **Auditar y abortar no caben en la misma transacción.** Registrar un rechazo
   dentro de `@transaction.atomic` y luego lanzar ValidationError revierte el
   propio log. Pasó dos veces (firma, portal).
@@ -45,10 +50,21 @@ talleres, portal del estudiante y tablero de gestión.
   `1700000001` son válidas; `1104567890` NO.
 - **Zona horaria America/Guayaquil**: usar `timezone.localtime()`, no comparar
   UTC contra `localdate()`.
-- **`Decimal("8,5")` lanza `InvalidOperation`, que NO es `ValidationError`.** Y
-  con coma es como se escribe un decimal aquí. Un `except (ValidationError,
-  KeyError)` no lo atrapa y sale una página de error. Convertir siempre dentro
-  de un `try` que traduzca a `ValidationError`.
+- **Un decimal con coma es un decimal: `apps/core/numeros.py` es la única
+  lectura.** Aquí se escribe 450,50. El sistema lo leía de cuatro maneras
+  —×100 al cargar, cero al sumar, vacío en signos vitales, bien solo en
+  Laboratorio—, todas silenciosas y todas alimentando el estrato que orienta
+  una beca. No escribir otra conversión: `a_decimal` (lanza), `a_decimal_o`
+  (indulgente, para lo YA guardado), `a_entero`, `es_ambiguo`. Y `Decimal("8,5")`
+  lanza `InvalidOperation`, que NO es `ValidationError`: un `except
+  (ValidationError, KeyError)` no lo atrapa.
+- **Guardar lo leído, no lo tecleado.** Validar «8,5» y luego guardar la cadena
+  en un campo decimal vuelve a romper al escribir, donde ya no hay a quién
+  avisar.
+- **Indulgente con lo guardado, estricto con lo tecleado.** Un cálculo sobre
+  fichas viejas no puede reventar por un «no aplica»; un formulario que acaba
+  de recibir «450,5O» tiene que devolverlo, porque si lo ignora ese ingreso
+  desaparece del hogar.
 - **Un atributo que no existe no da error en una plantilla: da un hueco.**
   `{{ receta.codigo }}` sobre un modelo cuyo campo es `numero` responde 200 y
   pinta vacío. Ninguna prueba de estado ni de contexto lo ve; lo ve una que

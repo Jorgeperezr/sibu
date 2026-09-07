@@ -16,6 +16,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.models import Servicio
+from apps.core.parametros import id_de_consulta
 from apps.expediente.models import Expediente
 from apps.usuarios.models import PerfilProfesional
 from apps.usuarios.permissions import EsPersonalDeLaUnidad
@@ -148,10 +149,17 @@ class CitaViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def proximas(self, request):
-        exp_id = request.query_params.get("expediente")
+        exp_id = id_de_consulta(request.query_params.get("expediente"), "expediente")
         if not exp_id:
             return Response(
                 {"detalle": "Parámetro 'expediente' requerido."}, status=status.HTTP_400_BAD_REQUEST
             )
-        citas = proximas_del_expediente(Expediente.objects.get(pk=exp_id))
+        # `.get()` sobre un id inexistente lanzaba DoesNotExist sin capturar:
+        # preguntar por un expediente que no está es un 404, no un 500.
+        expediente = Expediente.objects.filter(pk=exp_id).first()
+        if expediente is None:
+            return Response(
+                {"detalle": "No existe ese expediente."}, status=status.HTTP_404_NOT_FOUND
+            )
+        citas = proximas_del_expediente(expediente)
         return Response(CitaSerializer(citas, many=True).data)

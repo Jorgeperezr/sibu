@@ -64,6 +64,7 @@ class Command(BaseCommand):
                 self._expedientes_duplicados_por_persona,
                 self._alertas_sin_expediente_con_persona,
                 self._bitacora_sin_servicio,
+                self._montos_de_ficha_ilegibles,
             )
         ]
         con_problema = [h for h in hallazgos if h]
@@ -246,6 +247,46 @@ class Command(BaseCommand):
             "Entradas de bitácora clínicas sin servicio declarado",
             "La pantalla no puede velarlas y mostraría al paciente.",
             [f"Registro {r.pk}: {r.accion} sobre {r.entidad} {r.entidad_id}" for r in sueltas],
+        )
+
+    def _montos_de_ficha_ilegibles(self):
+        """
+        Fichas cuyos ingresos o egresos guardados no se pueden leer como número.
+
+        Existe porque el arreglo de la lectura no arregla lo ya cargado. Hasta
+        hoy el motor de carga borraba la coma antes de leer —«450,50» entraba
+        como 45050— y la suma de Trabajo Social descartaba lo que no supiera
+        leer. Las fichas que entraron así siguen en la base con lo que se
+        escribió entonces, y ninguna restricción las va a delatar.
+
+        Se listan para que Trabajo Social las vuelva a verificar; no se
+        corrigen: un monto ilegible puede ser un error de digitación o texto
+        descriptivo legítimo, y decidirlo por su cuenta convertiría un dato
+        dudoso visible en uno inventado silencioso.
+        """
+        from apps.core import numeros
+        from apps.trabajo_social.models import FichaSocioeconomica
+
+        filas = []
+        for ficha in FichaSocioeconomica.objects.filter(vigente=True).select_related(
+            "expediente__persona"
+        ):
+            dudosos = []
+            for grupo in (ficha.ingresos or {}, ficha.egresos or {}):
+                for clave, valor in grupo.items():
+                    if valor in (None, "", 0):
+                        continue
+                    if numeros.es_ambiguo(valor):
+                        dudosos.append(f"{clave}=«{valor}» (dos lecturas)")
+                        continue
+                    if numeros.a_decimal_o(valor, None) is None:
+                        dudosos.append(f"{clave}=«{valor}»")
+            if dudosos:
+                filas.append(f"Ficha {ficha.pk} de {ficha.expediente}: {', '.join(dudosos)}")
+        return Hallazgo(
+            "Fichas con montos que no se pueden leer",
+            "Se suman como cero y mueven el estrato. Vuelva a verificarlas.",
+            filas,
         )
 
     def _alertas_sin_expediente_con_persona(self):

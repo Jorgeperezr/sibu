@@ -180,3 +180,48 @@ def test_limpiar_no_deja_stock_sin_bitacora(sembrado):
 
     limpio, texto = _revisar(detalle=True)
     assert limpio, texto
+
+
+def _ficha_con(ingresos: dict):
+    """
+    Una ficha vigente con esos montos guardados.
+
+    Se crea aquí en vez de tomar una de la siembra: `preparar` no siembra
+    fichas socioeconómicas, y una prueba que se apoye en la primera que
+    encuentre pasaría sin comprobar nada el día que eso cambie.
+    """
+    from apps.expediente.models import Expediente
+    from apps.trabajo_social.models import FichaSocioeconomica
+
+    expediente = Expediente.objects.first()
+    assert expediente is not None, "la siembra no dejó expedientes"
+    return FichaSocioeconomica.objects.create(
+        expediente=expediente, version=1, vigente=True, ingresos=ingresos, egresos={}
+    )
+
+
+@pytest.mark.django_db
+def test_detecta_una_ficha_con_montos_ilegibles(sembrado):
+    """
+    Arreglar la lectura no arregla lo ya cargado.
+
+    Hasta hoy la carga borraba la coma —«450,50» entraba como 45050— y la suma
+    descartaba lo que no supiera leer. Las fichas que entraron así siguen en la
+    base y ninguna restricción las delata: hay que ir a buscarlas.
+    """
+    _ficha_con({"ingreso_padre": "45O,50"})
+
+    limpio, texto = _revisar(detalle=True)
+    assert not limpio
+    assert "montos que no se pueden leer" in texto
+    assert "45O,50" in texto
+
+
+@pytest.mark.django_db
+def test_señala_tambien_el_monto_que_admite_dos_lecturas(sembrado):
+    """`1.234` puede ser mil doscientos treinta y cuatro o uno coma 234."""
+    _ficha_con({"ingreso_madre": "1.234"})
+
+    limpio, texto = _revisar(detalle=True)
+    assert not limpio
+    assert "dos lecturas" in texto

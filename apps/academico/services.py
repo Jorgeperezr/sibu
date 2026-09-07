@@ -18,6 +18,7 @@ import hashlib
 from dataclasses import dataclass, field
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.core.models import Servicio
@@ -150,6 +151,8 @@ class ProcesadorCarga:
                 {"cedula": cedula, "aviso": f"Correo no institucional: {correo}"}
             )
 
+        self._revisar_montos(fila, cedula, r)
+
         if not aplicar:
             # Modo previsualización: solo cuenta alta/actualización sin escribir
             existe = Persona.objects.filter(cedula=cedula).exists()
@@ -165,6 +168,46 @@ class ProcesadorCarga:
             r.alertas_generadas += self._generar_alertas(fila, expediente)
             r.altas += 1 if creada else 0
             r.actualizaciones += 0 if creada else 1
+
+    # Columnas del archivo que son montos: lo que se escriba ahí se suma, y
+    # lo que no se pueda leer se suma como cero sin que nadie lo note.
+    COLUMNAS_DE_MONTO = tuple(mapping.FICHA_JSONB["ingresos"]) + tuple(
+        mapping.FICHA_JSONB["egresos"]
+    )
+
+    def _revisar_montos(self, fila, cedula, r: ResultadoCarga) -> None:
+        """
+        Anota los montos que no se pueden leer, o que admiten dos lecturas.
+
+        No bloquea la fila: una celda con «no aplica» en una columna de monto es
+        corriente y no puede tumbar una carga de miles de filas. Pero tampoco se
+        calla, que es lo que hacía antes: estos números alimentan el puntaje
+        socioeconómico que orienta una beca, y `1.234` leído como uno coma
+        doscientos treinta y cuatro en vez de mil doscientos treinta y cuatro
+        cambia el estrato de una familia sin dejar rastro.
+        """
+        from apps.core import numeros
+
+        for columna in self.COLUMNAS_DE_MONTO:
+            valor = self._get(fila, columna)
+            if valor in (None, ""):
+                continue
+            if numeros.es_ambiguo(valor):
+                r.detalle_errores.append(
+                    {
+                        "cedula": cedula,
+                        "aviso": f"{columna}=«{valor}» admite dos lecturas y se "
+                        f"leyó como {numeros.a_decimal(valor)}. Con separador de "
+                        "miles escriba también los decimales (1.234,00).",
+                    }
+                )
+                continue
+            try:
+                numeros.a_decimal(valor, campo=columna)
+            except ValidationError as exc:
+                r.detalle_errores.append(
+                    {"cedula": cedula, "aviso": f"{columna}: {' '.join(exc.messages)} Se suma 0."}
+                )
 
     # -- upserts --
     def _upsert_persona(self, fila, cedula, nombres, apellidos):

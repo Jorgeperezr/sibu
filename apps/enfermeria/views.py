@@ -1,11 +1,12 @@
 """Interfaz web de Enfermería: registro de triaje / signos vitales."""
 
-from decimal import Decimal, InvalidOperation
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core import numeros
+from apps.core.mensajes import detalle_de_error
 from apps.core.models import Servicio
 from apps.expediente.models import Expediente
 from apps.usuarios.decorators import verificar_es_del_servicio
@@ -14,21 +15,22 @@ from .models import SignosVitales
 from .services import signos_del_dia, triajes_del_dia
 
 
-def _dec(valor):
-    """Convierte a Decimal o None si viene vacío/invalido."""
-    if not valor:
-        return None
-    try:
-        return Decimal(str(valor))
-    except (InvalidOperation, ValueError):
-        return None
+def _dec(valor, campo=""):
+    """
+    El número que dice el texto, o None si no dice nada.
+
+    Devolvía None también para lo ilegible, así que una temperatura escrita
+    «36,5» —que es como se escribe un decimal aquí— se guardaba VACÍA y la
+    pantalla respondía «signos vitales registrados». Un dato clínico no se
+    pierde en silencio: ahora `core.numeros` lee la coma, y lo que no sea un
+    número lanza y se le dice a quien lo escribió.
+    """
+    return numeros.a_decimal(valor, campo=campo)
 
 
-def _int(valor):
-    try:
-        return int(valor) if valor else None
-    except (TypeError, ValueError):
-        return None
+def _int(valor, campo=""):
+    leido = numeros.a_decimal(valor, campo=campo)
+    return None if leido is None else int(leido)
 
 
 def _servicio():
@@ -56,20 +58,28 @@ def triaje(request, expediente_id):
         if perfil is None:
             messages.error(request, "Su usuario no tiene perfil profesional asignado.")
             return redirect("expediente:detalle", pk=expediente.id)
-        SignosVitales.objects.create(
-            expediente=expediente,
-            temperatura=_dec(request.POST.get("temperatura")),
-            fc=_int(request.POST.get("fc")),
-            fr=_int(request.POST.get("fr")),
-            pa_sistolica=_int(request.POST.get("pa_sistolica")),
-            pa_diastolica=_int(request.POST.get("pa_diastolica")),
-            sat_o2=_int(request.POST.get("sat_o2")),
-            peso=_dec(request.POST.get("peso")),
-            talla=_dec(request.POST.get("talla")),
-            perimetro_abdominal=_int(request.POST.get("perimetro_abdominal")),
-            glicemia_capilar=_int(request.POST.get("glicemia_capilar")),
-            responsable=perfil,
-        )
+        try:
+            SignosVitales.objects.create(
+                expediente=expediente,
+                temperatura=_dec(request.POST.get("temperatura"), "temperatura"),
+                fc=_int(request.POST.get("fc"), "frecuencia cardiaca"),
+                fr=_int(request.POST.get("fr"), "frecuencia respiratoria"),
+                pa_sistolica=_int(request.POST.get("pa_sistolica"), "presión sistólica"),
+                pa_diastolica=_int(request.POST.get("pa_diastolica"), "presión diastólica"),
+                sat_o2=_int(request.POST.get("sat_o2"), "saturación de oxígeno"),
+                peso=_dec(request.POST.get("peso"), "peso"),
+                talla=_dec(request.POST.get("talla"), "talla"),
+                perimetro_abdominal=_int(
+                    request.POST.get("perimetro_abdominal"), "perímetro abdominal"
+                ),
+                glicemia_capilar=_int(request.POST.get("glicemia_capilar"), "glicemia capilar"),
+                responsable=perfil,
+            )
+        except ValidationError as exc:
+            # Se avisa y no se guarda nada. Guardar el resto y callar el dato
+            # ilegible dejaría un triaje incompleto que nadie sabría revisar.
+            messages.error(request, detalle_de_error(exc, "Revise los signos vitales."))
+            return redirect("enfermeria:triaje", expediente_id=expediente.id)
         messages.success(request, "Signos vitales registrados. Disponibles para Medicina.")
         return redirect("enfermeria:triaje", expediente_id=expediente.id)
 

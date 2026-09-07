@@ -120,17 +120,39 @@ def test_la_pantalla_tampoco_revienta(escenario):
 
 
 @pytest.mark.django_db
-def test_un_promedio_con_coma_avisa_en_vez_de_reventar(escenario):
+def test_un_promedio_con_coma_se_entiende(escenario):
     """
-    «8,5» es como se escribe un decimal en Ecuador. `Decimal("8,5")` lanza
-    `InvalidOperation`, que no es `ValidationError`: la vista no la captura.
+    «8,5» es como se escribe un decimal en Ecuador, y ahora se lee.
+
+    Esta prueba cambió de sentido a propósito. `Decimal("8,5")` lanzaba
+    `InvalidOperation` y salía una página de error; el primer arreglo capturó
+    la excepción y pidió punto decimal, y esta prueba fijó ESE comportamiento.
+    Pedir punto decimal es rechazar el formato correcto: el arreglo de verdad
+    es leer la coma, que es lo que hace ahora `core.numeros`.
+
+    Se guarda lo leído y no lo tecleado: la cadena «8,5» en un campo decimal
+    vuelve a romper en el momento de escribir, donde ya no hay a quién avisar.
     """
+    from decimal import Decimal
+
     expediente = crear_expediente(cedula="1103003008")
     ficha = services.crear_ficha(
         expediente=expediente, profesional=escenario["perfil"], motivo="Bajo rendimiento"
     )
+    seguimiento = services.registrar_seguimiento(ficha, "2026-1", promedio_antes="8,5")
+    seguimiento.refresh_from_db()
+    assert seguimiento.promedio_antes == Decimal("8.5")
+
+
+@pytest.mark.django_db
+def test_un_promedio_que_no_es_un_numero_sigue_avisando(escenario):
+    """Leer la coma no puede volverse tragarse cualquier cosa."""
+    expediente = crear_expediente(cedula="1109009009")
+    ficha = services.crear_ficha(
+        expediente=expediente, profesional=escenario["perfil"], motivo="Bajo rendimiento"
+    )
     with pytest.raises(ValidationError, match="número"):
-        services.registrar_seguimiento(ficha, "2026-1", promedio_antes="8,5")
+        services.registrar_seguimiento(ficha, "2026-1", promedio_antes="ocho coma cinco")
 
 
 @pytest.mark.django_db

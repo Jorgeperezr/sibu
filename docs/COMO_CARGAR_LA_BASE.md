@@ -58,6 +58,14 @@ Tres cosas que rompen una carga, por orden de frecuencia:
 3. **Fechas en `AAAA-MM-DD`.** También se aceptan `DD/MM/AAAA` y `DD-MM-AAAA`;
    cualquier otra cosa queda vacía sin avisar.
 
+**Los montos se escriben como se escriben aquí**: `450,50` con coma decimal, o
+`450.50` con punto; los dos entran por lo mismo. Con separador de miles escriba
+también los decimales (`1.234,00`): `1.234` a secas admite dos lecturas que se
+diferencian en mil veces, y aunque el sistema lo lee como decimal, lo anota
+como aviso en el resumen de la carga para que usted lo revise. Lo que no sea un
+número —«no aplica», o un `45O,50` con la letra O— se suma como cero y también
+queda anotado.
+
 ## Paso 4 — Previsualizar
 
 **Base institucional → Cargar archivo**, elija el período y el estamento,

@@ -52,6 +52,7 @@ restricción puede expresar, porque cruzan dos tablas.
 | Personas con más de un expediente | El expediente es único por persona: dos parten su historia en dos. |
 | Alertas clínicas sin persona detrás | Una alerta que no apunta a nadie no avisa a nadie. |
 | Entradas de bitácora clínicas sin servicio declarado | La pantalla no puede velarlas y mostraría al paciente de un servicio sellado. |
+| Fichas con montos que no se pueden leer | Se suman como cero y mueven el estrato. Hasta hoy la carga borraba la coma —«450,50» entraba como 45050— y la suma descartaba lo que no supiera leer: arreglar la lectura no arregla lo ya cargado. |
 
 **No corrige nada, y es a propósito.** Un descuadre de inventario puede ser un
 movimiento perdido o un ajuste sin registrar, y cada caso se arregla distinto.

@@ -18,6 +18,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core import numeros
 from apps.usuarios.permissions import EsPersonalDeLaUnidad
 from apps.usuarios.rbac import visible_para_personal
 
@@ -180,7 +181,10 @@ class AlertasFarmaciaView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        dias = int(request.query_params.get("dias", 90))
+        # `int(...)` sin red: `?dias=abc` devolvía un 500. Un parámetro de la
+        # URL puede traer cualquier cosa, y una cifra ilegible es una consulta
+        # mal escrita, no una avería del servidor.
+        dias = numeros.a_entero(request.query_params.get("dias"), 90)
         return Response(
             {
                 "stock_bajo": [
