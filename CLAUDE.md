@@ -65,6 +65,15 @@ talleres, portal del estudiante y tablero de gestión.
   fichas viejas no puede reventar por un «no aplica»; un formulario que acaba
   de recibir «450,5O» tiene que devolverlo, porque si lo ignora ese ingreso
   desaparece del hogar.
+- **Un cero es falsy: `{% if valor %}` lo esconde.** Escondía el puntaje 0,00
+  SBU —que es «extrema vulnerabilidad»— y el rango de laboratorio que empieza
+  en 0. Usar `{% if valor is not None %}`; distinguir el cero de la ausencia es
+  el objetivo, no borrar la ausencia.
+- **Un color semántico de Bootstrap no vale para un mapa clínico.** La línea
+  gráfica tiñe `primary` con el verde de la UNL, así que el diente obturado
+  (`btn-primary`) salió del mismo verde que el sano (`btn-success`): 1,14:1 de
+  contraste. Paleta propia, y el color nunca decide solo —cada pieza lleva su
+  inicial, porque el 8 % de los hombres no distingue rojo de verde—.
 - **Un atributo que no existe no da error en una plantilla: da un hueco.**
   `{{ receta.codigo }}` sobre un modelo cuyo campo es `numero` responde 200 y
   pinta vacío. Ninguna prueba de estado ni de contexto lo ve; lo ve una que

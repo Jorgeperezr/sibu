@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load textos %}
 {% block title %}Ficha socioeconómica — SIBU{% endblock %}
 {% block content %}
 <div class="mb-3">
@@ -31,9 +32,15 @@
         <span class="badge bg-secondary">{{ vigente.get_origen_display }}</span>
       </div>
       <div class="card-body">
-        {% if vigente.puntaje %}
+        {% comment %}
+        `is not None` y no `{% if vigente.puntaje %}`: un puntaje de 0,00 SBU
+        es falsy, así que el recuadro NO se pintaba, y 0,00 es exactamente
+        «extrema vulnerabilidad» —un hogar que no declara ingresos—. El aviso
+        rojo faltaba justo en el único caso que lo necesita.
+        {% endcomment %}
+        {% if vigente.puntaje is not None %}
         <div class="alert {% if vigente.estrato == 'Extrema vulnerabilidad' %}alert-danger{% elif vigente.estrato == 'Vulnerabilidad alta' %}alert-warning{% else %}alert-secondary{% endif %} py-2">
-          <strong>{{ vigente.puntaje }} SBU</strong> per cápita — {{ vigente.estrato }}
+          <strong>{{ vigente.puntaje|numero }} SBU</strong> per cápita — {{ vigente.estrato }}
         </div>
         {% endif %}
         <form method="post">
@@ -93,7 +100,7 @@
             </div>
             <div class="small text-muted">
               {{ f.get_origen_display }}
-              {% if f.puntaje %} · {{ f.puntaje }} SBU · {{ f.estrato }}{% endif %}
+              {% if f.puntaje is not None %} · {{ f.puntaje|numero }} SBU · {{ f.estrato }}{% endif %}
             </div>
           </li>
           {% endfor %}

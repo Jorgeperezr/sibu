@@ -92,3 +92,36 @@ def test_el_tecnico_del_laboratorio_si_entra(escenario):
     assert cliente.get(reverse("laboratorio:bandeja")).status_code == 200
     url = reverse("laboratorio:detalle", args=[escenario["orden"].pk])
     assert cliente.get(url).status_code == 200
+
+
+@pytest.mark.django_db
+def test_un_rango_de_referencia_que_empieza_en_cero_se_ve(escenario):
+    """
+    `{% if p.parametro.ref_min %}` es falso con 0, así que el rango entero
+    desaparecía de la pantalla: bilirrubina directa 0 – 0,3 salía como «—», y
+    sin rango el profesional no puede interpretar el resultado.
+
+    Además se imprimía «12,000 – 16,000» por los tres decimales del campo. En
+    español eso es doce coma cero, pero de reojo se lee doce mil, y es la
+    pantalla donde un valor mal leído tiene consecuencias.
+    """
+    from decimal import Decimal
+
+    from apps.laboratorio.models import ParametroExamen
+
+    examen = escenario["orden"].examenes.first().examen
+    ParametroExamen.objects.create(
+        examen=examen,
+        nombre="Bilirrubina directa",
+        unidad="mg/dL",
+        ref_min=Decimal("0.000"),
+        ref_max=Decimal("0.300"),
+        orden=9,
+    )
+    contenido = (
+        _cliente(escenario["tecnico"])
+        .get(reverse("laboratorio:detalle", args=[escenario["orden"].pk]))
+        .content.decode()
+    )
+    assert "Bilirrubina directa" in contenido
+    assert "0 – 0,3" in contenido, "el rango que empieza en cero no aparece"

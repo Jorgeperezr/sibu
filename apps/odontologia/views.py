@@ -12,7 +12,7 @@ from apps.medicina.models import Diagnostico
 from apps.medicina.services import agregar_diagnostico
 from apps.usuarios.decorators import verificar_acceso_atencion, verificar_es_del_servicio
 
-from . import services
+from . import presentacion, services
 from .models import (
     AtencionOdontologia,
     CatalogoProcedimiento,
@@ -58,19 +58,11 @@ ARCADA_INFERIOR = [
     "38",
 ]
 
-# Color Bootstrap por estado, para el odontograma visual.
-COLOR_ESTADO = {
-    EstadoPieza.SANO: "success",
-    EstadoPieza.CARIADO: "danger",
-    EstadoPieza.OBTURADO: "primary",
-    EstadoPieza.PERDIDO: "dark",
-    EstadoPieza.EXTRAIDO_OTRO: "secondary",
-    EstadoPieza.CORONA: "info",
-    EstadoPieza.SELLANTE: "warning",
-    EstadoPieza.PROTESIS: "info",
-    EstadoPieza.IMPLANTE: "info",
-    EstadoPieza.AUSENTE: "light",
-}
+# El color y la inicial de cada estado viven en `presentacion`, que es también
+# de donde sale la leyenda: escritos por separado, la leyenda acabó enseñando
+# seis de los diez estados. Y no se usan los colores semánticos de Bootstrap:
+# `primary` está teñido con el verde de la UNL, así que el diente obturado
+# salía del mismo verde que el sano.
 
 
 @login_required
@@ -122,6 +114,7 @@ def _arcada(piezas, vigente):
     for pieza in piezas:
         registro = vigente.get(pieza)
         estado = registro.estado_codigo if registro else ""
+        clase, inicial = presentacion.estilo(estado)
         fila.append(
             {
                 "pieza": pieza,
@@ -129,9 +122,8 @@ def _arcada(piezas, vigente):
                 "estado_display": registro.get_estado_codigo_display()
                 if registro
                 else "Sin registrar",
-                "color": COLOR_ESTADO.get(estado, "outline-secondary")
-                if estado
-                else "outline-secondary",
+                "clase": clase,
+                "inicial": inicial,
                 "observacion": registro.observacion if registro else "",
             }
         )
@@ -223,6 +215,9 @@ def consulta(request, pk):
             "superior": _arcada(ARCADA_SUPERIOR, vigente),
             "inferior": _arcada(ARCADA_INFERIOR, vigente),
             "estados": EstadoPieza.choices,
+            # La leyenda sale de la misma fuente que las piezas: escrita a mano
+            # enseñaba seis de los diez estados.
+            "leyenda": presentacion.leyenda(),
             "catalogo": CatalogoProcedimiento.objects.filter(activo=True),
             "procedimientos": hc.atencion.procedimientos_odonto.select_related("catalogo"),
             "indices": services.calcular_indices(hc.atencion.expediente),

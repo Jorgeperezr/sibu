@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load textos %}
 {% block title %}Trabajo Social · SIBU{% endblock %}
 {% block content %}
 <div class="mb-3">
@@ -67,7 +68,12 @@ mismo, y de aquí sale a quién se prioriza.
           <td class="font-monospace small">{{ f.expediente.persona.cedula }}</td>
           <td>v{{ f.version }}</td>
           <td><span class="badge bg-light text-dark border">{{ f.get_origen_display }}</span></td>
-          <td class="text-end text-nowrap">{% if f.puntaje %}{{ f.puntaje }} SBU{% else %}—{% endif %}</td>
+          {% comment %}
+          `is not None`: un puntaje de 0,00 SBU es falsy y salía como «—», o
+          sea que los hogares en extrema vulnerabilidad —los que no declaran
+          ingresos— eran los únicos indistinguibles de una ficha sin calcular.
+          {% endcomment %}
+          <td class="text-end text-nowrap">{% if f.puntaje is not None %}{{ f.puntaje|numero }} SBU{% else %}—{% endif %}</td>
           <td>
             {% if f.estrato %}
             <span class="badge {% if f.estrato == 'Extrema vulnerabilidad' %}bg-danger{% elif f.estrato == 'Vulnerabilidad alta' %}bg-warning text-dark{% else %}bg-light text-dark border{% endif %}">

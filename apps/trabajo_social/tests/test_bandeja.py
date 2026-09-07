@@ -211,3 +211,28 @@ def test_el_menu_no_ofrece_trabajo_social_a_quien_no_es_del_servicio(escenario):
         "medico_menu", escenario["est"]["medicina"], escenario["est"]["salud"]
     )
     assert "Trabajo Social" not in [m.etiqueta for m in modulos_visibles(ajeno)]
+
+
+@pytest.mark.django_db
+def test_el_hogar_sin_ingresos_declarados_se_ve_en_la_bandeja(escenario):
+    """
+    Puntaje 0,00 SBU es «extrema vulnerabilidad», no un dato que falte.
+
+    `{% if f.puntaje %}` es falso con 0, así que la columna pintaba «—» y el
+    caso más grave quedaba indistinguible de una ficha sin calcular. Se vio
+    mirando la pantalla: el código de estado es 200 y el contexto llega entero.
+    """
+    _persona_con_ficha(
+        "1103003008", "Sin", "Ingresos Declarados", "Extrema vulnerabilidad", Decimal("0.00")
+    )
+    contenido = escenario["cliente"].get(reverse("trabajo_social:bandeja")).content.decode()
+    assert "0 SBU" in contenido
+    assert "Extrema vulnerabilidad" in contenido
+
+
+@pytest.mark.django_db
+def test_una_ficha_sin_puntaje_sigue_diciendo_que_no_lo_tiene(escenario):
+    """No se trata de borrar la ausencia, sino de distinguirla del cero."""
+    _persona_con_ficha("1105005001", "Sin", "Calcular", "", None)
+    contenido = escenario["cliente"].get(reverse("trabajo_social:bandeja")).content.decode()
+    assert "—" in contenido

@@ -483,3 +483,58 @@ details[open] > summary {
    montaba encima del icono de cerrar sesión. */
 .sibu-avisos .badge { position: absolute; top: -.15rem; right: -.1rem; font-size: .55rem; padding: .18em .38em; }
 .sibu-avisos:hover { color: var(--unl-verde); }
+
+/* ==========================================================================
+   Odontograma
+   --------------------------------------------------------------------------
+   Paleta propia, no la semántica de Bootstrap. El diente sano se pintaba con
+   `btn-success` y el obturado con `btn-primary`, y arriba en este mismo
+   archivo `primary` se tiñe con el verde de la UNL: los dos salían verdes, con
+   1,14:1 de contraste entre sí. Un obturado leído como sano cambia el plan de
+   tratamiento y el índice CPO-D que se reporta.
+
+   El color acompaña pero no decide: cada pieza lleva la inicial de su estado
+   (`apps/odontologia/presentacion.py`), como el odontograma en papel. El 8 %
+   de los hombres no distingue el rojo del verde —los dos estados más
+   frecuentes— y una impresión en blanco y negro deja el color en nada.
+   ========================================================================== */
+.odo-pieza {
+  width: 46px;
+  padding: 2px 0 1px;
+  border: 1px solid rgba(0, 0, 0, .2);
+  border-radius: .3rem;
+  background: #fff;
+  font-size: .8rem;
+  line-height: 1.15;
+  cursor: pointer;
+}
+.odo-pieza:hover { box-shadow: 0 0 0 2px var(--sibu-primary, #4f8e3a); }
+.odo-pieza .odo-inicial {
+  display: block;
+  font-size: .7rem;
+  font-weight: 700;
+  min-height: .85rem;
+}
+
+.odo-sano      { background: #f8f9fa; color: #212121; }
+.odo-cariado   { background: #c62828; color: #fff; border-color: #8e1c1c; }
+.odo-obturado  { background: #1565c0; color: #fff; border-color: #0d47a1; }
+.odo-perdido   { background: #212121; color: #fff; border-color: #000; }
+.odo-extraido  { background: #6d4c41; color: #fff; border-color: #4e342e; }
+.odo-corona    { background: #00838f; color: #fff; border-color: #005f66; }
+.odo-sellante  { background: #f9a825; color: #212121; border-color: #c17900; }
+.odo-protesis  { background: #6a1b9a; color: #fff; border-color: #4a148c; }
+.odo-implante  { background: #ad1457; color: #fff; border-color: #7a0e3d; }
+.odo-ausente   { background: #cfd8dc; color: #37474f; border-color: #b0bec5; }
+.odo-vacio     { background: #fff; color: #90a4ae; border-style: dashed; }
+
+.odo-leyenda { display: flex; flex-wrap: wrap; gap: .35rem; }
+.odo-leyenda .odo-muestra {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .1rem .45rem;
+  border: 1px solid rgba(0, 0, 0, .2);
+  border-radius: .3rem;
+  font-size: .75rem;
+}
