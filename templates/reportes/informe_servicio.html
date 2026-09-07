@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load textos %}
 {% block title %}Informe estadístico · SIBU{% endblock %}
 {% block content %}
 <div class="sibu-cabecera mb-3"><h1 class="h4 sibu-titulo mb-0">Informe estadístico</h1>
@@ -64,7 +65,14 @@ variables» llegaría al servidor idéntico a «acabo de abrir la pantalla».
         {% for clave, etiqueta in anexos_disponibles %}
         <div class="form-check">
           <input class="form-check-input" type="checkbox" name="anexos" value="{{ clave }}"
-                 id="anexo-{{ clave }}" {% if clave in eleccion.anexos %}checked{% endif %}
+                 {% comment %}
+                 En un servicio confidencial la casilla no se marca aunque el
+                 anexo venga pedido por la URL: marcada y deshabilitada a la vez
+                 se lee como «está activo pero no lo puedes tocar», y lo que
+                 pasa es lo contrario —no se va a adjuntar—.
+                 {% endcomment %}
+                 id="anexo-{{ clave }}"
+                 {% if clave in eleccion.anexos and not confidencial %}checked{% endif %}
                  {% if confidencial %}disabled{% endif %}>
           <label class="form-check-label small" for="anexo-{{ clave }}">{{ etiqueta }}</label>
         </div>
@@ -212,7 +220,7 @@ ninguna: un recuadro con el título y sin filas se lee como un cero.
 </p>
 {% for grupo in anexos.evidencias %}
   <h3 class="h6 mt-3">{{ grupo.etiqueta_variable }}: {{ grupo.valor }}
-    <span class="text-muted fw-normal">— {{ grupo.personas }} persona{{ grupo.personas|pluralize:"s" }}, {{ grupo.atenciones }} atencion{{ grupo.atenciones|pluralize:"es" }}</span>
+    <span class="text-muted fw-normal">— {{ grupo.personas }} {{ grupo.personas|plural:"persona,personas" }}, {{ grupo.atenciones }} {{ grupo.atenciones|plural:"atención,atenciones" }}</span>
   </h3>
   {% include "reportes/_tabla_anexo.html" with anexo=grupo %}
 {% endfor %}

@@ -71,6 +71,16 @@ talleres, portal del estudiante y tablero de gestión.
   compruebe que lo propio APARECE (`assert receta.numero in contenido`).
 - **Comentarios de plantilla `{# #}` solo funcionan en una línea.** Para varias,
   `{% comment %}`.
+- **`pluralize` no sirve para una palabra con tilde en la última sílaba.**
+  «atención» → `atencion{{ n|pluralize:"es" }}` imprime «1 atencion», sin
+  tilde. Usar `{{ n|plural:"atención,atenciones" }}` (`apps/core/templatetags/
+  textos.py`); una prueba barre las plantillas buscando la recaída.
+- **El mismo valor llega escrito de varias maneras.** Cuatro bases
+  institucionales, cuatro escrituras: «F», «f», «Femenino», «Mujer». El informe
+  daba cuatro filas para dos grupos. Se agrupa al CONTAR en
+  `core.vocabulario.normalizar`, nunca al guardar, y solo hay sinónimos donde
+  el vocabulario es oficial y cerrado: género e identidad son libres a
+  propósito y ahí solo se unifica la capitalización.
 - **Un formulario no envía las casillas desmarcadas.** «Quité todas las
   variables» y «acabo de abrir la pantalla» llegan idénticos al servidor: hace
   falta un testigo oculto (`elegir=1`) para distinguirlos, o el informe sale con

@@ -78,13 +78,22 @@ def test_cuenta_por_atencion_no_por_paciente(escenario):
 
 @pytest.mark.django_db
 def test_sexo_genero_e_identidad_orientacion_sexual_se_desglosan(escenario):
+    """
+    Las etiquetas van agrupadas, no tal como se tecleó cada una.
+
+    Esta prueba fijaba «mujer» y «femenino» en minúscula, que era lo guardado.
+    Con cuatro bases institucionales el mismo valor llega escrito de cuatro
+    maneras —«F», «f», «Femenino», «Mujer»— y el informe salía con cuatro filas
+    para dos grupos; se cuenta por la forma agrupada. Lo declarado se conserva
+    igual en el expediente: agrupa el informe, no la base.
+    """
     datos = services.informe_estadistico(escenario["est"]["medicina"])
     por_sexo = {f["etiqueta"]: f["total"] for f in datos["sexo"]}
-    assert por_sexo == {"mujer": 2, "hombre": 1}
+    assert por_sexo == {"Mujer": 2, "Hombre": 1}
     por_genero = {f["etiqueta"]: f["total"] for f in datos["genero"]}
-    assert por_genero == {"femenino": 2, services.SIN_DATO: 1}
+    assert por_genero == {"Femenino": 2, services.SIN_DATO: 1}
     por_identidad = {f["etiqueta"]: f["total"] for f in datos["identidad_orientacion_sexual"]}
-    assert por_identidad == {"heterosexual": 2, services.SIN_DATO: 1}
+    assert por_identidad == {"Heterosexual": 2, services.SIN_DATO: 1}
 
 
 @pytest.mark.django_db
@@ -121,8 +130,8 @@ def test_el_porcentaje_es_sobre_atenciones_no_sobre_personas(escenario):
     cuenta. exp1 se atendió dos veces y es "mujer": 2 de 3 atenciones, 66.7 %.
     """
     datos = services.informe_estadistico(escenario["est"]["medicina"])
-    fila_mujer = next(f for f in datos["sexo"] if f["etiqueta"] == "mujer")
-    assert fila_mujer == {"etiqueta": "mujer", "total": 2, "porcentaje": 66.7}
+    fila_mujer = next(f for f in datos["sexo"] if f["etiqueta"] == "Mujer")
+    assert fila_mujer == {"etiqueta": "Mujer", "total": 2, "porcentaje": 66.7}
 
 
 @pytest.mark.django_db

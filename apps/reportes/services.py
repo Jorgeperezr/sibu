@@ -346,6 +346,7 @@ def etiquetar(servicio, filas: list[dict]) -> list[dict]:
     evidencia podría contradecir a la cifra que respalda, que es justo lo que
     un anexo existe para impedir.
     """
+    from apps.core import vocabulario
     from apps.expediente.models import AlertaClinica, Persona
 
     expediente_ids = {f["expediente_id"] for f in filas}
@@ -384,12 +385,23 @@ def etiquetar(servicio, filas: list[dict]) -> list[dict]:
     estamentos = dict(Persona.TipoVinculo.choices)
     etiquetadas = []
     for f in filas:
+        # `vocabulario.normalizar` agrupa el mismo valor escrito de varias
+        # maneras. Cada estamento entrega su propia base y cada archivo escribe
+        # a la suya: el informe contaba «F 6, M 6, Mujer 3, Hombre 2» donde hay
+        # dos grupos, y así se entregaba. Agrupa al contar, no al guardar: lo
+        # declarado se conserva tal cual en el expediente.
         etiquetas = {
             "estamento": estamentos.get(f["expediente__persona__tipo_vinculo"], SIN_DATO),
-            "sexo": f["expediente__persona__sexo"] or SIN_DATO,
-            "genero": f["expediente__persona__genero"] or SIN_DATO,
+            "sexo": vocabulario.normalizar("sexo", f["expediente__persona__sexo"]) or SIN_DATO,
+            "genero": (
+                vocabulario.normalizar("genero", f["expediente__persona__genero"]) or SIN_DATO
+            ),
             "identidad_orientacion_sexual": (
-                f["expediente__persona__identidad_orientacion_sexual"] or SIN_DATO
+                vocabulario.normalizar(
+                    "identidad_orientacion_sexual",
+                    f["expediente__persona__identidad_orientacion_sexual"],
+                )
+                or SIN_DATO
             ),
             "discapacidad": (
                 "Con discapacidad" if f["expediente__discapacidad_tipo"] else "Sin discapacidad"

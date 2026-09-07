@@ -369,3 +369,94 @@ def test_la_casilla_pedida_sigue_marcada_aunque_la_columna_no_salga(escenario):
     assert 'id="col-cedula" checked' in contenido
     # Y el anexo dice que la columna se retiró, nombrándola.
     assert "Cédula" in contenido
+
+
+@pytest.mark.django_db
+def test_un_anexo_sin_columnas_no_sale_como_una_lista_de_codigos(escenario):
+    """
+    Desmarcar todas las columnas dejaba el anexo en A-001, A-002, A-003.
+
+    No informa de nada y no se distingue de un anexo bien hecho sobre datos que
+    faltan. Se vio en pantalla, no en una prueba: el enlace del PDF y del Excel
+    arrastra la elección, así que el archivo entregado salía igual de vacío.
+    """
+    nomina = anexos.nomina(escenario["est"]["medicina"], columnas=[])
+    assert nomina["columnas"] != ["codigo"]
+    assert "nombre" in nomina["columnas"]
+    assert "atenciones" in nomina["columnas"]
+
+
+@pytest.mark.django_db
+def test_la_pantalla_no_marca_un_anexo_que_no_se_va_a_adjuntar(db):
+    """
+    Marcada y deshabilitada a la vez se lee como «activo pero intocable», y lo
+    que pasa es lo contrario: en un servicio confidencial no se adjunta.
+    """
+    est = crear_estructura()
+    psicologo, _ = crear_profesional("psi_casilla", est["psicologia"], est["salud"])
+    psicologo.set_password(CLAVE)
+    psicologo.save()
+
+    contenido = (
+        _cliente(psicologo)
+        .get(
+            reverse("reportes:informe_servicio"),
+            {"servicio": est["psicologia"].pk, "elegir": "1", "anexos": "nomina"},
+        )
+        .content.decode()
+    )
+    marca = contenido.split('id="anexo-nomina"')[1].split(">")[0]
+    assert "disabled" in marca
+    assert "checked" not in marca
+
+
+@pytest.mark.django_db
+def test_el_mismo_sexo_escrito_distinto_es_una_sola_fila(escenario):
+    """
+    Cada estamento entrega su propia base y cada archivo escribe a su manera.
+
+    Con las cuatro bases cargadas el informe salía con «F 6, M 6, Mujer 3,
+    Hombre 2» —cuatro filas para dos grupos— y así se entregaba a la Dirección.
+    Se vio en pantalla, no en una prueba: con una sola base no ocurre.
+    """
+    servicio = escenario["est"]["medicina"]
+    # La misma escritura que traen las bases: la de estudiantes abrevia.
+    escenario["docente"].persona.sexo = "Mujer"
+    escenario["docente"].persona.save()
+    escenario["estudiante"].persona.sexo = "M"
+    escenario["estudiante"].persona.save()
+
+    otra = crear_expediente(cedula="1103003008")
+    otra.persona.sexo = "F"  # la misma que «Mujer», escrita como en otra base
+    otra.persona.save()
+    Atencion.objects.create(
+        expediente=otra,
+        servicio=servicio,
+        profesional=escenario["medico"].perfil,
+        fecha_hora=timezone.now(),
+    )
+
+    datos = services.informe_estadistico(servicio, variables=["sexo"])
+    por_etiqueta = {f["etiqueta"]: f["total"] for f in datos["sexo"]}
+    assert por_etiqueta == {"Mujer": 3, "Hombre": 1}, por_etiqueta
+
+
+@pytest.mark.django_db
+def test_la_evidencia_sigue_cuadrando_despues_de_agrupar(escenario):
+    """
+    Agrupar al contar no puede descuadrar el anexo que respalda la cifra.
+
+    Es la razón de que la normalización viva en `etiquetar` y no en la consulta
+    del informe: si el anexo agrupara distinto, desmentiría lo que respalda.
+    """
+    servicio = escenario["est"]["medicina"]
+    escenario["docente"].persona.sexo = "F"
+    escenario["docente"].persona.save()
+    escenario["estudiante"].persona.sexo = "Mujer"
+    escenario["estudiante"].persona.save()
+
+    datos = services.informe_estadistico(servicio, variables=["sexo"])
+    grupos = anexos.evidencias(servicio, variables=["sexo"], columnas=["nombre"])
+    informado = {f["etiqueta"]: f["total"] for f in datos["sexo"]}
+    for grupo in grupos:
+        assert grupo["atenciones"] == informado[grupo["valor"]]

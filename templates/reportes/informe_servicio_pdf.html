@@ -1,4 +1,5 @@
 {% extends "documentos/base_pdf.html" %}
+{% load textos %}
 
 {% block titulo_doc %}Informe estadístico{% endblock %}
 {% block titulo %}Informe estadístico — {{ datos.servicio.nombre }}{% endblock %}
@@ -80,7 +81,7 @@ callaría las que añadió.
 {% if anexos.nomina %}
 <h2>Anexo · Nómina de personas atendidas</h2>
 <p class="nota">
-  {{ anexos.nomina.total }} persona{{ anexos.nomina.total|pluralize:"s" }} atendida{{ anexos.nomina.total|pluralize:"s" }} en el periodo.
+  {{ anexos.nomina.total }} {{ anexos.nomina.total|plural:"persona atendida,personas atendidas" }} en el periodo.
   Una fila por persona: quien fue atendido varias veces aparece una sola vez, y
   la columna «Atenciones» conserva cuántas suma.
 </p>
@@ -95,7 +96,7 @@ callaría las que añadió.
 </p>
 {% for grupo in anexos.evidencias %}
 <h3>{{ grupo.etiqueta_variable }}: {{ grupo.valor }}
-  — {{ grupo.personas }} persona{{ grupo.personas|pluralize:"s" }}, {{ grupo.atenciones }} atencion{{ grupo.atenciones|pluralize:"es" }}</h3>
+  — {{ grupo.personas }} {{ grupo.personas|plural:"persona,personas" }}, {{ grupo.atenciones }} {{ grupo.atenciones|plural:"atención,atenciones" }}</h3>
 {% include "reportes/_tabla_anexo_pdf.html" with anexo=grupo %}
 {% endfor %}
 {% endif %}

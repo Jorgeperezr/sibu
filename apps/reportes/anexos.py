@@ -97,6 +97,17 @@ def normalizar_columnas(columnas=None, proteger: bool = True) -> tuple[list[str]
         retiradas = []
     if "codigo" not in elegidas:
         elegidas.insert(0, "codigo")
+
+    # Si no quedó ninguna columna con contenido, el anexo sería una lista de
+    # códigos correlativos: A-001, A-002, A-003. No informa de nada y no se
+    # distingue de un anexo bien hecho sobre datos que faltan, así que se cae a
+    # las columnas por omisión en vez de imprimir eso. Pasa al desmarcarlas
+    # todas —y el enlace del PDF y del Excel arrastra esa elección—, así que no
+    # es un caso rebuscado; se vio en pantalla, no en una prueba.
+    if elegidas == ["codigo"]:
+        elegidas = [
+            c for c in COLUMNAS_POR_DEFECTO if not (proteger and COLUMNAS[c]["identificativa"])
+        ]
     return elegidas, retiradas
 
 

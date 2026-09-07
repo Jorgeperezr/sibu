@@ -145,6 +145,14 @@ todo lo del formulario es opcional salvo el rango:
   genera. La lista de nombres cae bajo la misma regla que impide exportar su
   historial.
 
+El informe **agrupa el mismo valor escrito de varias maneras**. Cada estamento
+entrega su propia base y cada archivo escribe a la suya: sin esto el informe
+salía con «F 6, M 6, Mujer 3, Hombre 2» donde hay dos grupos. Se agrupa al
+contar, no al guardar —lo declarado se conserva tal cual en el expediente— y
+solo hay sinónimos donde el vocabulario es oficial y cerrado, como el sexo. El
+género y la identidad u orientación sexual son campos libres a propósito: ahí
+solo se unifica la capitalización, nunca el contenido.
+
 Sale en **PDF** con el membrete institucional —es el documento que se archiva o
 se entrega— y la nómina también en **Excel con la línea gráfica de la UNL**, para
 cruzarla con otra lista. Cada generación queda en la bitácora con lo que llevaba
