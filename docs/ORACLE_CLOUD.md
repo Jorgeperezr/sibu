@@ -116,8 +116,8 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 90 \
 ## 6. Levantar
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml logs -f web
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f web
 ```
 
 El arranque hace, en este orden: `check --deploy` (y **aborta** si la
@@ -130,7 +130,7 @@ Que la portada cargue no prueba casi nada: con `CSRF_TRUSTED_ORIGINS` mal
 puesto **la portada carga igual**. Hay que enviar un formulario:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec web \
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec web \
   python manage.py ensayo_despliegue --usuario admin --clave '…'
 ```
 
@@ -151,12 +151,12 @@ Y a mano, desde el navegador:
 - **Copias de la base**, y probadas restaurando. Una copia que nunca se
   restauró no es una copia.
   ```bash
-  docker compose -f docker-compose.prod.yml exec db \
+  docker compose --env-file .env.prod -f docker-compose.prod.yml exec db \
     pg_dump -U sibu sibu | gzip > respaldo-$(date +%F).sql.gz
   ```
 - **Renovar el certificado**: `sudo certbot renew` y volver a copiar los `.pem`
   a `docker/certs/`, luego `docker compose ... restart proxy`.
-- `docker compose -f docker-compose.prod.yml exec web python manage.py revisar_datos --detalle`
+- `docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python manage.py revisar_datos --detalle`
   de vez en cuando: busca incoherencias que ninguna restricción puede ver.
 
 ## Si algo va mal
@@ -169,3 +169,4 @@ Y a mano, desde el navegador:
 | Bucle de redirección | Falta `X-Forwarded-Proto` en el proxy |
 | Las páginas salen sin estilos | `collectstatic` falló al construir |
 | Un *worker* muere sin más | Memoria: use la ARM o añada swap (§1) |
+| «POSTGRES_PASSWORD is not set» aunque está en `.env.prod` | Falta `--env-file .env.prod` en la orden (§6) |

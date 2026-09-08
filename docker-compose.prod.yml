@@ -1,7 +1,13 @@
 # Despliegue de producción: base de datos, aplicación y proxy.
 #
 #   cp .env.prod.example .env.prod   (y complételo)
-#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+#
+# El `--env-file` no es opcional. `env_file:` alimenta al CONTENEDOR, pero los
+# `${...}` de este fichero los resuelve el propio compose y para eso solo mira
+# el entorno del shell y un `.env` en el directorio: sin `--env-file`, la
+# contraseña de la base está en `.env.prod` y aun así el arranque aborta
+# diciendo que no está definida.
 #
 # Comprobado de punta a punta antes de escribirlo: gunicorn detrás de nginx con
 # TLS, login por HTTPS, estáticos con manifiesto y las cabeceras de seguridad
