@@ -2,4 +2,3 @@
 
 # Producción
 sentry-sdk==2.19.2
-whitenoise==6.8.2
