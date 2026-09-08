@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from apps.core.mensajes import detalle_de_error
 from apps.core.navegacion import acciones_expediente
@@ -314,7 +315,11 @@ def ajustar(request, pk):
             )
     except (ValidationError, KeyError) as exc:
         messages.error(request, detalle_de_error(exc, "Revise el ajuste."))
-    return redirect("expediente:detalle", pk=expediente.pk)
+    # De vuelta AL MISMO servicio. Sin esto la pantalla volvía al primero de la
+    # lista: el aviso decía «Anotado para Medicina» y debajo se veía la tabla de
+    # otro servicio con el valor sin tocar, como si no hubiera guardado. Guarda
+    # bien y la pantalla dice que no, que es lo peor de los dos mundos.
+    return redirect(f"{reverse('expediente:detalle', args=[expediente.pk])}?servicio={servicio.pk}")
 
 
 @login_required

@@ -243,3 +243,27 @@ def test_con_dos_servicios_el_ajuste_sin_servicio_no_se_adivina(con_dos_servicio
 
     assert not AjusteDeServicio.objects.exists()
     assert "Indique desde qué servicio" in respuesta.content.decode()
+
+
+@pytest.mark.django_db
+def test_tras_anotar_se_vuelve_al_mismo_servicio(con_dos_servicios):
+    """
+    Guardar bien y enseñar otra cosa es lo peor de los dos mundos.
+
+    La redirección perdía el servicio, así que el aviso decía «Anotado para
+    Medicina» y debajo se veía la tabla de otro servicio con el valor sin tocar:
+    parecía que no había guardado, y lo lógico entonces es volver a intentarlo.
+
+    Se anota desde Medicina a propósito, y no desde Enfermería: la lista va por
+    nombre, así que el servicio al que se caía por omisión era justamente
+    Enfermería y la prueba habría pasado con el defecto puesto.
+    """
+    medicina = con_dos_servicios["est"]["medicina"]
+    respuesta = con_dos_servicios["cliente"].post(
+        reverse("expediente:ajustar", args=[con_dos_servicios["expediente"].pk]),
+        {"variable": "gestacion", "valor": "Sí", "servicio": medicina.pk, "nota": "en consulta"},
+        follow=True,
+    )
+
+    assert respuesta.context["servicio_de_ajuste"] == medicina
+    assert "en consulta" in respuesta.content.decode()
