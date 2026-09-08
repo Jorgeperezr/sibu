@@ -2,11 +2,13 @@
 {% load textos %}
 {% block title %}Trabajo Social · SIBU{% endblock %}
 {% block content %}
-<div class="mb-3">
-  <h1 class="h4 sibu-titulo mb-0">Trabajo Social</h1>
-  <small class="text-muted d-block">
-    Fichas socioeconómicas vigentes, la más recientemente tocada primero.
-  </small>
+<div class="sibu-cabecera">
+  <div>
+    <h1 class="h4 sibu-titulo mb-0">Trabajo Social</h1>
+    <small class="text-muted d-block">
+      Fichas socioeconómicas vigentes, la más recientemente tocada primero.
+    </small>
+  </div>
   {% include "_exportar_servicio.html" with codigo="trabajo-social" %}
 </div>
 
@@ -17,7 +19,7 @@ mismo, y de aquí sale a quién se prioriza.
 {% endcomment %}
 <div class="row g-2 mb-3">
   {% for r in resumen %}
-  <div class="col-6 col-lg-3">
+  <div class="col-6 col-lg-3 col-xl">
     <a href="?estrato={{ r.estrato|urlencode }}"
        class="card text-decoration-none h-100 {% if estrato == r.estrato %}border-primary{% endif %}">
       <div class="card-body py-2">

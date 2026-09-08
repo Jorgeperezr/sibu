@@ -112,9 +112,14 @@ def test_el_resumen_incluye_los_estratos_en_cero(escenario):
     Un tramo ausente de la tabla se lee como «no lo hemos mirado»; uno con
     cero, como «no hay ninguno». No es lo mismo, y de aquí sale a quién se
     prioriza.
+
+    Aquí se afirmaban los cuatro tramos exactos, y faltaba el que este mismo
+    criterio exige: «sin verificar». Los cuatro los produce `calcular_puntaje`,
+    y una ficha pre-poblada desde matrícula no ha pasado por ahí — con siete
+    así, la pantalla enseñaba cuatro ceros sobre una tabla de siete filas.
     """
     resumen = {r["estrato"]: r["total"] for r in selectors.resumen_por_estrato()}
-    assert set(resumen) == set(selectors.ESTRATOS)
+    assert set(resumen) == set(selectors.ESTRATOS_DEL_FILTRO)
     assert resumen["Extrema vulnerabilidad"] == 1
     assert resumen["Vulnerabilidad alta"] == 0
 

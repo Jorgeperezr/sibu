@@ -62,7 +62,7 @@ def bandeja(request):
             "pagina": Paginator(consulta, 40).get_page(request.GET.get("pagina")),
             "q": texto,
             "estrato": estrato,
-            "estratos": selectors.ESTRATOS,
+            "estratos": selectors.ESTRATOS_DEL_FILTRO,
             "resumen": selectors.resumen_por_estrato(),
             "total": consulta.count(),
             "minimo_texto": selectors.MINIMO_TEXTO,

@@ -27,6 +27,18 @@ ESTRATOS = [
     "Sin vulnerabilidad económica",
 ]
 
+# Una ficha pre-poblada desde matrícula todavía no tiene estrato: nadie la ha
+# verificado. Faltaba en el resumen, y era el único tramo con casos dentro: la
+# pantalla enseñaba cuatro ceros sobre siete fichas pendientes, que se lee como
+# «no hay nada que hacer» cuando es exactamente lo contrario. Es la cola de
+# trabajo del servicio, así que va primero.
+#
+# El valor tiene que ser distinto de la cadena vacía, que en el filtro significa
+# «todos los estratos»; en la base ese estrato SÍ es la cadena vacía, y la
+# traducción entre las dos cosas vive en `casos`.
+SIN_VERIFICAR = "sin verificar"
+ESTRATOS_DEL_FILTRO = [SIN_VERIFICAR, *ESTRATOS]
+
 
 def casos(texto: str = "", estrato: str = ""):
     """
@@ -44,7 +56,9 @@ def casos(texto: str = "", estrato: str = ""):
         .select_related("expediente__persona")
         .order_by("-actualizado_en")
     )
-    if estrato:
+    if estrato == SIN_VERIFICAR:
+        consulta = consulta.filter(Q(estrato="") | Q(estrato__isnull=True))
+    elif estrato:
         consulta = consulta.filter(estrato=estrato)
 
     texto = (texto or "").strip()
@@ -64,6 +78,12 @@ def resumen_por_estrato() -> list[dict]:
 
     Se incluyen los estratos con cero: un tramo ausente de la tabla se lee como
     «no lo hemos mirado», y uno con cero, como «no hay ninguno». No es lo mismo.
+
+    Y se incluye «sin verificar», que faltaba. Sin él la pantalla enseñaba
+    cuatro ceros mientras la tabla de abajo listaba siete fichas: los cuatro
+    tramos son los que produce `calcular_puntaje`, y una ficha pre-poblada
+    desde matrícula todavía no ha pasado por ahí. Un resumen que suma cero
+    sobre una bandeja llena no resume: contradice.
     """
     from django.db.models import Count
 
@@ -72,4 +92,7 @@ def resumen_por_estrato() -> list[dict]:
         .values_list("estrato")
         .annotate(n=Count("id"))
     )
-    return [{"estrato": e, "total": conteos.get(e, 0)} for e in ESTRATOS]
+    sin_verificar = conteos.get("", 0) + conteos.get(None, 0)
+    return [{"estrato": SIN_VERIFICAR, "total": sin_verificar}] + [
+        {"estrato": e, "total": conteos.get(e, 0)} for e in ESTRATOS
+    ]
