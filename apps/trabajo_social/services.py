@@ -16,6 +16,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from apps.core import numeros
 from apps.core.models import Servicio
 from apps.expediente.models import Atencion, Expediente
 from apps.expediente.services import construir_snapshot
@@ -36,7 +37,12 @@ def _sbu() -> Decimal:
 
 
 def ficha_vigente(expediente: Expediente) -> FichaSocioeconomica | None:
-    """Versión vigente de la ficha socioeconómica del expediente."""
+    """
+    Versión vigente de la ficha socioeconómica del expediente.
+
+    La restricción `uniq_ficha_socio_vigente_por_expediente` garantiza que hay
+    como mucho una, así que el `.first()` es inequívoco.
+    """
     return FichaSocioeconomica.objects.filter(expediente=expediente, vigente=True).first()
 
 
@@ -68,15 +74,33 @@ def prepoblar_desde_matricula(expediente: Expediente, usuario=None) -> FichaSoci
 
 
 def calcular_totales(ingresos: dict, egresos: dict) -> tuple[Decimal, Decimal]:
-    """Suma los valores numéricos de los diccionarios de ingresos y egresos."""
+    """
+    Suma los valores numéricos de los diccionarios de ingresos y egresos.
+
+    Se excluyen los totales que el propio estudiante declaró en matrícula
+    (`ingreso_mensual`, `gastos_mensual_familia`): no son una línea más del
+    desglose sino su suma, y contarlos junto a sus componentes duplicaba el
+    ingreso del hogar. El puntaje resultante orienta la asignación de una beca,
+    así que ese duplicado no era un redondeo: movía de estrato.
+    """
+    from .campos import TOTALES_DECLARADOS
 
     def _suma(d: dict) -> Decimal:
         total = Decimal("0")
-        for valor in (d or {}).values():
-            try:
-                total += Decimal(str(valor))
-            except (TypeError, ValueError, ArithmeticError):
-                continue  # las entradas no numéricas son descriptivas, no montos
+        for clave, valor in (d or {}).items():
+            if clave in TOTALES_DECLARADOS:
+                continue
+            # `Decimal(str(valor))` descartaba «450,50» —así se escribe un
+            # decimal aquí— y el ingreso declarado se sumaba como cero: el
+            # per cápita bajaba y el hogar cambiaba de estrato sin que nadie
+            # viera un error. `core.numeros` lee la coma.
+            #
+            # Sigue siendo indulgente a propósito: estas fichas arrastran
+            # texto descriptivo de cargas viejas —«no aplica», «ninguno»— y un
+            # cálculo no puede reventar por leer lo que ya está guardado. Lo
+            # que una persona acaba de escribir sí se valida, arriba, antes de
+            # guardar la versión.
+            total += numeros.a_decimal_o(valor, Decimal("0"), campo=clave)
         return total
 
     return _suma(ingresos), _suma(egresos)
@@ -90,7 +114,9 @@ def calcular_puntaje(ficha: FichaSocioeconomica) -> tuple[Decimal, str]:
     para becas (fase 1: solo informativo; la asignación la decide el comité).
     """
     ingresos, _ = calcular_totales(ficha.ingresos, ficha.egresos)
-    miembros = int((ficha.convivencia or {}).get("numero_miembros", 1) or 1)
+    # `int("tres")` lanzaba ValueError sin que nadie lo capturara: el puntaje
+    # devolvía una página de error en vez de un número.
+    miembros = numeros.a_entero((ficha.convivencia or {}).get("numero_miembros"), 1)
     if miembros < 1:
         miembros = 1
 
@@ -108,6 +134,38 @@ def calcular_puntaje(ficha: FichaSocioeconomica) -> tuple[Decimal, str]:
     return puntaje, estrato
 
 
+def _validar_montos(datos: dict) -> None:
+    """
+    Los montos que se acaban de escribir tienen que ser números.
+
+    Se valida aquí y no en la suma porque no es lo mismo: la suma recorre lo
+    que YA está guardado, que arrastra texto descriptivo de cargas viejas y no
+    puede reventar. Esto mira lo que una persona acaba de teclear, donde un
+    «450,5O» con la letra O es un error de digitación que hay que devolverle
+    —si se ignora, ese ingreso desaparece del hogar y el estrato se mueve—.
+
+    Se llama como PRIMERA instrucción de `verificar_ficha`, antes de escribir
+    nada. Que corra dentro del bloque atómico no es el problema conocido —lo
+    que no cabe en una transacción que va a abortar es AUDITAR, porque el
+    registro se va con el rollback (pasó en firma y en portal)—: esto no
+    escribe, así que el rollback no tiene nada que llevarse.
+    """
+    from .campos import EGRESOS, INGRESOS
+
+    etiquetas = {clave: etiqueta for clave, etiqueta in [*INGRESOS, *EGRESOS]}
+    errores = []
+    for grupo in ("ingresos", "egresos"):
+        for clave, valor in (datos.get(grupo) or {}).items():
+            if clave not in etiquetas:
+                continue
+            try:
+                numeros.a_decimal(valor, campo=etiquetas[clave])
+            except ValidationError as exc:
+                errores.extend(exc.messages)
+    if errores:
+        raise ValidationError(errores)
+
+
 @transaction.atomic
 def verificar_ficha(
     expediente: Expediente, datos: dict, *, profesional: PerfilProfesional, usuario=None
@@ -119,6 +177,15 @@ def verificar_ficha(
     nueva queda como v(n+1). Así se puede auditar con qué datos se otorgó una
     beca en cualquier momento del pasado.
     """
+    _validar_montos(datos)
+
+    # Bloquear las fichas del expediente antes de leer la vigente: dos
+    # verificaciones simultáneas leían la misma `actual`, ambas creaban la
+    # v(n+1) y ambas desmarcaban la v(n). Sin el bloqueo, la restricción de
+    # vigencia única convertiría esa carrera en un IntegrityError en la cara
+    # del usuario en vez de serializarla.
+    list(FichaSocioeconomica.objects.select_for_update().filter(expediente=expediente))
+
     actual = ficha_vigente(expediente)
     version = (actual.version + 1) if actual else 1
 
@@ -137,6 +204,14 @@ def verificar_ficha(
         for campo in campos:
             valores.setdefault(campo, getattr(actual, campo) or {})
 
+    # Desmarcar la anterior ANTES de crear la nueva. El orden importa por dos
+    # razones: la restricción de vigencia única rechazaría la nueva mientras la
+    # vieja siga vigente, y hacerlo al revés —como estaba— dejaba dos vigentes
+    # si algo fallaba entre ambos pasos.
+    if actual is not None:
+        actual.vigente = False
+        actual.save(update_fields=["vigente", "actualizado_en"])
+
     nueva = FichaSocioeconomica(
         expediente=expediente,
         version=version,
@@ -149,10 +224,6 @@ def verificar_ficha(
     nueva.save()
     nueva.puntaje, nueva.estrato = calcular_puntaje(nueva)
     nueva.save(update_fields=["puntaje", "estrato"])
-
-    if actual is not None:
-        actual.vigente = False
-        actual.save(update_fields=["vigente", "actualizado_en"])
     return nueva
 
 

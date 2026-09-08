@@ -64,8 +64,11 @@ def test_conteo_pequeno_de_psicologia_se_suprime(escenario):
     filas = services.atenciones_por_servicio()
     fila = next(f for f in filas if f["servicio"] == escenario["psico"].nombre)
     assert fila["pacientes"] == services.SUPRIMIDO
-    # El total de atenciones sí se muestra: es demanda del servicio, no identidad.
-    assert fila["total"] == 2
+    # El total también se suprime bajo el umbral. Antes se mostraba, con el
+    # argumento de que es demanda y no identidad; pero los pacientes distintos
+    # nunca superan al total, así que un total de 2 dice que los pacientes
+    # suprimidos son 1 o 2, y el velo no velaba nada.
+    assert fila["total"] == services.SUPRIMIDO
 
 
 @pytest.mark.django_db
@@ -178,3 +181,141 @@ def test_tablero_vacio_no_revienta(escenario):
     assert datos["citas"]["ausentismo_pct"] is None
     assert datos["psicopedagogia"]["variacion_promedio"] is None
     assert datos["odontologia"]["promedio"] == 0
+
+
+@pytest.mark.django_db
+def test_por_encima_del_umbral_la_demanda_de_psicologia_se_ve_completa(escenario):
+    """
+    La supresión es para el tramo que identifica, no un velo permanente: la
+    Dirección tiene que poder ver cuánta demanda atiende el servicio.
+    """
+    cedulas = ["1100000007", "1700000001", "1100000015", "1104567894", "1102030408"]
+    _atenciones(escenario, escenario["psico"], escenario["psicologo"], cedulas)
+    filas = services.atenciones_por_servicio()
+    fila = next(f for f in filas if f["servicio"] == escenario["psico"].nombre)
+    assert fila["total"] == 5
+    assert fila["pacientes"] == 5
+
+
+@pytest.mark.django_db
+def test_el_total_no_permite_deducir_los_pacientes_suprimidos(escenario):
+    """
+    El caso que motivó el cambio: una sola atención revelaba que el paciente
+    suprimido era exactamente uno.
+    """
+    _atenciones(escenario, escenario["psico"], escenario["psicologo"], ["1100000007"])
+    fila = next(
+        f for f in services.atenciones_por_servicio() if f["servicio"] == escenario["psico"].nombre
+    )
+    assert fila["total"] == services.SUPRIMIDO
+    assert fila["pacientes"] == services.SUPRIMIDO
+
+
+@pytest.mark.django_db
+def test_una_derivacion_suelta_a_psicologia_no_se_publica(escenario):
+    """
+    Misma fuga por otra puerta: el tablero de derivaciones contaba por servicio
+    destino sin suprimir, y "1 derivación a Psicología" identifica igual que un
+    conteo de 1 paciente.
+    """
+    from apps.derivaciones.models import Derivacion
+
+    exp = crear_expediente(cedula="1100000007")
+    origen = Atencion.objects.create(
+        expediente=exp,
+        servicio=escenario["est"]["medicina"],
+        profesional=escenario["medico"],
+        fecha_hora=timezone.now(),
+    )
+    Derivacion.objects.create(
+        atencion_origen=origen,
+        servicio_destino=escenario["psico"],
+        motivo="prueba",
+    )
+    datos = services.derivaciones_indicadores()
+    fila = next(f for f in datos["por_destino"] if f["destino"] == escenario["psico"].nombre)
+    assert fila["total"] == services.SUPRIMIDO
+
+
+# --------------------------------------------------------------------------
+# Reporte en PDF
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_el_reporte_pdf_se_genera_y_queda_auditado(escenario):
+    """El documento que se archiva o se entrega, con el membrete institucional."""
+    from apps.auditoria.models import LogAuditoria
+
+    _atenciones(escenario, escenario["est"]["medicina"], escenario["medico"], ["1100000007"])
+    u = Usuario.objects.create_user(username="dir_pdf", password=CLAVE, rol_principal=Rol.DIRECTOR)
+    c = Client()
+    c.login(username="dir_pdf", password=CLAVE)
+
+    r = c.get("/reportes/exportar/pdf/")
+    assert r.status_code == 200
+    assert r["Content-Type"] == "application/pdf"
+    assert r.content.startswith(b"%PDF-")
+
+    log = LogAuditoria.objects.filter(modulo="reportes", entidad_id="pdf").first()
+    assert log is not None
+    assert log.usuario == u
+
+
+@pytest.mark.django_db
+def test_el_reporte_pdf_no_contiene_identidades(escenario):
+    """
+    Misma regla que el tablero en pantalla: el documento informa de gestión.
+
+    Un PDF circula más que una pantalla —se adjunta, se imprime, se reenvía—,
+    así que la comprobación se hace sobre el texto extraído del documento y no
+    solo sobre el HTML.
+    """
+    pdftotext = pytest.importorskip("pdfminer.high_level", reason="sin extractor de PDF")
+
+    _atenciones(escenario, escenario["psico"], escenario["psicologo"], ["1100000007"])
+    Usuario.objects.create_user(username="dir_pdf2", password=CLAVE, rol_principal=Rol.DIRECTOR)
+    c = Client()
+    c.login(username="dir_pdf2", password=CLAVE)
+    r = c.get("/reportes/exportar/pdf/")
+
+    import io
+
+    texto = pdftotext.extract_text(io.BytesIO(r.content))
+    assert "1100000007" not in texto
+    assert "Paciente" not in texto  # apellido de las personas de factory
+    assert services.SUPRIMIDO in texto  # el conteo pequeño va velado
+
+
+@pytest.mark.django_db
+def test_un_profesional_no_descarga_el_reporte(escenario):
+    """El tablero, y su PDF, son de la Dirección."""
+    lab = Servicio.objects.get(codigo="psicologia")
+    u, _ = crear_profesional("psi_pdf", lab, lab.seccion)
+    u.set_password(CLAVE)
+    u.save()
+    c = Client()
+    c.login(username="psi_pdf", password=CLAVE)
+    assert c.get("/reportes/exportar/pdf/").status_code == 403
+
+
+@pytest.mark.django_db
+def test_el_membrete_nombra_la_unidad_con_la_jerarquia_del_manual(escenario):
+    """
+    El nombre de la unidad se compone junto al logotipo, con el filete y la
+    jerarquía tipográfica que el manual reserva para las dependencias sin
+    identificador gráfico propio. No es una línea de texto suelta.
+    """
+    pdfminer = pytest.importorskip("pdfminer.high_level", reason="sin extractor de PDF")
+
+    Usuario.objects.create_user(username="dir_memb", password=CLAVE, rol_principal=Rol.DIRECTOR)
+    c = Client()
+    c.login(username="dir_memb", password=CLAVE)
+
+    import io
+
+    texto = pdfminer.extract_text(io.BytesIO(c.get("/reportes/exportar/pdf/").content))
+    # Las tres líneas del bloque, cada una por separado.
+    assert "Unidad de" in texto
+    assert "Bienestar" in texto
+    assert "Universitario" in texto

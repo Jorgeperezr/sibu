@@ -52,6 +52,10 @@ class FirmadorProvider(ABC):
     # Si el firmador saca el documento fuera de la institución. Determina si
     # puede tocar contenido confidencial (ver policy.py).
     externo: bool = True
+    # Si necesita la cédula del firmante para arrancar. Es un requisito de
+    # FirmaEC —el callback correlaciona por cédula—, no del acto de firmar: un
+    # firmador que no la use no debe bloquear la generación del documento.
+    requiere_cedula_firmante: bool = False
 
     @abstractmethod
     def disponible(self) -> bool:
@@ -80,6 +84,7 @@ class FirmaECProvider(FirmadorProvider):
     codigo = "firmaec"
     nombre = "FirmaEC (MINTEL)"
     externo = True
+    requiere_cedula_firmante = True
 
     _REQUERIDOS = (
         "FIRMAEC_SERVICIO_URL",
@@ -124,6 +129,51 @@ class FirmaECProvider(FirmadorProvider):
         )
 
 
+class FirmaLocalProvider(FirmadorProvider):
+    """
+    El profesional firma en su propio computador.
+
+    SIBU genera el PDF y se lo entrega; el profesional lo firma con su
+    certificado y el software que ya use, y decide si vuelve a subirlo al
+    expediente o se lo queda. La criptografía nunca toca el servidor y el
+    documento no viaja a ningún servicio de terceros.
+
+    `externo = False` no es un detalle: el documento no sale del perímetro de la
+    institución, va al equipo de quien ya tiene acceso legítimo a esa atención
+    —la descarga lo comprueba—. Por eso `policy.verificar_puede_salir_a_firmar`
+    lo deja pasar también en Psicología, cosa que con FirmaEC no ocurre.
+    """
+
+    codigo = "local"
+    nombre = "Firma en el computador del profesional"
+    externo = False
+
+    def disponible(self) -> bool:
+        # No depende de ningún servicio externo ni de credenciales: si el
+        # sistema levanta, esto funciona.
+        return True
+
+    def motivo_no_disponible(self) -> str:
+        return ""
+
+    def nombre_archivo(self, solicitud) -> str:
+        return solicitud.nombre_documento
+
+    def iniciar(self, solicitud) -> InicioFirma:
+        from django.urls import reverse
+
+        return InicioFirma(
+            tipo="descarga",
+            enlace=reverse("firma:descargar_original", args=[solicitud.pk]),
+            vigencia_min=0,
+            ayuda=(
+                "Descargue el documento y fírmelo en su computador con su certificado. "
+                "Si quiere dejarlo asentado en el expediente, vuelva a esta pantalla y "
+                "súbalo firmado."
+            ),
+        )
+
+
 class FirmaDeshabilitadaProvider(FirmadorProvider):
     """
     Sin firmador. No es un error: es un estado legítimo del despliegue.
@@ -154,14 +204,21 @@ class FirmaDeshabilitadaProvider(FirmadorProvider):
 
 
 _PROVEEDORES = {
+    FirmaLocalProvider.codigo: FirmaLocalProvider,
     FirmaECProvider.codigo: FirmaECProvider,
     FirmaDeshabilitadaProvider.codigo: FirmaDeshabilitadaProvider,
 }
 
 
 def get_provider() -> FirmadorProvider:
-    """Devuelve el firmador configurado. Por defecto, ninguno."""
-    codigo = getattr(settings, "FIRMA_PROVIDER", FirmaDeshabilitadaProvider.codigo)
+    """
+    Devuelve el firmador configurado.
+
+    Por defecto, el local: el profesional descarga el PDF y lo firma en su
+    computador. FirmaEC sigue implementado y se elige poniendo
+    FIRMA_PROVIDER="firmaec", pero requiere el registro de SIBU ante el MINTEL.
+    """
+    codigo = getattr(settings, "FIRMA_PROVIDER", FirmaLocalProvider.codigo)
     clase = _PROVEEDORES.get(codigo)
     if clase is None:
         raise ValidationError(

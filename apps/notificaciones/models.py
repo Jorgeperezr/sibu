@@ -37,6 +37,10 @@ class Notificacion(ModeloBase):
     destinatario_nombre = models.CharField(max_length=200, blank=True)
     programada_para = models.DateTimeField(null=True, blank=True)
     enviada_en = models.DateTimeField(null=True, blank=True)
+    # Cuándo la vio su destinatario, no solo si la vio. Sobre un valor crítico
+    # de laboratorio, «a qué hora se enteró» es exactamente lo que habría que
+    # poder responder después; un booleano no lo responde.
+    leida_en = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = "notificación"

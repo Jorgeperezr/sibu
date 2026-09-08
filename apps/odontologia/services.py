@@ -18,7 +18,7 @@ from django.utils import timezone
 
 from apps.core.models import Servicio
 from apps.expediente.models import Atencion, Expediente
-from apps.expediente.services import construir_snapshot
+from apps.expediente.services import construir_snapshot, verificar_profesional_del_servicio
 from apps.usuarios.models import PerfilProfesional
 
 from .models import (
@@ -48,6 +48,8 @@ def crear_atencion_odontologia(
         servicio = Servicio.objects.get(codigo="odontologia")
     except Servicio.DoesNotExist as exc:
         raise ValidationError("El servicio 'odontologia' no está configurado.") from exc
+
+    verificar_profesional_del_servicio(profesional, servicio)
 
     atencion = Atencion.objects.create(
         expediente=expediente,

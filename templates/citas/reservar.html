@@ -1,11 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Reservar cita · SIBU{% endblock %}
 {% block content %}
-<h1 class="h4 mb-3">Reservar cita</h1>
-{% if messages %}{% for m in messages %}
-  <div class="alert alert-{{ m.tags }}">{{ m }}</div>
-{% endfor %}{% endif %}
-
+<h1 class="h4 sibu-titulo mb-3">Reservar cita</h1>
 <form method="post" class="row g-3">
   {% csrf_token %}
 

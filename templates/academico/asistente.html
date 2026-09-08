@@ -1,15 +1,28 @@
 {% extends "base.html" %}
 {% block title %}Carga de ficha socioeconómica · SIBU{% endblock %}
 {% block content %}
-<h1 class="h3 mb-3">Carga de la base institucional</h1>
-<p class="text-muted">Ficha socioeconómica de matrícula (Excel/CSV). Sube el archivo,
-revisa la previsualización y confirma la aplicación.</p>
-
-{% if messages %}
-  {% for m in messages %}
-    <div class="alert alert-{{ m.tags }}">{{ m }}</div>
-  {% endfor %}
-{% endif %}
+<div class="sibu-cabecera mb-3">
+  <div>
+    <h1 class="h4 sibu-titulo mb-0">Carga de la base institucional</h1>
+    <small class="text-muted d-block">
+      Ficha socioeconómica de matrícula. Suba el archivo, revise la
+      previsualización y confirme la aplicación.
+    </small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'academico:plantilla' %}?estamento={{ estamento|default:'estudiante' }}"
+       class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-download"></i> Plantilla CSV
+    </a>
+    <a href="{% url 'academico:diccionario' %}?estamento={{ estamento|default:'estudiante' }}"
+       class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-list-columns"></i> Diccionario
+    </a>
+    <a href="{% url 'academico:padron' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-table"></i> Ver lo cargado
+    </a>
+  </div>
+</div>
 
 <div class="card mb-4">
   <div class="card-body">
@@ -21,6 +34,22 @@ revisa la previsualización y confirma la aplicación.</p>
           <option value="">— Seleccione —</option>
           {% for p in periodos %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.nombre }}</option>{% endfor %}
         </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Estamento</label>
+        <select name="estamento" class="form-select" required>
+          <option value="">— Seleccione —</option>
+          {% for valor, etiqueta in estamentos %}
+            <option value="{{ valor }}" {% if estamento == valor %}selected{% endif %}>{{ etiqueta }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">
+          A quién describe este archivo. Cada estamento tiene su propia base y
+          sus propias columnas: la del estudiante trae nivel, ciclo, paralelo y
+          jornada, y las de docentes, administrativos y trabajadores no. El
+          archivo no lo dice por sí solo, así que se declara aquí y queda
+          registrado en la bitácora de la carga.
+        </div>
       </div>
       <div class="mb-3">
         <label class="form-label">Archivo (.xlsx o .csv)</label>

@@ -18,6 +18,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core import numeros
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
+from apps.usuarios.rbac import visible_para_personal
+
 from . import services
 from .models import Lote, Medicamento, Receta, RecetaDetalle
 from .serializers import (
@@ -38,7 +42,7 @@ def _perfil_o_none(request):
 class MedicamentoViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Medicamento.objects.filter(activo=True)
     serializer_class = MedicamentoSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["requiere_receta"]
     search_fields = ["codigo", "dci", "nombre_comercial"]
 
@@ -46,8 +50,12 @@ class MedicamentoViewSet(viewsets.ReadOnlyModelViewSet):
 class LoteViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Lote.objects.select_related("medicamento").order_by("fecha_caducidad")
     serializer_class = LoteSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["medicamento"]
+
+    def get_queryset(self):
+        """Inventario: no es de pacientes, pero tampoco es público."""
+        return visible_para_personal(self.request.user, super().get_queryset())
 
     @action(detail=False, methods=["post"])
     def ingresar(self, request):
@@ -87,8 +95,14 @@ class RecetaViewSet(viewsets.ReadOnlyModelViewSet):
         "detalles__medicamento", "detalles__dispensaciones__lote"
     )
     serializer_class = RecetaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
     filterset_fields = ["estado"]
+
+    def get_queryset(self):
+        """Una receta lleva el paciente y qué se le prescribió."""
+        return visible_para_personal(
+            self.request.user, super().get_queryset(), campo_servicio="atencion__servicio"
+        )
 
     @action(detail=False, methods=["get"])
     def pendientes(self, request):
@@ -167,7 +181,10 @@ class AlertasFarmaciaView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        dias = int(request.query_params.get("dias", 90))
+        # `int(...)` sin red: `?dias=abc` devolvía un 500. Un parámetro de la
+        # URL puede traer cualquier cosa, y una cifra ilegible es una consulta
+        # mal escrita, no una avería del servidor.
+        dias = numeros.a_entero(request.query_params.get("dias"), 90)
         return Response(
             {
                 "stock_bajo": [

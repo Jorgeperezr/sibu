@@ -5,10 +5,14 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.expediente.models import Expediente
-from apps.usuarios.decorators import verificar_acceso_atencion
+from apps.core.models import CIE10, Servicio
+from apps.core.selectors import diagnosticos_por_servicio
+from apps.expediente.models import Atencion, Expediente
+from apps.medicina.models import Diagnostico
+from apps.medicina.services import agregar_diagnostico
+from apps.usuarios.decorators import verificar_acceso_atencion, verificar_es_del_servicio
 
-from . import services
+from . import presentacion, services
 from .models import (
     AtencionOdontologia,
     CatalogoProcedimiento,
@@ -54,19 +58,33 @@ ARCADA_INFERIOR = [
     "38",
 ]
 
-# Color Bootstrap por estado, para el odontograma visual.
-COLOR_ESTADO = {
-    EstadoPieza.SANO: "success",
-    EstadoPieza.CARIADO: "danger",
-    EstadoPieza.OBTURADO: "primary",
-    EstadoPieza.PERDIDO: "dark",
-    EstadoPieza.EXTRAIDO_OTRO: "secondary",
-    EstadoPieza.CORONA: "info",
-    EstadoPieza.SELLANTE: "warning",
-    EstadoPieza.PROTESIS: "info",
-    EstadoPieza.IMPLANTE: "info",
-    EstadoPieza.AUSENTE: "light",
-}
+# El color y la inicial de cada estado viven en `presentacion`, que es también
+# de donde sale la leyenda: escritos por separado, la leyenda acabó enseñando
+# seis de los diez estados. Y no se usan los colores semánticos de Bootstrap:
+# `primary` está teñido con el verde de la UNL, así que el diente obturado
+# salía del mismo verde que el sano.
+
+
+@login_required
+def bandeja(request):
+    """
+    Cola de trabajo de Odontología: las historias aún abiertas del servicio.
+
+    El mismo criterio que usa el menú (`servicios_del_usuario`): quien ve el
+    enlace entra, y quien no lo ve recibe 403. No basta `@login_required`, que
+    dejaría listar los pacientes del servicio a cualquier autenticado.
+    """
+    servicio = get_object_or_404(Servicio, codigo="odontologia")
+    verificar_es_del_servicio(request.user, servicio)
+
+    historias = (
+        AtencionOdontologia.objects.filter(
+            atencion__servicio=servicio, atencion__estado=Atencion.Estado.BORRADOR
+        )
+        .select_related("atencion__expediente__persona", "atencion__profesional__usuario")
+        .order_by("-atencion__fecha_hora")
+    )
+    return render(request, "odontologia/bandeja.html", {"historias": historias})
 
 
 @login_required
@@ -96,6 +114,7 @@ def _arcada(piezas, vigente):
     for pieza in piezas:
         registro = vigente.get(pieza)
         estado = registro.estado_codigo if registro else ""
+        clase, inicial = presentacion.estilo(estado)
         fila.append(
             {
                 "pieza": pieza,
@@ -103,9 +122,8 @@ def _arcada(piezas, vigente):
                 "estado_display": registro.get_estado_codigo_display()
                 if registro
                 else "Sin registrar",
-                "color": COLOR_ESTADO.get(estado, "outline-secondary")
-                if estado
-                else "outline-secondary",
+                "clase": clase,
+                "inicial": inicial,
                 "observacion": registro.observacion if registro else "",
             }
         )
@@ -152,6 +170,15 @@ def consulta(request, pk):
                 )
                 messages.success(request, "Procedimiento registrado.")
 
+            elif accion == "diagnostico":
+                agregar_diagnostico(
+                    hc.atencion,
+                    request.POST["cie10"],
+                    tipo=request.POST.get("tipo", Diagnostico.TipoDx.PRESUNTIVO),
+                    principal=request.POST.get("principal") == "on",
+                )
+                messages.success(request, "Diagnóstico agregado.")
+
             elif accion == "guardar":
                 hc.plan_tratamiento = request.POST.get("plan_tratamiento", "")
                 hc.indicaciones = request.POST.get("indicaciones", "")
@@ -163,11 +190,16 @@ def consulta(request, pk):
                 messages.success(request, "Atención cerrada.")
                 return redirect("expediente:detalle", pk=hc.atencion.expediente_id)
 
-        except (ValidationError, CatalogoProcedimiento.DoesNotExist) as exc:
+        except (
+            ValidationError,
+            KeyError,
+            CatalogoProcedimiento.DoesNotExist,
+            CIE10.DoesNotExist,
+        ) as exc:
             msg = (
                 "; ".join(exc.messages)
                 if hasattr(exc, "messages")
-                else "Procedimiento no encontrado."
+                else "Procedimiento o código CIE-10 no encontrado."
             )
             messages.error(request, msg)
         return redirect("odontologia:consulta", pk=hc.pk)
@@ -183,8 +215,16 @@ def consulta(request, pk):
             "superior": _arcada(ARCADA_SUPERIOR, vigente),
             "inferior": _arcada(ARCADA_INFERIOR, vigente),
             "estados": EstadoPieza.choices,
+            # La leyenda sale de la misma fuente que las piezas: escrita a mano
+            # enseñaba seis de los diez estados.
+            "leyenda": presentacion.leyenda(),
             "catalogo": CatalogoProcedimiento.objects.filter(activo=True),
             "procedimientos": hc.atencion.procedimientos_odonto.select_related("catalogo"),
             "indices": services.calcular_indices(hc.atencion.expediente),
+            "diagnosticos": Diagnostico.objects.filter(atencion=hc.atencion).select_related(
+                "cie10"
+            ),
+            "cie10_disponibles": diagnosticos_por_servicio("odontologia"),
+            "tipos_dx": Diagnostico.TipoDx.choices,
         },
     )

@@ -1,16 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Beca — SIBU{% endblock %}
 {% block content %}
-<h2>{{ b.expediente.persona.nombre_completo }}</h2>
+<h1 class="h4 sibu-titulo">{{ b.expediente.persona.nombre_completo }}</h1>
 <p class="text-muted">
   {{ b.tipo_beca.nombre }} · desde {{ b.periodo_desde.codigo }}
   {% if b.periodo_hasta %} hasta {{ b.periodo_hasta.codigo }}{% endif %}
   · <span class="badge bg-light text-dark border">{{ b.get_estado_display }}</span>
 </p>
-
-{% if messages %}{% for m in messages %}
-<div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
-{% endfor %}{% endif %}
 
 {% if b.causal %}
 <div class="alert alert-secondary py-2 small"><strong>Causal:</strong> {{ b.causal }}</div>

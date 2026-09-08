@@ -2,16 +2,12 @@
 {% block title %}Vincular cuenta — Portal SIBU{% endblock %}
 {% block content %}
 <div class="mx-auto" style="max-width:560px">
-  <h2>Vincule su cuenta</h2>
+  <h1 class="h4 sibu-titulo">Vincule su cuenta</h1>
   <p class="text-muted small">
     Para usar el portal necesitamos confirmar que usted es usted. El código de
     verificación se envía <strong>únicamente a su correo institucional</strong>,
     el que consta en su matrícula.
   </p>
-
-  {% if messages %}{% for m in messages %}
-  <div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
-  {% endfor %}{% endif %}
 
   {% if pendiente and pendiente.vigente %}
   <div class="card">

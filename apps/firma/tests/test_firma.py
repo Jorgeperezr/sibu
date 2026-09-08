@@ -30,7 +30,7 @@ PDF = b"%PDF-1.4 contenido de prueba"
 CLAVE_CALLBACK = "clave-callback-de-prueba"
 
 
-def _certificado(cedula="1104567890", **extra):
+def _certificado(cedula="1104567894", **extra):
     base = {
         "emitidoPara": "JORGE PEREZ",
         "emitidoPor": "Security Data",
@@ -64,9 +64,9 @@ def firmaec_activo(settings):
 def escenario(db):
     est = crear_estructura()
     u, prof = crear_profesional("medico", est["medicina"], est["salud"])
-    prof.cedula = "1104567890"
-    prof.save()
-    exp = crear_expediente(cedula="1712345678")
+    u.cedula = "1104567894"
+    u.save(update_fields=["cedula"])
+    exp = crear_expediente(cedula="1712345675")
     atencion = Atencion.objects.create(
         expediente=exp, servicio=est["medicina"], profesional=prof, fecha_hora=timezone.now()
     )
@@ -80,7 +80,7 @@ def escenario(db):
     return {"est": est, "u": u, "prof": prof, "exp": exp, "atencion": atencion, "s": solicitud}
 
 
-def _callback(correlacion, *, cedula="1104567890", api_key=CLAVE_CALLBACK, **campos):
+def _callback(correlacion, *, cedula="1104567894", api_key=CLAVE_CALLBACK, **campos):
     cuerpo = {
         "cedula": cedula,
         "nombreDocumento": f"SIBU-{correlacion}.pdf",
@@ -179,7 +179,7 @@ def test_nombre_de_documento_ajeno_se_rechaza(escenario, settings):
     settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
     r = Client().post(
         "/grabar_archivos_firmados",
-        data=json.dumps({"cedula": "1104567890", "nombreDocumento": "cualquier-cosa.pdf"}),
+        data=json.dumps({"cedula": "1104567894", "nombreDocumento": "cualquier-cosa.pdf"}),
         content_type="application/json",
         headers={"x-api-key": CLAVE_CALLBACK},
     )
@@ -269,8 +269,9 @@ def test_psicologia_no_sale_a_un_firmador_externo(escenario, settings):
     settings.FIRMAEC_DESCENTRALIZADO_PROPIO = False
     psico = Servicio.objects.get(codigo="psicologia")
     u, prof = crear_profesional("psicologo", psico, psico.seccion)
-    prof.cedula = "1104567890"
-    prof.save()
+    # Cédula distinta de la del médico: `Usuario.cedula` es única.
+    u.cedula = "1101002002"
+    u.save(update_fields=["cedula"])
     atencion = Atencion.objects.create(
         expediente=escenario["exp"], servicio=psico, profesional=prof, fecha_hora=timezone.now()
     )
@@ -290,8 +291,8 @@ def test_psicologia_si_el_firmador_es_de_la_institucion(escenario, settings):
     settings.FIRMAEC_DESCENTRALIZADO_PROPIO = True
     psico = Servicio.objects.get(codigo="psicologia")
     u, prof = crear_profesional("psicologo2", psico, psico.seccion)
-    prof.cedula = "1104567890"
-    prof.save()
+    u.cedula = "1103004006"
+    u.save(update_fields=["cedula"])
     atencion = Atencion.objects.create(
         expediente=escenario["exp"], servicio=psico, profesional=prof, fecha_hora=timezone.now()
     )
@@ -427,7 +428,7 @@ def test_url_de_servicio_no_https_se_rechaza(escenario, settings):
     for mala in ("file:///etc/passwd", "http://evil.example.com/servicio"):
         settings.FIRMAEC_SERVICIO_URL = mala
         with pytest.raises(ImproperlyConfigured, match="https"):
-            client.crear_documento(cedula="1104567890", nombre="x.pdf", pdf=PDF)
+            client.crear_documento(cedula="1104567894", nombre="x.pdf", pdf=PDF)
 
 
 # --------------------------------------------------------------------------
@@ -436,18 +437,34 @@ def test_url_de_servicio_no_https_se_rechaza(escenario, settings):
 
 
 @pytest.mark.django_db
-def test_por_defecto_no_hay_firmador(settings):
+def test_por_defecto_se_firma_en_el_computador_del_profesional(settings):
     """
-    Un despliegue recién instalado no firma, y eso está bien.
+    El defecto ya no es "sin firmador", sino el firmador local.
 
-    FirmaEC exige registro ante el MINTEL: hasta que exista, el sistema debe
-    funcionar diciendo que la firma no está disponible, no reventando.
+    Antes era "deshabilitada" porque el único firmador implementado, FirmaEC,
+    exige registro ante el MINTEL. Al descartarse esa vía, el flujo institucional
+    pasa a ser: SIBU genera el PDF, el profesional lo descarga y lo firma en su
+    computador. Eso no depende de ningún servicio externo, así que un despliegue
+    recién instalado ya puede firmar.
+
+    "deshabilitada" sigue existiendo para quien no quiera firma en absoluto.
     """
     from apps.firma.providers import get_provider
 
     del settings.FIRMA_PROVIDER
     proveedor = get_provider()
-    assert proveedor.codigo == "deshabilitada"
+    assert proveedor.codigo == "local"
+    assert proveedor.disponible() is True
+    assert proveedor.externo is False
+
+
+@pytest.mark.django_db
+def test_el_firmador_deshabilitado_sigue_disponible_como_opcion(settings):
+    """Apagar la firma por completo tiene que seguir siendo posible."""
+    from apps.firma.providers import get_provider
+
+    settings.FIRMA_PROVIDER = "deshabilitada"
+    proveedor = get_provider()
     assert proveedor.disponible() is False
     assert "no está habilitada" in proveedor.motivo_no_disponible()
 
@@ -533,3 +550,73 @@ def test_un_firmador_interno_si_puede_firmar_psicologia(escenario, settings):
         verificar_puede_salir_a_firmar(atencion, proveedor=get_provider())
     # Con uno interno, permitido: el contenido no sale.
     verificar_puede_salir_a_firmar(atencion, proveedor=FirmadorInterno())
+
+
+@pytest.mark.django_db
+def test_el_rechazo_del_callback_queda_auditado(escenario, settings):
+    """
+    Un intento de firma rechazado tiene que dejar rastro, y dejarlo de verdad.
+
+    `_registrar_rechazo` escribe el log y el llamador lanza ValidationError
+    acto seguido: es justo la secuencia que CLAUDE.md señala como trampa —
+    auditar y abortar en la misma transacción revierte el propio log—. Con
+    `ATOMIC_REQUESTS = True` toda la petición es una transacción, así que lo
+    único que salva el registro es que el endpoint capture el error en vez de
+    dejarlo escapar. Esta prueba fija esa garantía por la vía real, el POST.
+
+    Las pruebas de rechazo vecinas comprueban que la firma no se guarda; esta
+    comprueba lo contrario: que lo que sí debe guardarse, se guarda.
+    """
+    from apps.auditoria.models import LogAuditoria
+
+    settings.FIRMAEC_CALLBACK_API_KEY = CLAVE_CALLBACK
+    r = _callback(escenario["s"].correlacion, firmasValidas=False)
+    assert r.status_code == 400  # respuesta controlada, no un 500
+
+    log = LogAuditoria.objects.filter(
+        modulo="firma", resultado="rechazado", entidad_id=str(escenario["s"].pk)
+    ).first()
+    assert log is not None, "el intento de firma rechazado no quedó auditado"
+    assert "no son válidas" in log.detalle["motivo"]
+
+
+@pytest.mark.django_db
+def test_la_cedula_del_firmante_sale_de_la_cuenta(escenario, settings):
+    """
+    Se leía de `solicitante.perfil.cedula`, un campo que NO existe: fuera de
+    las pruebas —que lo tapaban asignando el atributo en memoria— devolvía
+    siempre "" y con FirmaEC la firma no habría arrancado nunca. La cédula del
+    profesional vive en `Usuario.cedula`.
+
+    La cuenta se relee de la base a propósito: un atributo puesto en memoria
+    no sobreviviría al refresh, así que esta prueba no puede pasar por accidente.
+    """
+    est = escenario["est"]
+    u, prof = crear_profesional("medico_cedula", est["medicina"], est["salud"])
+    atencion = Atencion.objects.create(
+        expediente=escenario["exp"],
+        servicio=est["medicina"],
+        profesional=prof,
+        fecha_hora=timezone.now(),
+    )
+    # Sin cédula en la cuenta, FirmaEC no deja preparar la solicitud.
+    with pytest.raises(ValidationError, match="cédula"):
+        services.preparar_solicitud(
+            atencion=atencion,
+            solicitante=u,
+            pdf=PDF,
+            documento_ref_tipo="atencion",
+            documento_ref_id=atencion.pk,
+        )
+
+    u.cedula = "1105006009"
+    u.save(update_fields=["cedula"])
+    u.refresh_from_db()
+    solicitud = services.preparar_solicitud(
+        atencion=atencion,
+        solicitante=u,
+        pdf=PDF,
+        documento_ref_tipo="atencion",
+        documento_ref_id=atencion.pk,
+    )
+    assert solicitud.cedula_solicitante == "1105006009"

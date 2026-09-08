@@ -17,6 +17,7 @@ from rest_framework.response import Response
 
 from apps.expediente.models import Atencion, Expediente
 from apps.usuarios import rbac
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
 
 from . import services
 from .models import AtencionOdontologia, CatalogoProcedimiento
@@ -42,7 +43,7 @@ class AtencionOdontologiaViewSet(viewsets.ModelViewSet):
         "atencion__expediente__persona", "atencion__servicio"
     )
     serializer_class = AtencionOdontologiaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         """Filtrado RBAC: solo atenciones visibles para el rol del usuario."""

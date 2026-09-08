@@ -27,7 +27,7 @@ from rest_framework.response import Response
 
 from apps.expediente.models import Atencion, Expediente
 from apps.usuarios import rbac
-from apps.usuarios.permissions import PuedeVerAtencion
+from apps.usuarios.permissions import EsPersonalDeLaUnidad, PuedeVerAtencion
 
 from . import services
 from .models import EscalaPsicometrica, FichaPsicologica
@@ -57,7 +57,7 @@ class FichaPsicologicaViewSet(viewsets.ModelViewSet):
         "atencion__expediente__persona", "atencion__servicio"
     ).order_by("-atencion__fecha_hora")
     serializer_class = FichaPsicologicaSerializer
-    permission_classes = [IsAuthenticated, PuedeVerAtencion]
+    permission_classes = [IsAuthenticated, PuedeVerAtencion, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         # Capa 1: solo lo que el RBAC deja ver. Para quien no es de Psicología

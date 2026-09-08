@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from apps.core.models import CIE10, Servicio
 from apps.expediente.models import Atencion, Expediente
-from apps.expediente.services import construir_snapshot
+from apps.expediente.services import construir_snapshot, verificar_profesional_del_servicio
 from apps.usuarios.models import PerfilProfesional
 
 from .models import AtencionMedicina, Diagnostico
@@ -40,8 +40,7 @@ def crear_atencion_medicina(
     except Servicio.DoesNotExist as exc:
         raise ValidationError("El servicio 'medicina' no está configurado.") from exc
 
-    if profesional not in expediente.persona.__class__.objects.none():
-        pass  # placeholder: la validación de servicio-profesional es de RBAC
+    verificar_profesional_del_servicio(profesional, servicio)
 
     atencion = Atencion.objects.create(
         expediente=expediente,

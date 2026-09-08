@@ -2,6 +2,8 @@
 
 from datetime import date, timedelta
 
+from django.db.models import Count
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from apps.usuarios.models import PerfilProfesional
@@ -22,6 +24,33 @@ def citas_del_dia(profesional: PerfilProfesional, fecha: date | None = None):
         .select_related("expediente__persona", "servicio")
         .order_by("fecha_hora")
     )
+
+
+def conteo_por_dia(profesional: PerfilProfesional, anio: int, mes: int) -> dict[date, int]:
+    """
+    Cuántas citas VIVAS tiene el profesional cada día de un mes.
+
+    Una consulta agregada, no una por día: un calendario que preguntara 31
+    veces sería el N+1 que ninguna otra pantalla tiene.
+
+    Cuenta solo los estados activos. Una cita cancelada no es trabajo, y
+    contarla haría parecer lleno un día libre —que es justo lo contrario de lo
+    que un calendario viene a decir—.
+
+    Devuelve solo los días con algo: treinta ceros ocupan sitio y no informan.
+    """
+    filas = (
+        Cita.objects.filter(
+            profesional=profesional,
+            estado__in=ESTADOS_ACTIVOS,
+            fecha_hora__year=anio,
+            fecha_hora__month=mes,
+        )
+        .annotate(dia=TruncDate("fecha_hora"))
+        .values("dia")
+        .annotate(n=Count("id"))
+    )
+    return {fila["dia"]: fila["n"] for fila in filas}
 
 
 def proximas_del_expediente(expediente, limite=5):
@@ -60,3 +89,41 @@ def citas_para_recordatorio(horas_anticipacion: int, tolerancia_minutos: int | N
         fecha_hora__range=(inicio, fin),
         estado__in={Cita.Estado.RESERVADA, Cita.Estado.CONFIRMADA},
     ).select_related("expediente__persona", "servicio")
+
+
+def citas_visibles(user, queryset):
+    """
+    Filtra un queryset de Cita según quién pregunta.
+
+    Una cita no es contenido clínico, pero lleva el nombre del paciente, su
+    cédula, el servicio y el motivo. Sobre un servicio confidencial eso es el
+    padrón del servicio: saber que alguien tiene hora con Psicología ya dice
+    que es paciente de Psicología.
+
+    Dos reglas, en este orden:
+
+    1. **Hay que ser personal de la Unidad.** `puede_ver_expediente` es el
+       mismo gate que usan las pantallas del expediente: deja fuera al rol
+       USUARIO_FINAL, que es la cuenta de un estudiante. Su propia agenda la
+       ve por el portal, que aísla por identidad.
+    2. **Lo confidencial, solo su servicio.** Ni Dirección, ni Coordinación,
+       ni ventanilla, ni administración. Es la regla que ya aplican
+       `rbac.puede_ver_atencion` y la pantalla `mi_agenda`.
+
+    No se filtra por servicio propio más allá de eso, y es deliberado: quien
+    reserva en ventanilla tiene rol ADMINISTRATIVO y ningún servicio asignado,
+    así que hacerlo le dejaría la pantalla vacía y rompería el trabajo que esta
+    consulta existe para hacer.
+    """
+    from apps.usuarios.rbac import (
+        SERVICIOS_CONFIDENCIALES,
+        puede_ver_expediente,
+        servicios_del_usuario,
+    )
+
+    if not user.is_authenticated or not puede_ver_expediente(user):
+        return queryset.none()
+    mis_servicios = servicios_del_usuario(user)
+    return queryset.exclude(
+        servicio__codigo__in=SERVICIOS_CONFIDENCIALES,
+    ) | queryset.filter(servicio_id__in=mis_servicios)

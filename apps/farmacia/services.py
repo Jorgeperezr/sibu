@@ -16,8 +16,9 @@ from datetime import date, timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.expediente.models import Atencion
@@ -38,11 +39,39 @@ from .models import (
 
 def _siguiente_numero() -> str:
     """Numeración correlativa anual: RX-2026-000001."""
-    anio = timezone.now().year
+    anio = timezone.localtime().year
     prefijo = f"RX-{anio}-"
     ultima = Receta.objects.filter(numero__startswith=prefijo).order_by("-numero").first()
     consecutivo = int(ultima.numero.split("-")[-1]) + 1 if ultima else 1
     return f"{prefijo}{consecutivo:06d}"
+
+
+def _crear_receta_con_numero(atencion: Atencion, horas: int, usuario, intentos: int = 5) -> Receta:
+    """
+    Crea la receta reintentando si otro proceso tomó el mismo correlativo.
+
+    `_siguiente_numero()` lee el último número y suma uno: dos emisiones
+    simultáneas obtienen el mismo. La restricción única de `Receta.numero` lo
+    impide a nivel de base —la integridad nunca estuvo en riesgo—, pero el
+    segundo usuario recibía un error 500. Cada intento va en su propio
+    savepoint para no abortar la transacción exterior.
+    """
+    for intento in range(intentos):
+        try:
+            with transaction.atomic():
+                return Receta.objects.create(
+                    atencion=atencion,
+                    numero=_siguiente_numero(),
+                    valida_hasta=timezone.now() + timedelta(hours=horas),
+                    creado_por=usuario,
+                )
+        except IntegrityError:
+            if intento == intentos - 1:
+                raise ValidationError(
+                    "No se pudo asignar número de receta por alta concurrencia. "
+                    "Vuelva a intentarlo."
+                ) from None
+    raise AssertionError("inalcanzable")  # pragma: no cover
 
 
 @transaction.atomic
@@ -52,6 +81,9 @@ def emitir_receta(atencion: Atencion, items: list[dict], usuario=None) -> Receta
 
     `items`: [{medicamento_id, cantidad_prescrita, dosis, via, frecuencia,
                duracion, indicaciones}]
+
+    Atómica: un ítem inválido a mitad de la lista no puede dejar una receta con
+    el correlativo gastado y solo los medicamentos anteriores.
     """
     if atencion.inmutable:
         raise ValidationError("No se puede emitir una receta sobre una atención firmada.")
@@ -59,12 +91,7 @@ def emitir_receta(atencion: Atencion, items: list[dict], usuario=None) -> Receta
         raise ValidationError("La receta debe tener al menos un medicamento.")
 
     horas = settings.SIBU.get("RECETA_VALIDEZ_HORAS", 72)
-    receta = Receta.objects.create(
-        atencion=atencion,
-        numero=_siguiente_numero(),
-        valida_hasta=timezone.now() + timedelta(hours=horas),
-        creado_por=usuario,
-    )
+    receta = _crear_receta_con_numero(atencion, horas, usuario)
 
     for item in items:
         medicamento = Medicamento.objects.get(pk=item["medicamento_id"])
@@ -82,6 +109,59 @@ def emitir_receta(atencion: Atencion, items: list[dict], usuario=None) -> Receta
             indicaciones=item.get("indicaciones", ""),
         )
     return receta
+
+
+@transaction.atomic
+def agregar_medicamento(receta: Receta, item: dict) -> RecetaDetalle:
+    """
+    Suma un medicamento a una receta aún sin despachar.
+
+    Una receta lleva varios medicamentos y el profesional los añade de uno en
+    uno; sin esto, cada medicamento exigía emitir una receta aparte, que no es
+    lo que ocurre en consulta.
+
+    Solo mientras nadie haya despachado nada: cambiar lo prescrito después de
+    una entrega dejaría la receta sin corresponder con lo entregado.
+    """
+    if receta.atencion.inmutable:
+        raise ValidationError("No se puede modificar una receta de una atención firmada.")
+    if receta.estado != Receta.Estado.EMITIDA:
+        raise ValidationError(
+            f"La receta está {receta.get_estado_display().lower()}: ya no admite medicamentos."
+        )
+    # Segunda línea: el estado de arriba ya cubre el caso normal —cualquier
+    # despacho mueve la receta fuera de EMITIDA—, pero si ese campo quedara
+    # desfasado, esto sigue impidiendo tocar una receta con entregas.
+    if Dispensacion.objects.filter(receta_detalle__receta=receta).exists():
+        raise ValidationError("La receta ya tiene entregas: no se le pueden añadir medicamentos.")
+
+    medicamento = Medicamento.objects.get(pk=item["medicamento_id"])
+    cantidad = int(item.get("cantidad_prescrita", 0))
+    if cantidad <= 0:
+        raise ValidationError(f"La cantidad prescrita de {medicamento} debe ser mayor a cero.")
+    if receta.detalles.filter(medicamento=medicamento).exists():
+        raise ValidationError(f"{medicamento} ya consta en esta receta.")
+
+    return RecetaDetalle.objects.create(
+        receta=receta,
+        medicamento=medicamento,
+        cantidad_prescrita=cantidad,
+        dosis=item.get("dosis", ""),
+        via=item.get("via", ""),
+        frecuencia=item.get("frecuencia", ""),
+        duracion=item.get("duracion", ""),
+        indicaciones=item.get("indicaciones", ""),
+    )
+
+
+def receta_abierta(atencion: Atencion) -> Receta | None:
+    """La receta de esta atención que todavía admite medicamentos, si la hay."""
+    return (
+        Receta.objects.filter(atencion=atencion, estado=Receta.Estado.EMITIDA)
+        .exclude(detalles__dispensaciones__isnull=False)
+        .order_by("-creado_en")
+        .first()
+    )
 
 
 def recetas_pendientes():
@@ -128,6 +208,11 @@ def ingresar_lote(
 
     Todo ingreso deja un MovimientoInventario: el saldo del lote siempre puede
     reconstruirse desde la bitácora (trazabilidad exigida en el informe 6.5).
+
+    Bloquea el lote antes de sumar. La transacción por sí sola no bastaba: en
+    READ COMMITTED dos ingresos simultáneos leen el mismo saldo y el segundo
+    pisa al primero —entran 200 unidades y quedan 100, con dos movimientos que
+    ya no cuadran con el saldo—. Lo que lo impide es `select_for_update`.
     """
     if cantidad <= 0:
         raise ValidationError("La cantidad a ingresar debe ser mayor a cero.")
@@ -152,6 +237,7 @@ def ingresar_lote(
             f"Un mismo número de lote no puede tener dos fechas de caducidad."
         )
 
+    lote = Lote.objects.select_for_update().get(pk=lote.pk)
     lote.cantidad_actual += cantidad
     lote.save(update_fields=["cantidad_actual"])
 
@@ -189,11 +275,37 @@ def lotes_fefo(medicamento: Medicamento):
     ).order_by("fecha_caducidad", "id")
 
 
+def stock_disponible_por_medicamento() -> dict[int, int]:
+    """
+    Stock no caducado de todos los medicamentos, en una sola consulta.
+
+    Mismo criterio que `stock_disponible`, pero agregando por medicamento en la
+    base en vez de preguntar uno por uno. Los medicamentos sin existencias no
+    aparecen en el resultado: quien lo consulte debe tratar la ausencia como 0.
+    """
+    filas = (
+        Lote.objects.filter(
+            fecha_caducidad__gt=timezone.localdate(),
+            cantidad_actual__gt=0,
+        )
+        .values("medicamento_id")
+        .annotate(total=Sum("cantidad_actual"))
+    )
+    return {f["medicamento_id"]: f["total"] for f in filas}
+
+
 def alertas_stock():
-    """Medicamentos cuyo stock disponible está por debajo del mínimo."""
+    """
+    Medicamentos cuyo stock disponible está por debajo del mínimo.
+
+    Se resuelve en dos consultas fijas. Antes llamaba a `stock_disponible()`
+    dentro del bucle: una consulta por medicamento del catálogo, que en la
+    farmacia real son cientos en cada carga del mostrador.
+    """
+    disponibles = stock_disponible_por_medicamento()
     alertas = []
     for medicamento in Medicamento.objects.filter(activo=True, stock_minimo__gt=0):
-        disponible = stock_disponible(medicamento)
+        disponible = disponibles.get(medicamento.pk, 0)
         if disponible <= medicamento.stock_minimo:
             alertas.append(
                 {
@@ -221,6 +333,47 @@ def alertas_caducidad(dias: int = 90):
 
 
 @transaction.atomic
+def ajustar_lote(lote: Lote, diferencia: int, motivo: str, *, usuario) -> Lote:
+    """
+    Corrige el saldo de un lote tras un conteo físico y deja el movimiento.
+
+    `MovimientoInventario` contemplaba AJUSTE_MAS y AJUSTE_MENOS desde el
+    Sprint 6, pero nada los creaba: cuando la percha no cuadraba con el
+    sistema, la única salida era el shell o el panel de administración, que
+    escribe el saldo sin dejar movimiento y rompe la trazabilidad.
+
+    El motivo es obligatorio: un ajuste sin causa escrita es indistinguible de
+    un descuadre.
+    """
+    if diferencia == 0:
+        raise ValidationError("El ajuste debe ser distinto de cero.")
+    if not motivo.strip():
+        raise ValidationError("Todo ajuste de inventario exige un motivo escrito.")
+
+    lote = Lote.objects.select_for_update().get(pk=lote.pk)
+    if lote.cantidad_actual + diferencia < 0:
+        raise ValidationError(
+            f"El ajuste dejaría el lote {lote.numero_lote} en "
+            f"{lote.cantidad_actual + diferencia}: el saldo no puede ser negativo."
+        )
+
+    lote.cantidad_actual += diferencia
+    lote.save(update_fields=["cantidad_actual"])
+    MovimientoInventario.objects.create(
+        lote=lote,
+        tipo=(
+            MovimientoInventario.Tipo.AJUSTE_MAS
+            if diferencia > 0
+            else MovimientoInventario.Tipo.AJUSTE_MENOS
+        ),
+        cantidad=diferencia,
+        saldo_resultante=lote.cantidad_actual,
+        referencia_doc=motivo.strip()[:60],
+        usuario=usuario,
+    )
+    return lote
+
+
 def dar_de_baja_caducados(usuario) -> int:
     """
     Da de baja los lotes caducados con existencias. Devuelve las unidades
@@ -285,6 +438,11 @@ def despachar_item(detalle: RecetaDetalle, cantidad: int, *, usuario) -> list[Di
     if cantidad <= 0:
         raise ValidationError("La cantidad a despachar debe ser mayor a cero.")
 
+    # Bloquear el detalle antes de contar lo ya despachado: sin esto, dos
+    # despachos simultáneos del mismo ítem leen el mismo pendiente y entre los
+    # dos entregan más de lo prescrito.
+    detalle = RecetaDetalle.objects.select_for_update().get(pk=detalle.pk)
+
     pendiente = pendiente_por_despachar(detalle)
     if cantidad > pendiente:
         raise ValidationError(
@@ -292,7 +450,12 @@ def despachar_item(detalle: RecetaDetalle, cantidad: int, *, usuario) -> list[Di
             f"(prescritas {detalle.cantidad_prescrita})."
         )
 
-    disponible = stock_disponible(detalle.medicamento)
+    # Bloquear los lotes ANTES de decidir si hay stock. Comprobar con
+    # `stock_disponible()` y consumir después dejaba una ventana entre la
+    # lectura y el consumo: dos despachos concurrentes pasaban ambos la
+    # comprobación y el segundo entregaba de menos en silencio.
+    lotes = list(lotes_fefo(detalle.medicamento).select_for_update())
+    disponible = sum(lote.cantidad_actual for lote in lotes)
     if cantidad > disponible:
         raise ValidationError(
             f"Stock insuficiente de {detalle.medicamento}: "
@@ -301,7 +464,7 @@ def despachar_item(detalle: RecetaDetalle, cantidad: int, *, usuario) -> list[Di
 
     dispensaciones = []
     restante = cantidad
-    for lote in lotes_fefo(detalle.medicamento).select_for_update():
+    for lote in lotes:
         if restante <= 0:
             break
         toma = min(lote.cantidad_actual, restante)
@@ -327,15 +490,32 @@ def despachar_item(detalle: RecetaDetalle, cantidad: int, *, usuario) -> list[Di
         )
         restante -= toma
 
+    if restante > 0:
+        # Los lotes están bloqueados y el disponible se calculó sobre ellos, así
+        # que esto no debería ocurrir. Si ocurre, algo descuadró: abortar la
+        # transacción antes que entregar de menos sin decirlo.
+        raise ValidationError(
+            f"No se pudo completar el despacho de {detalle.medicamento}: "
+            f"faltaron {restante} unidades. No se registró ninguna entrega."
+        )
+
     _actualizar_estado_receta(receta)
     return dispensaciones
 
 
 def _actualizar_estado_receta(receta: Receta) -> Receta:
-    """Recalcula el estado de la receta a partir de lo despachado."""
-    detalles = receta.detalles.all()
-    pendientes = sum(pendiente_por_despachar(d) for d in detalles)
-    despachado_algo = any(_cantidad_ya_despachada(d) > 0 for d in detalles)
+    """
+    Recalcula el estado de la receta a partir de lo despachado.
+
+    Lo despachado se anota en la misma consulta que trae los detalles. Antes se
+    preguntaba dos veces por línea —una para el pendiente y otra para saber si
+    ya se había entregado algo—, y esto se ejecuta en cada despacho.
+    """
+    detalles = list(
+        receta.detalles.annotate(despachado=Coalesce(Sum("dispensaciones__cantidad_despachada"), 0))
+    )
+    pendientes = sum(max(d.cantidad_prescrita - d.despachado, 0) for d in detalles)
+    despachado_algo = any(d.despachado > 0 for d in detalles)
 
     if pendientes == 0:
         receta.estado = Receta.Estado.DESPACHADA

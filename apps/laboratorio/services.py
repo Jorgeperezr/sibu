@@ -12,13 +12,13 @@ Flujo completo:
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 
+from apps.core import numeros
 from apps.expediente.models import Atencion
 
 from .models import (
@@ -113,9 +113,10 @@ def calcular_marcador(parametro: ParametroExamen, valor: str) -> str:
     """
     if parametro.tipo_valor != ParametroExamen.TipoValor.NUMERICO:
         return ResultadoParametro.Marcador.NORMAL
-    try:
-        num = Decimal(str(valor).replace(",", "."))
-    except (InvalidOperation, ValueError):
+    # Laboratorio ya leía bien la coma; ahora lo hace con la misma función que
+    # el resto del sistema, para que no vuelvan a separarse.
+    num = numeros.a_decimal_o(valor, None)
+    if num is None:
         return ResultadoParametro.Marcador.NORMAL
 
     if parametro.critico_min is not None and num < parametro.critico_min:
