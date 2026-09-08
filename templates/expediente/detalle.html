@@ -72,7 +72,11 @@
       <small class="text-muted">— frente a lo declarado en matrícula</small>
     </a>
   </div>
-  <div class="collapse" id="form-ajuste">
+  {% comment %}
+  Si se acaba de elegir servicio, el panel se abre: cerrarlo justo después de
+  pedirlo obligaría a volver a desplegarlo para ver lo que se pidió ver.
+  {% endcomment %}
+  <div class="collapse{% if request.GET.servicio %} show{% endif %}" id="form-ajuste">
     <div class="card-body">
       {% comment %}
       El caso que lo motiva: en consulta se identifica un embarazo que la ficha
@@ -86,6 +90,25 @@
         registre vale para {{ servicio_de_ajuste.nombre }}, que es quien lo
         comprobó, y se puede retirar para volver a lo declarado en matrícula.
       </p>
+      {% if servicios_de_ajuste|length > 1 %}
+      {% comment %}
+      Quien atiende en más de un servicio tiene que decir desde cuál mira y
+      anota: cada servicio ve lo que él comprobó, no lo del vecino. Es un GET
+      porque cambia la lectura de la tabla, no el dato.
+      {% endcomment %}
+      <form method="get" class="d-flex align-items-center gap-2 mb-3">
+        <label class="form-label small mb-0" for="servicio-de-ajuste">Anotar desde</label>
+        <select class="form-select form-select-sm w-auto" id="servicio-de-ajuste"
+                name="servicio" onchange="this.form.submit()">
+          {% for s in servicios_de_ajuste %}
+          <option value="{{ s.id }}" {% if s.id == servicio_de_ajuste.id %}selected{% endif %}>
+            {{ s.nombre }}
+          </option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-sm btn-outline-secondary">Ver</button>
+      </form>
+      {% endif %}
       <div class="table-responsive">
         <table class="table table-sm align-middle">
           <thead>

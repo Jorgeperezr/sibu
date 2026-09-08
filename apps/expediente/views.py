@@ -182,9 +182,12 @@ def detalle(request, pk):
     contexto["acciones"] = acciones_expediente(request.user)
     contexto["tipos_alerta"] = AlertaClinica.Tipo.choices
 
-    # Lo que este servicio ve de las variables ajustables, y contra qué. Sin
-    # servicio único no se ofrece ajustar: el ajuste es de quien comprobó.
-    servicio = _servicio_del_profesional(request.user)
+    # Lo que este servicio ve de las variables ajustables, y contra qué. Quien
+    # atiende en varios elige desde cuál anota; quien no atiende en ninguno no
+    # ajusta, porque el ajuste es de quien comprobó.
+    servicios = _servicios_del_profesional(request.user)
+    servicio = _servicio_elegido(servicios, request.GET.get("servicio"))
+    contexto["servicios_de_ajuste"] = servicios
     contexto["servicio_de_ajuste"] = servicio
     contexto["valores_efectivos"] = valores_efectivos(expediente, servicio) if servicio else []
     contexto["no_ajustables"] = NO_AJUSTABLES
@@ -218,18 +221,38 @@ def alertas(request, pk):
     return redirect("expediente:detalle", pk=expediente.pk)
 
 
-def _servicio_del_profesional(usuario):
+def _servicios_del_profesional(usuario):
     """
-    El servicio desde el que este usuario ajusta, o None si no tiene uno solo.
+    Los servicios desde los que este usuario puede ajustar.
 
-    El ajuste es POR servicio —cada uno reporta lo que él comprobó—, así que sin
-    un servicio no hay dónde anotarlo. Quien atiende en varios elige; quien no
-    atiende en ninguno no ajusta.
+    Salen del RBAC, así que nadie puede anotar en nombre de un servicio ajeno
+    —ni ver lo que ese servicio comprobó, que es lo que de verdad importa aquí—.
     """
     from apps.core.models import Servicio
 
-    servicios = list(Servicio.objects.filter(pk__in=rbac.servicios_del_usuario(usuario)))
-    return servicios[0] if len(servicios) == 1 else None
+    return list(
+        Servicio.objects.filter(pk__in=rbac.servicios_del_usuario(usuario)).order_by("nombre")
+    )
+
+
+def _servicio_elegido(servicios, pedido):
+    """
+    El servicio desde el que se mira, entre los suyos.
+
+    Quien atiende en uno solo no elige nada. Quien atiende en varios elegía
+    antes por omisión: la pantalla simplemente no aparecía, y con ella se perdía
+    el ajuste entero para el personal con más de un servicio, que es
+    precisamente el que más lo necesita. Un id que no sea suyo se ignora en
+    silencio y se cae al primero: pedir un servicio ajeno no es un error del
+    usuario, es un intento, y no se le confirma cuál existe.
+    """
+    if not servicios:
+        return None
+    if pedido and str(pedido).isdigit():
+        for servicio in servicios:
+            if servicio.pk == int(pedido):
+                return servicio
+    return servicios[0]
 
 
 @login_required
@@ -253,14 +276,16 @@ def ajustar(request, pk):
         raise PermissionDenied("No tiene permisos para ajustar el expediente.")
 
     expediente = get_object_or_404(Expediente, pk=pk)
+    servicios = _servicios_del_profesional(request.user)
     servicio_id = request.POST.get("servicio") or ""
-    servicios = rbac.servicios_del_usuario(request.user)
     servicio = None
-    if servicio_id.isdigit() and int(servicio_id) in servicios:
-        from apps.core.models import Servicio
-
-        servicio = Servicio.objects.filter(pk=int(servicio_id)).first()
-    servicio = servicio or _servicio_del_profesional(request.user)
+    if servicio_id.isdigit():
+        servicio = next((s for s in servicios if s.pk == int(servicio_id)), None)
+    # Quien atiende en uno solo no tiene nada que elegir. Quien atiende en
+    # varios SÍ, y aquí no se cae al primero: un ajuste atribuido a un servicio
+    # que no lo comprobó es peor que no registrarlo, porque después lo reporta.
+    if servicio is None and len(servicios) == 1:
+        servicio = servicios[0]
 
     if servicio is None:
         messages.error(

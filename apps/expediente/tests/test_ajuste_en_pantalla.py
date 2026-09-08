@@ -139,3 +139,107 @@ def test_quien_no_ve_expedientes_no_ajusta(db):
     )
     assert respuesta.status_code == 403
     assert not AjusteDeServicio.objects.exists()
+
+
+# --------------------------------------------------- quien atiende en varios
+
+
+@pytest.fixture
+def con_dos_servicios(db):
+    """
+    Un profesional de Medicina que también atiende en Enfermería.
+
+    No es un caso raro: en la UNL el mismo personal cubre más de una ventanilla.
+    """
+    from apps.core.models import Servicio
+
+    est = crear_estructura()
+    enfermeria, _ = Servicio.objects.get_or_create(
+        codigo="enfermeria", defaults={"nombre": "Enfermería", "seccion": est["salud"]}
+    )
+    usuario, perfil = crear_profesional("poli_ajuste", est["medicina"], est["salud"])
+    perfil.servicios.add(enfermeria)
+    usuario.set_password(CLAVE)
+    usuario.save()
+    cliente = Client()
+    assert cliente.login(username="poli_ajuste", password=CLAVE)
+    return {
+        "est": est,
+        "enfermeria": enfermeria,
+        "cliente": cliente,
+        "expediente": crear_expediente(cedula="1712345675"),
+    }
+
+
+@pytest.mark.django_db
+def test_quien_atiende_en_varios_servicios_tambien_puede_ajustar(con_dos_servicios):
+    """
+    Antes no podía: la pantalla exigía UN servicio y, con dos, sencillamente no
+    aparecía. El ajuste quedaba fuera del alcance de quien más lo necesita.
+    """
+    respuesta = con_dos_servicios["cliente"].get(
+        reverse("expediente:detalle", args=[con_dos_servicios["expediente"].pk])
+    )
+    contenido = respuesta.content.decode()
+
+    assert "comprobó" in contenido
+    assert "Anotar desde" in contenido
+    assert "Enfermería" in contenido
+
+
+@pytest.mark.django_db
+def test_cada_servicio_ve_lo_que_el_comprobo_y_no_lo_del_otro(con_dos_servicios):
+    """El ajuste es de quien comprobó: la ventanilla de al lado no lo hereda."""
+    expediente = con_dos_servicios["expediente"]
+    enfermeria = con_dos_servicios["enfermeria"]
+    cliente = con_dos_servicios["cliente"]
+
+    cliente.post(
+        reverse("expediente:ajustar", args=[expediente.pk]),
+        {"variable": "gestacion", "valor": "Sí", "servicio": enfermeria.pk, "nota": "en consulta"},
+    )
+
+    desde_enfermeria = cliente.get(
+        reverse("expediente:detalle", args=[expediente.pk]), {"servicio": enfermeria.pk}
+    ).content.decode()
+    desde_medicina = cliente.get(
+        reverse("expediente:detalle", args=[expediente.pk]),
+        {"servicio": con_dos_servicios["est"]["medicina"].pk},
+    ).content.decode()
+
+    assert "en consulta" in desde_enfermeria
+    assert "en consulta" not in desde_medicina
+
+
+@pytest.mark.django_db
+def test_pedir_un_servicio_ajeno_no_ensena_lo_ajeno(con_dos_servicios):
+    """
+    Un id en la URL no es un permiso. Se cae a un servicio propio en silencio:
+    negar por su nombre confirmaría que ese servicio existe y qué id tiene.
+    """
+    psicologia = con_dos_servicios["est"]["psicologia"]
+
+    respuesta = con_dos_servicios["cliente"].get(
+        reverse("expediente:detalle", args=[con_dos_servicios["expediente"].pk]),
+        {"servicio": psicologia.pk},
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.context["servicio_de_ajuste"].pk != psicologia.pk
+    assert psicologia not in respuesta.context["servicios_de_ajuste"]
+
+
+@pytest.mark.django_db
+def test_con_dos_servicios_el_ajuste_sin_servicio_no_se_adivina(con_dos_servicios):
+    """
+    Atribuir el hallazgo al primero de la lista es peor que no registrarlo: el
+    informe lo reportaría después como comprobado por un servicio que no lo vio.
+    """
+    respuesta = con_dos_servicios["cliente"].post(
+        reverse("expediente:ajustar", args=[con_dos_servicios["expediente"].pk]),
+        {"variable": "gestacion", "valor": "Sí"},
+        follow=True,
+    )
+
+    assert not AjusteDeServicio.objects.exists()
+    assert "Indique desde qué servicio" in respuesta.content.decode()
