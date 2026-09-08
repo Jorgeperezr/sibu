@@ -119,6 +119,31 @@ talleres, portal del estudiante y tablero de gestión.
 - **Una cifra y su evidencia no pueden calcularse dos veces.** El informe y sus
   anexos comparten `reportes.services.etiquetar`; dos consultas parecidas se
   separan y el anexo acaba desmintiendo lo que respalda.
+- **El almacenamiento con manifiesto sigue las referencias internas.**
+  `CompressedManifestStaticFilesStorage` lee los `url()` de un CSS y el
+  `sourceMappingURL` de un JS: si apuntan a algo que no se vendorizó,
+  `collectstatic` aborta. Y el `|| true` del Dockerfile convertía ese fallo de
+  construcción visible en uno de producción invisible —el sitio arrancaba sin
+  estáticos, cada página con un ValueError—.
+- **Una dependencia de producción que solo está en `prod.txt` no se prueba.**
+  El CI instala `dev.txt`. La prueba que ejercita el almacenamiento de
+  producción fallaba allí por no encontrar WhiteNoise, no por lo que comprueba,
+  y en local pasaba porque el entorno se había separado del de integración.
+- **`docker compose` no lee `.env.prod` para sus propios `${...}`.** `env_file:`
+  alimenta al CONTENEDOR; la interpolación la resuelve el CLI mirando el shell
+  y un `.env` del directorio. Sin `--env-file`, el arranque aborta diciendo que
+  falta una variable que está escrita delante.
+- **`createsuperuser` no daba una cuenta que pudiera gobernar el sistema.**
+  `rol_principal` sale por omisión como «consulta»: la primera cuenta del
+  despliegue veía seis módulos de diecisiete. Lo arregla el gestor del modelo,
+  no un paso manual del manual de instalación.
+- **Una redirección que pierde el parámetro de contexto miente.** Anotar desde
+  Medicina y volver a otro servicio enseña el valor sin tocar bajo un aviso que
+  dice «Anotado»: parece que no guardó. La redirección conserva el `?servicio=`.
+- **Una prueba que ejercita justo el valor por omisión no falsifica nada.** La
+  del retorno al servicio anotaba desde Enfermería, que era el servicio al que
+  se caía por omisión: pasaba con el defecto puesto. Al falsificar, si la
+  prueba NO falla, el fallo está en la prueba.
 - `auto_now_add` sobre tabla existente falla sin default.
 
 ## Convenciones
@@ -145,10 +170,17 @@ talleres, portal del estudiante y tablero de gestión.
 Entorno docker-compose: PostgreSQL en el contenedor `db`, Redis en `redis`. No
 existen `service postgresql` ni `redis-server` dentro del contenedor `web`.
 
+Despliegue (Oracle Cloud, capa gratuita) en `docs/ORACLE_CLOUD.md`. El
+`--env-file` no es opcional:
+
+    docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+    ... exec web python manage.py createsuperuser
+    ... exec web python manage.py ensayo_despliegue --usuario X --clave Y
+
 ## Antes de dar por terminado un cambio
 
     ruff check .
     ruff format --check .
-    pytest apps -q          # deben pasar TODAS (315 al día de hoy)
+    pytest apps -q          # deben pasar TODAS (1164 al día de hoy)
     python manage.py check
     python manage.py makemigrations --check --dry-run
