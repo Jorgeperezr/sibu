@@ -13,7 +13,21 @@ COPY requirements/ requirements/
 RUN pip install --no-cache-dir -r requirements/prod.txt
 
 COPY . .
-RUN python manage.py collectstatic --noinput --settings=config.settings.prod || true
+# Sin `|| true`. Lo llevaba, y eso convertía un fallo de construcción visible en
+# un fallo de producción invisible: `CompressedManifestStaticFilesStorage` aborta
+# si un archivo referencia algo que no está —pasó con el sourcemap de Bootstrap—,
+# la imagen se construía igual y el sitio arrancaba sin estáticos, con cada
+# página lanzando un ValueError por el manifiesto ausente.
+#
+# `collectstatic` no toca la base de datos, pero SÍ importa los ajustes, así que
+# necesita valores para construir. Van EN LA PROPIA ORDEN y no en un `ENV`: un
+# `ENV` se queda en la imagen, y entonces olvidar `SECRET_KEY` en `.env.prod` no
+# daría error —arrancaría con la clave de relleno, en silencio—. Así, si falta,
+# el contenedor no levanta.
+RUN SECRET_KEY=solo-para-construir-la-imagen-no-se-usa-al-ejecutar-0123456789 \
+    ALLOWED_HOSTS=localhost \
+    DATABASE_URL=postgres://sibu:sibu@db:5432/sibu \
+    python manage.py collectstatic --noinput --settings=config.settings.prod
 
 EXPOSE 8000
 CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]

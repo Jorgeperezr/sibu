@@ -41,3 +41,5 @@ token.json
 diagnostico.txt
 parche_s10*.py
 parche_s10*.sh
+.env.prod
+docker/certs/
