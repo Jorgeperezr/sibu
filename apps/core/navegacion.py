@@ -24,6 +24,8 @@ class Modulo:
     #   ("servicio", "codigo")     -> tiene ese servicio asignado
     #   ("roles", {Rol, ...})      -> su rol_principal está en el conjunto
     #   ("siempre", None)          -> visible para cualquier autenticado
+    #   ("personal", None)         -> pasa `puede_ver_expediente`: es personal
+    #                                 de la Unidad, no alguien con sesión
     #   ("tiene_servicio", None)   -> tiene AL MENOS un servicio, cualquiera
     #   ("servicio_exportable", None) -> tiene al menos uno NO confidencial
     #   ("permiso", "app.codigo")  -> tiene ese permiso de Django
@@ -34,11 +36,16 @@ class Modulo:
 # El orden aquí es el orden en que aparecen. Códigos de servicio = slugify del
 # nombre del seed (p. ej. "Becas y Ayudas Económicas" -> "becas-y-ayudas-economicas").
 MODULOS = [
-    Modulo("Mi agenda", "citas:mi_agenda", ("siempre", None), "General"),
+    # `personal` y no `siempre`: las pantallas de citas reservan, buscan
+    # personas y listan agendas con nombres de pacientes, así que exigen
+    # `puede_ver_expediente` y responden 403 sin él. `siempre` las ofrecía a
+    # cualquiera con sesión —una cuenta de Consulta Restringida, por ejemplo—
+    # y las tres primeras entradas del menú morían en un 403.
+    Modulo("Mi agenda", "citas:mi_agenda", ("personal", None), "General"),
     # Dos entradas y no una: responden preguntas distintas. La agenda dice qué
     # hay HOY; el calendario, en qué días del mes hay algo, que era justo lo
     # que no se podía saber sin teclear fecha por fecha.
-    Modulo("Calendario", "citas:calendario", ("siempre", None), "General"),
+    Modulo("Calendario", "citas:calendario", ("personal", None), "General"),
     Modulo("Medicina", "medicina:bandeja", ("servicio", "medicina"), "Salud"),
     Modulo("Enfermería", "enfermeria:bandeja", ("servicio", "enfermeria"), "Salud"),
     Modulo("Odontología", "odontologia:bandeja", ("servicio", "odontologia"), "Salud"),
@@ -59,9 +66,12 @@ MODULOS = [
         ("servicio", "trabajo-social"),
         "Trabajo Social",
     ),
-    Modulo("Derivaciones", "derivaciones:bandeja", ("siempre", None), "General"),
+    # `tiene_servicio` y no `siempre`: las dos bandejas exigen servicios y
+    # responden 403 sin ellos. Ofrecerlas a quien no los tiene es un enlace
+    # muerto en el menú, no un permiso pendiente de resolver.
+    Modulo("Derivaciones", "derivaciones:bandeja", ("tiene_servicio", None), "General"),
     Modulo("Becas", "becas:bandeja", ("servicio", "becas-y-ayudas-economicas"), "Becas"),
-    Modulo("Talleres", "talleres:bandeja", ("siempre", None), "General"),
+    Modulo("Talleres", "talleres:bandeja", ("tiene_servicio", None), "General"),
     Modulo(
         "Reportes",
         "reportes:tablero",
@@ -111,20 +121,28 @@ MODULOS = [
 # Rutas de módulos que solo se abren desde un expediente/atención concreta. No
 # van al menú como enlace directo (piden un id), pero la búsqueda de
 # expedientes es su puerta de entrada, así que esa sí se ofrece.
-BUSQUEDA_EXPEDIENTES = Modulo("Expedientes", "expediente:buscar", ("siempre", None), "General")
+BUSQUEDA_EXPEDIENTES = Modulo("Expedientes", "expediente:buscar", ("personal", None), "General")
 
 
 def _ve_modulo(user, modulo: Modulo, servicios_ids: set, codigos_por_id: dict) -> bool:
     tipo, dato = modulo.regla
     if tipo == "siempre":
         return True
+    if tipo == "personal":
+        from apps.usuarios.rbac import puede_ver_expediente
+
+        return puede_ver_expediente(user)
     if tipo == "roles":
         return getattr(user, "rol_principal", None) in dato
     if tipo == "servicio":
-        # Admin ve todos los enlaces para poder navegar; el acceso fino al
-        # contenido lo sigue resolviendo cada vista.
-        if getattr(user, "rol_principal", None) == Rol.ADMIN_GENERAL:
-            return True
+        # Aquí hubo una excepción para el administrador —«ve todos los enlaces
+        # para poder navegar; el acceso fino lo resuelve cada vista»— y queda
+        # revocada. La vista no «resolvía el acceso fino»: lo negaba. Un
+        # administrador no tiene servicios, así que su menú ofrecía las nueve
+        # bandejas y las nueve respondían 403, Psicología entre ellas, que es
+        # justo el enlace que no debe existir. Nueve enlaces muertos en la
+        # navegación principal el primer día, y la contradicción que el
+        # encabezado de este módulo prohíbe expresamente.
         codigos = {codigos_por_id.get(sid) for sid in servicios_ids}
         return dato in codigos
     if tipo == "tiene_servicio":
@@ -161,8 +179,11 @@ def modulos_visibles(user):
     servicios_ids = servicios_del_usuario(user)
     codigos_por_id = dict(Servicio.objects.values_list("id", "codigo"))
 
-    visibles = [BUSQUEDA_EXPEDIENTES]
-    visibles += [m for m in MODULOS if _ve_modulo(user, m, servicios_ids, codigos_por_id)]
+    visibles = [
+        m
+        for m in [BUSQUEDA_EXPEDIENTES, *MODULOS]
+        if _ve_modulo(user, m, servicios_ids, codigos_por_id)
+    ]
     return visibles
 
 

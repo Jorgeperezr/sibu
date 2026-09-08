@@ -85,3 +85,20 @@ def test_un_comodin_de_allowed_hosts_no_sirve_para_pedir_una_pagina(permitidos, 
     from apps.core.management.commands.ensayo_despliegue import Command
 
     assert Command()._primer_host(permitidos) == esperado
+
+
+@pytest.mark.django_db
+def test_el_ensayo_recorre_los_modulos_que_la_cuenta_ve():
+    """
+    Lo que esta persona va a pulsar el primer día. Un 403 aquí sería una
+    contradicción entre el menú y la vista, no un permiso mal puesto.
+    """
+    from apps.expediente.tests.factories import crear_estructura
+
+    crear_estructura()
+    get_user_model().objects.create_superuser(username="jefe", password=CLAVE)
+
+    salida = _ensayar(usuario="jefe", clave=CLAVE)
+
+    assert "Reportes" in salida
+    assert "se puede iniciar sesión" in salida

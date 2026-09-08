@@ -105,21 +105,36 @@ def test_cada_servicio_de_salud_ve_el_suyo_y_no_los_demas(estructura):
 
 
 @pytest.mark.django_db
-def test_el_admin_ve_todos_los_modulos(estructura):
-    """Admin navega todo; el acceso fino al contenido lo resuelve cada vista."""
+def test_el_admin_ve_la_gestion_y_no_las_bandejas_de_servicio(estructura):
+    """
+    Aquí se afirmaba lo contrario —«el admin navega todo; el acceso fino lo
+    resuelve cada vista»— y esa decisión queda revocada. La vista no resolvía
+    nada: negaba. Un administrador no tiene servicios, así que su menú ofrecía
+    las nueve bandejas y las nueve respondían 403, Psicología incluida, que es
+    justo el enlace que no debe existir.
+
+    Lo suyo es la gestión, y eso sí lo ve.
+    """
     u = Usuario.objects.create_user(
         username="admin", password=CLAVE, rol_principal=Rol.ADMIN_GENERAL
     )
     etiquetas = _etiquetas(u)
-    assert {
-        "Medicina",
-        "Enfermería",
-        "Odontología",
-        "Laboratorio",
-        "Farmacia",
-        "Psicología",
-        "Becas",
-    } <= etiquetas
+
+    # «Base institucional» va por permiso de Django y este usuario se crea sin
+    # los grupos del RBAC, así que no se afirma aquí.
+    assert {"Reportes", "Bitácora", "Expedientes"} <= etiquetas
+    assert (
+        not {
+            "Medicina",
+            "Enfermería",
+            "Odontología",
+            "Laboratorio",
+            "Farmacia",
+            "Psicología",
+            "Becas",
+        }
+        & etiquetas
+    )
 
 
 @pytest.mark.django_db

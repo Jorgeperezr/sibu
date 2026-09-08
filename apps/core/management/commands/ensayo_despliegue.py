@@ -21,7 +21,7 @@ Devuelve código de salida 1 si algo falla, para poder encadenarlo.
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.test import Client
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 
 # Lo que tiene que poder abrirse. Rutas y no nombres: es lo que teclea la gente.
 PANTALLAS = [
@@ -62,6 +62,8 @@ class Command(BaseCommand):
         fallos += self._probar_estaticos()
         self.acceso_ejercitado = False
         fallos += self._probar_acceso(cliente, host, opciones)
+        if self.acceso_ejercitado and not fallos:
+            fallos += self._probar_modulos(cliente, opciones["usuario"])
 
         self.stdout.write("")
         if fallos:
@@ -158,6 +160,35 @@ class Command(BaseCommand):
         if token is None:
             return ["no se recibió la cookie CSRF: revise el proxy y las cookies seguras"]
         return ["no se pudo iniciar sesión: compruebe la cuenta y la contraseña"]
+
+    def _probar_modulos(self, cliente, usuario):
+        """
+        Abre lo que esta cuenta ve en el menú.
+
+        La navegación sale del RBAC, así que esto recorre exactamente lo que
+        esta persona va a pulsar el primer día. Un 403 aquí sería una
+        contradicción entre el menú y la vista —el menú ofrece algo que la
+        vista niega—, no un permiso mal puesto, y por eso cuenta como fallo.
+        """
+        from django.contrib.auth import get_user_model
+
+        from apps.core.navegacion import modulos_visibles
+
+        cuenta = get_user_model().objects.get(username=usuario)
+        fallos = []
+        for modulo in modulos_visibles(cuenta):
+            try:
+                ruta = reverse(modulo.url_name)
+            except NoReverseMatch:
+                continue
+            estado = self._abrir(cliente, ruta)
+            self._linea(modulo.etiqueta, ruta, estado, bool(estado) and estado < 400)
+            if not estado or estado >= 400:
+                fallos.append(
+                    f"{modulo.etiqueta} ({ruta}) responde {estado} para «{usuario}», "
+                    "y el menú se lo ofrece"
+                )
+        return fallos
 
     def _abrir(self, cliente, ruta):
         try:
