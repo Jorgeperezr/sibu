@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Psicopedagogía — SIBU{% endblock %}
 {% block content %}
-<h1 class="h4 sibu-titulo">Psicopedagogía</h1>
+<div class="sibu-cabecera"><h1 class="h4 sibu-titulo mb-0">Psicopedagogía</h1>
+  {% include "_exportar_servicio.html" with codigo="psicopedagogia" %}
+</div>
 {% if fichas %}
 <div class="table-responsive">
   <table class="table table-hover align-middle">
@@ -17,7 +19,6 @@
       {% endfor %}
     </tbody>
   </table>
-  {% include "_exportar_servicio.html" with codigo="psicopedagogia" %}
 </div>
 {% else %}<p class="text-muted">No hay fichas registradas.</p>{% endif %}
 {% endblock %}

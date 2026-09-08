@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Becas — SIBU{% endblock %}
 {% block content %}
-<h1 class="h4 sibu-titulo">Becas y ayudas económicas</h1>
+<div class="sibu-cabecera"><h1 class="h4 sibu-titulo mb-0">Becas y ayudas económicas</h1>
+  {% include "_exportar_servicio.html" with codigo="becas-y-ayudas-economicas" %}
+</div>
 {% if periodo %}
 <p class="text-muted">Periodo vigente: {{ periodo.codigo }} — {{ periodo.nombre }}</p>
 
@@ -10,8 +12,7 @@
   {% for r in resumen %}
   <div class="col-auto">
     <div class="card"><div class="card-body py-2 px-3">
-      <div class="small text-muted">{{ r.tipo }}  {% include "_exportar_servicio.html" with codigo="becas-y-ayudas-economicas" %}
-</div>
+      <div class="small text-muted">{{ r.tipo }}</div>
       <div class="fs-5 fw-semibold">{{ r.total }}</div>
     </div></div>
   </div>
