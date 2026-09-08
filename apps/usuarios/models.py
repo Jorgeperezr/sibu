@@ -7,7 +7,7 @@ se definen como grupos cargados por fixture; aquí solo se modela la cuenta y
 su relación con servicios y sección.
 """
 
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 
 from apps.core.models import Seccion, Servicio
@@ -25,8 +25,32 @@ class Rol(models.TextChoices):
     USUARIO_FINAL = "usuario_final", "Usuario Final (paciente/beneficiario)"
 
 
+class GestorDeUsuarios(UserManager):
+    """
+    El superusuario nace con rol de Administrador General.
+
+    `rol_principal` sale por omisión como «Consulta Restringida», así que la
+    cuenta creada con `createsuperuser` —la primera del sistema, la del día del
+    despliegue— entraba y no veía ni Reportes, ni la Bitácora, ni la carga de la
+    base institucional: seis módulos de diecisiete. Quien acaba de instalar el
+    sistema concluye que está roto.
+
+    No amplía nada: `rbac.es_admin` ya trata al superusuario como administrador,
+    y esto solo hace que la navegación diga lo mismo que el RBAC. El contenido
+    clínico sigue fuera de su alcance —`atenciones_visibles` devuelve `.none()`
+    para CUALQUIER administrador, por separación de funciones—, y el sello de
+    Psicología no se toca.
+    """
+
+    def create_superuser(self, *args, **kwargs):
+        kwargs.setdefault("rol_principal", Rol.ADMIN_GENERAL)
+        return super().create_superuser(*args, **kwargs)
+
+
 class Usuario(AbstractUser):
     """Cuenta de acceso. `username` = cédula o usuario institucional."""
+
+    objects = GestorDeUsuarios()
 
     cedula = models.CharField(max_length=13, unique=True, null=True, blank=True)
     rol_principal = models.CharField(max_length=20, choices=Rol.choices, default=Rol.CONSULTA)

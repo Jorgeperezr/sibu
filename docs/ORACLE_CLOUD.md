@@ -124,6 +124,20 @@ El arranque hace, en este orden: `check --deploy` (y **aborta** si la
 configuración no está), `migrate` y `preparar`. Que aborte es lo que se quiere:
 un error de configuración solo sale barato antes de que entre nadie.
 
+## 6.1 La primera cuenta
+
+`preparar` deja servicios, roles y catálogos, pero **ninguna persona**: en
+producción no se siembran las cuentas de demostración, que llevan contraseñas
+conocidas. Sin este paso el sistema está en pie y no puede entrar nadie.
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec web \
+  python manage.py createsuperuser
+```
+
+Después, desde esa cuenta, se dan de alta los profesionales con su servicio: es
+el servicio el que decide qué ve cada uno.
+
 ## 7. Comprobar que de verdad funciona
 
 Que la portada cargue no prueba casi nada: con `CSRF_TRUSTED_ORIGINS` mal

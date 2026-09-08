@@ -47,12 +47,15 @@ services:
       - medios:/app/media
       - registros:/app/logs
     # `migrate` antes de servir, y `preparar` deja servicios, roles y catálogos.
+    # `--sin-demo` es redundante —`preparar` ya omite la siembra con DEBUG=False—
+    # y va escrito igualmente: si alguien despliega con DEBUG mal puesto, esta
+    # orden no es la que le crea cuentas con contraseñas conocidas.
     # `check --deploy` va PRIMERO y aborta si la configuración no está: es el
     # único momento en que un error de configuración sale barato.
     command: >
       sh -c "python manage.py check --deploy &&
              python manage.py migrate --noinput &&
-             python manage.py preparar --si-cambio &&
+             python manage.py preparar --si-cambio --sin-demo &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000
                      --workers ${GUNICORN_WORKERS:-3} --timeout 60
                      --access-logfile - --error-logfile -"
