@@ -62,6 +62,84 @@
 </div>
 {% endif %}
 
+{% if valores_efectivos %}
+<div class="card mb-3">
+  <div class="card-header">
+    <a class="text-decoration-none text-body d-block" data-bs-toggle="collapse"
+       href="#form-ajuste" role="button">
+      <i class="bi bi-pencil-square"></i>
+      Lo que {{ servicio_de_ajuste.nombre }} comprobó
+      <small class="text-muted">— frente a lo declarado en matrícula</small>
+    </a>
+  </div>
+  <div class="collapse" id="form-ajuste">
+    <div class="card-body">
+      {% comment %}
+      El caso que lo motiva: en consulta se identifica un embarazo que la ficha
+      de matrícula no declara. El profesional decide si solo lo ve o lo anota.
+      Lo anotado vale para ESTE servicio —es él quien lo comprobó— y la base
+      institucional queda intacta: es la fuente para el resto del sistema y
+      nadie autorizó a reescribirla desde una consulta. Se puede volver atrás.
+      {% endcomment %}
+      <p class="small text-muted">
+        Anotar aquí <strong>no modifica la base institucional</strong>. Lo que
+        registre vale para {{ servicio_de_ajuste.nombre }}, que es quien lo
+        comprobó, y se puede retirar para volver a lo declarado en matrícula.
+      </p>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Variable</th>
+              <th>Declarado en matrícula</th>
+              <th>Lo que consta aquí</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in valores_efectivos %}
+            <tr>
+              <td class="small">{{ v.etiqueta }}</td>
+              <td class="small text-muted">{{ v.institucional|default:"—" }}</td>
+              <td class="small">
+                {{ v.valor|default:"—" }}
+                {% if v.ajustado %}
+                  <span class="badge bg-info-subtle text-info-emphasis border">lo comprobó el servicio</span>
+                  {% if v.nota %}<div class="text-muted">{{ v.nota }}</div>{% endif %}
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <form method="post" action="{% url 'expediente:ajustar' expediente.id %}"
+                      class="d-flex gap-1 justify-content-end">
+                  {% csrf_token %}
+                  <input type="hidden" name="variable" value="{{ v.variable }}">
+                  <input type="hidden" name="servicio" value="{{ servicio_de_ajuste.id }}">
+                  <input name="valor" class="form-control form-control-sm" style="width:110px"
+                         value="{{ v.valor }}" aria-label="Valor comprobado para {{ v.etiqueta }}">
+                  <input name="nota" class="form-control form-control-sm" style="width:190px"
+                         placeholder="Por qué" maxlength="255" value="{{ v.nota }}">
+                  <button class="btn btn-sm btn-outline-primary">Anotar</button>
+                  {% if v.ajustado %}
+                  <button name="accion" value="quitar" class="btn btn-sm btn-outline-secondary"
+                          title="Volver a lo declarado en matrícula">Quitar</button>
+                  {% endif %}
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="small text-muted mb-0">
+        No se pueden ajustar {{ no_ajustables.values|join:" ni " }}: son
+        declaraciones de la persona sobre sí misma, y que un servicio las
+        «corrigiera» sería asignarle una identidad. Se cambian donde se declaran.
+      </p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if acciones %}
 <div class="card mb-3">
   <div class="card-header">Iniciar atención</div>

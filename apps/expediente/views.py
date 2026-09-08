@@ -11,14 +11,16 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core.mensajes import detalle_de_error
 from apps.core.navegacion import acciones_expediente
 from apps.usuarios import rbac
 
 from . import campos as campos_alta
 from .models import AlertaClinica, Expediente, Persona
-from .selectors import MINIMO_TEXTO, buscar_personas, resumen_expediente
+from .selectors import MINIMO_TEXTO, buscar_personas, resumen_expediente, valores_efectivos
 from .services import (
     MAXIMO_POR_LOTE,
+    NO_AJUSTABLES,
     registrar_alerta,
     registrar_lote_de_cedulas,
     registrar_persona,
@@ -179,6 +181,13 @@ def detalle(request, pk):
     # pero abrir una consulta exigía teclear la URL a mano.
     contexto["acciones"] = acciones_expediente(request.user)
     contexto["tipos_alerta"] = AlertaClinica.Tipo.choices
+
+    # Lo que este servicio ve de las variables ajustables, y contra qué. Sin
+    # servicio único no se ofrece ajustar: el ajuste es de quien comprobó.
+    servicio = _servicio_del_profesional(request.user)
+    contexto["servicio_de_ajuste"] = servicio
+    contexto["valores_efectivos"] = valores_efectivos(expediente, servicio) if servicio else []
+    contexto["no_ajustables"] = NO_AJUSTABLES
     return render(request, "expediente/detalle.html", contexto)
 
 
@@ -206,6 +215,80 @@ def alertas(request, pk):
         messages.success(request, "Alerta registrada.")
     except ValidationError as exc:
         messages.error(request, " ".join(exc.messages))
+    return redirect("expediente:detalle", pk=expediente.pk)
+
+
+def _servicio_del_profesional(usuario):
+    """
+    El servicio desde el que este usuario ajusta, o None si no tiene uno solo.
+
+    El ajuste es POR servicio —cada uno reporta lo que él comprobó—, así que sin
+    un servicio no hay dónde anotarlo. Quien atiende en varios elige; quien no
+    atiende en ninguno no ajusta.
+    """
+    from apps.core.models import Servicio
+
+    servicios = list(Servicio.objects.filter(pk__in=rbac.servicios_del_usuario(usuario)))
+    return servicios[0] if len(servicios) == 1 else None
+
+
+@login_required
+def ajustar(request, pk):
+    """
+    Anota lo que este servicio comprobó, sin tocar la base institucional.
+
+    El caso que lo motiva: en consulta se identifica un embarazo que la ficha de
+    matrícula no declara. Hasta ahora el profesional no tenía dónde ponerlo —el
+    modelo, el servicio y los selectores existían y ninguna pantalla los
+    exponía—, así que o no se registraba o alguien acababa editando la base
+    institucional, que es la fuente para todo el sistema.
+
+    Lo que se anota vale para ESTE servicio: es él quien lo comprobó, y cada uno
+    reporta con lo suyo. La matrícula queda intacta y se puede volver a ella
+    quitando el ajuste.
+    """
+    from .services import quitar_ajuste, registrar_ajuste
+
+    if not rbac.puede_ver_expediente(request.user):
+        raise PermissionDenied("No tiene permisos para ajustar el expediente.")
+
+    expediente = get_object_or_404(Expediente, pk=pk)
+    servicio_id = request.POST.get("servicio") or ""
+    servicios = rbac.servicios_del_usuario(request.user)
+    servicio = None
+    if servicio_id.isdigit() and int(servicio_id) in servicios:
+        from apps.core.models import Servicio
+
+        servicio = Servicio.objects.filter(pk=int(servicio_id)).first()
+    servicio = servicio or _servicio_del_profesional(request.user)
+
+    if servicio is None:
+        messages.error(
+            request,
+            "Indique desde qué servicio anota el hallazgo: el ajuste vale para "
+            "el servicio que lo comprobó.",
+        )
+        return redirect("expediente:detalle", pk=expediente.pk)
+
+    try:
+        if request.POST.get("accion") == "quitar":
+            quitar_ajuste(expediente, servicio, request.POST["variable"], usuario=request.user)
+            messages.success(request, "Ajuste retirado: vuelve a valer lo declarado en matrícula.")
+        else:
+            registrar_ajuste(
+                expediente,
+                servicio,
+                request.POST["variable"],
+                request.POST["valor"],
+                usuario=request.user,
+                nota=request.POST.get("nota", ""),
+            )
+            messages.success(
+                request,
+                f"Anotado para {servicio.nombre}. La base institucional no se modifica.",
+            )
+    except (ValidationError, KeyError) as exc:
+        messages.error(request, detalle_de_error(exc, "Revise el ajuste."))
     return redirect("expediente:detalle", pk=expediente.pk)
 
 

@@ -380,3 +380,36 @@ def test_el_rechazo_queda_auditado_al_pasar_por_la_vista(escenario):
     assert log is not None, "el intento rechazado no quedó auditado"
     assert log.usuario == escenario["beto"]
     assert not VinculacionPortal.objects.filter(usuario=escenario["beto"], verificado=True).exists()
+
+
+@pytest.mark.django_db
+def test_el_portal_no_muestra_talleres(escenario):
+    """
+    Los talleres son trabajo del servicio que los organiza y los ve su personal
+    responsable, no quien asiste.
+
+    El panel listaba «Mis talleres» y el barrido de la API eximía a talleres
+    como catálogo público. La lista de participantes se conserva —es la base de
+    la cobertura que el servicio reporta—, pero no se publica al estudiante.
+    """
+    from apps.expediente.tests.factories import crear_profesional
+    from apps.talleres.models import Taller, TallerParticipante
+
+    _psicologo, perfil = crear_profesional(
+        "psi_taller_portal", escenario["est"]["psicologia"], escenario["est"]["psico"]
+    )
+    taller = Taller.objects.create(
+        servicio=escenario["est"]["psicologia"],
+        seccion=escenario["est"]["psico"],
+        responsable=perfil,
+        tema="Manejo del estrés",
+        fecha=timezone.localdate(),
+    )
+    TallerParticipante.objects.create(taller=taller, expediente=escenario["exp_a"])
+
+    _vincular(escenario["ana"], escenario["exp_a"])
+    cliente = Client()
+    assert cliente.login(username="ana", password=CLAVE)
+    contenido = cliente.get("/portal/").content.decode()
+    assert "Manejo del estrés" not in contenido
+    assert "Mis talleres" not in contenido

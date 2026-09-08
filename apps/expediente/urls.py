@@ -15,5 +15,6 @@ urlpatterns = [
     path("lote/", views.alta_masiva, name="alta_masiva"),
     path("<int:pk>/", views.detalle, name="detalle"),
     path("<int:pk>/alertas/", views.alertas, name="alertas"),
+    path("<int:pk>/ajustar/", views.ajustar, name="ajustar"),
     path("<int:pk>/datos/", views.datos, name="datos"),
 ]

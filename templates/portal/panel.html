@@ -96,20 +96,13 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-header">Mis talleres</div>
-      <div class="card-body p-0">
-        {% if talleres %}
-        <ul class="list-group list-group-flush small">
-          {% for t in talleres %}
-          <li class="list-group-item">
-            {{ t.taller.tema }} · {{ t.taller.fecha|date:"d/m/Y" }}
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}<p class="text-muted small p-3 mb-0">Sin talleres.</p>{% endif %}
-      </div>
-    </div>
+    {% comment %}
+    Los talleres no se muestran en el portal. Son trabajo del servicio que los
+    organiza y los ve el personal responsable de ese servicio, no quien asiste.
+    La función `services.mis_talleres` se conserva —la lista de participantes
+    existe y es la base de la cobertura que se reporta—, pero no se publica
+    aquí.
+    {% endcomment %}
   </div>
 </div>
 {% endblock %}

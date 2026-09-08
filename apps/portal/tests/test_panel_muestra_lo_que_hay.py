@@ -99,7 +99,9 @@ def test_ninguna_tarjeta_del_panel_queda_en_blanco(paciente):
 
     plantilla = pathlib.Path("templates/portal/panel.html").read_text()
     # (alias del bucle, modelo) tal como aparecen en el panel.
-    ALIAS = [("b", "becas.BecaBeneficiario"), ("t", "talleres.TallerParticipante")]
+    # Los talleres salieron del panel: los ve el personal del servicio que los
+    # organiza, no quien asiste.
+    ALIAS = [("b", "becas.BecaBeneficiario")]
     faltantes = []
     for alias, etiqueta in ALIAS:
         modelo = registro.get_model(*etiqueta.split("."))

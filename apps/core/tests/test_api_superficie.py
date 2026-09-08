@@ -42,7 +42,6 @@ CATALOGOS = {
     "odontologia/catalogo": "catálogo de procedimientos",
     "psicologia/escalas": "catálogo de escalas psicométricas, sin aplicaciones",
     "becas/tipos": "tipos de beca ofertados",
-    "talleres": "oferta de talleres: es pública, y un taller no abre expediente",
 }
 
 

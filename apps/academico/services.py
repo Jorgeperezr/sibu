@@ -210,8 +210,31 @@ class ProcesadorCarga:
                 )
 
     # -- upserts --
+    #
+    # Qué se actualiza al RECARGAR a alguien que ya está, y qué no. La base se
+    # entrega cada período académico, y el archivo del período nuevo trae lo
+    # que cambia: ciclo, estado de matrícula, gestación… El resto viene vacío.
+    #
+    # Con `update_or_create` y un `defaults` completo, esos huecos se escribían:
+    # una recarga borraba la fecha de nacimiento, el sexo, el celular y el
+    # correo de quien ya estaba registrado. Sin fecha de nacimiento no hay edad;
+    # sin sexo el informe pierde una variable; sin celular no se puede llamar al
+    # paciente. Nadie veía un error: la carga decía «1 actualización».
+
+    # Lo que identifica a la persona y no cambia con el período. Se rellena si
+    # falta; si ya hay valor, NO se pisa. Es el mismo criterio que ya seguía
+    # `_asegurar_expediente`: la matrícula es una foto del día en que se llenó
+    # la ficha, y lo que el sistema ya sabe de alguien no se reescribe con ella.
+    # Una corrección de verdad —un apellido mal escrito— se hace donde se
+    # corrige, no colándola en la carga del semestre siguiente.
+    ESTABLES = ("nombres", "apellidos", "tipo_documento", "fecha_nacimiento", "sexo", "genero")
+
+    # Datos de contacto: cambian de verdad entre períodos y la institución es la
+    # fuente. Se actualizan cuando el archivo trae algo; un vacío nunca borra.
+    DE_CONTACTO = ("celular", "telefono", "correo_institucional")
+
     def _upsert_persona(self, fila, cedula, nombres, apellidos):
-        defaults = {
+        leidos = {
             "nombres": nombres,
             "apellidos": apellidos,
             "tipo_documento": self._get(fila, "tipo_documento") or "cedula",
@@ -220,15 +243,48 @@ class ProcesadorCarga:
             "celular": self._get(fila, "celular") or "",
             "telefono": self._get(fila, "telefono") or "",
             "correo_institucional": self._get(fila, "email_institucional") or "",
-            "tipo_vinculo": self.estamento,
             "fecha_nacimiento": validators.a_fecha(self._get(fila, "fecha_nacimiento")),
-            "procedencia": self._subdict(fila, mapping.PERSONA_JSONB["procedencia"]),
-            "residencia_actual": self._subdict(fila, mapping.PERSONA_JSONB["residencia_actual"]),
-            "contacto_referencia": self._subdict(
-                fila, mapping.PERSONA_JSONB["contacto_referencia"]
-            ),
         }
-        return Persona.objects.update_or_create(cedula=cedula, defaults=defaults)
+        jsonb = {
+            campo: self._subdict(fila, columnas)
+            for campo, columnas in mapping.PERSONA_JSONB.items()
+        }
+
+        persona = Persona.objects.filter(cedula=cedula).first()
+        if persona is None:
+            return Persona.objects.create(
+                cedula=cedula, tipo_vinculo=self.estamento, **leidos, **jsonb
+            ), True
+
+        # El estamento sí se declara en cada carga: es lo que dice a qué base
+        # pertenece este archivo, y quien lo carga acaba de afirmarlo.
+        cambios = ["tipo_vinculo"]
+        persona.tipo_vinculo = self.estamento
+
+        for campo in self.ESTABLES:
+            valor = leidos[campo]
+            if valor and not getattr(persona, campo):
+                setattr(persona, campo, valor)
+                cambios.append(campo)
+
+        for campo in self.DE_CONTACTO:
+            valor = leidos[campo]
+            if valor and valor != getattr(persona, campo):
+                setattr(persona, campo, valor)
+                cambios.append(campo)
+
+        # Los JSON se FUSIONAN, no se reemplazan: un archivo que solo trae la
+        # provincia no puede vaciar la parroquia y el cantón que ya estaban.
+        for campo, nuevos in jsonb.items():
+            if not nuevos:
+                continue
+            fusionado = {**(getattr(persona, campo) or {}), **nuevos}
+            if fusionado != getattr(persona, campo):
+                setattr(persona, campo, fusionado)
+                cambios.append(campo)
+
+        persona.save(update_fields=[*dict.fromkeys(cambios), "actualizado_en"])
+        return persona, False
 
     def _upsert_dato_academico(self, fila, persona):
         from .models import DatoAcademico
@@ -317,19 +373,47 @@ class ProcesadorCarga:
             salud_familiar=self._subdict(fila, mapping.FICHA_JSONB["salud_familiar"]),
         )
 
+    # Lo que en el archivo significa «no». Se compara en minúsculas y sin
+    # espacios: las cuatro bases institucionales escriben la negación a su
+    # manera y ninguna vale más que otra.
+    NEGACIONES = {"no", "0", "ninguno", "n/a", "ninguna", "false", "-"}
+
     def _generar_alertas(self, fila, expediente) -> int:
-        """Crea alertas visibles en el expediente según REGLAS_ALERTA."""
+        """
+        Enciende y APAGA las alertas que declara la ficha de matrícula.
+
+        Apagar es la mitad que faltaba. La gestación y la lactancia cambian de
+        un período al siguiente y esto solo sabía encenderlas: un embarazo
+        declarado en 2026-1 seguía activo en 2027 y el informe estadístico lo
+        seguía contando como una gestación en curso.
+
+        Solo se apaga lo que la propia matrícula encendió (`origen=matricula`) y
+        solo cuando el archivo lo NIEGA expresamente: una columna vacía es
+        ausencia de dato, no un «ya no». Lo que registró un profesional en
+        consulta no se toca —él lo comprobó, la ficha no—, y por eso la alerta
+        lleva su origen.
+        """
         generadas = 0
         for columna, (tipo, _servicio, plantilla) in mapping.REGLAS_ALERTA.items():
             valor = self._get(fila, columna)
-            if not valor or str(valor).strip().lower() in {"no", "0", "ninguno", "n/a"}:
+            if valor is None or str(valor).strip() == "":
+                continue  # sin dato: ni se enciende ni se apaga
+
+            if str(valor).strip().lower() in self.NEGACIONES:
+                AlertaClinica.objects.filter(
+                    expediente=expediente,
+                    tipo=tipo,
+                    activa=True,
+                    origen=AlertaClinica.Origen.MATRICULA,
+                ).update(activa=False)
                 continue
+
             descripcion = plantilla.format(valor=valor)
             _, creada = AlertaClinica.objects.get_or_create(
                 expediente=expediente,
                 tipo=tipo,
                 descripcion=descripcion,
-                defaults={"activa": True},
+                defaults={"activa": True, "origen": AlertaClinica.Origen.MATRICULA},
             )
             generadas += 1 if creada else 0
         return generadas

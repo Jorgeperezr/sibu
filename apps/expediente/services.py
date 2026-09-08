@@ -159,11 +159,26 @@ def registrar_alerta(
         expediente=expediente,
         tipo=tipo,
         descripcion=descripcion,
-        defaults={"activa": True, "creado_por": usuario},
+        defaults={
+            "activa": True,
+            "creado_por": usuario,
+            # Lo que registra un profesional queda marcado como suyo: una
+            # recarga de la base institucional puede apagar lo que ella misma
+            # declaró, nunca lo que alguien comprobó en consulta.
+            "origen": AlertaClinica.Origen.PROFESIONAL,
+        },
     )
+    cambios = []
     if not creada and not alerta.activa:
         alerta.activa = True
-        alerta.save(update_fields=["activa"])
+        cambios.append("activa")
+    if not creada and alerta.origen != AlertaClinica.Origen.PROFESIONAL:
+        # La declaró la matrícula y ahora la confirma un profesional: pasa a ser
+        # suya, y la siguiente carga ya no la apaga.
+        alerta.origen = AlertaClinica.Origen.PROFESIONAL
+        cambios.append("origen")
+    if cambios:
+        alerta.save(update_fields=cambios)
     return alerta
 
 

@@ -22,6 +22,22 @@ talleres, portal del estudiante y tablero de gestión.
   expediente vinculado; ningún recurso se busca por id de URL sin filtrar.
 - **Ausencia de dato no es prueba de ausencia.** Sin datos académicos cargados
   no se concluye "no matriculado".
+- **Una recarga de otro período no rescribe a la persona.** El archivo nuevo
+  trae lo que cambia y el resto vacío: con un `defaults` completo esos huecos
+  borraban la fecha de nacimiento, el sexo y el contacto. Lo estable se rellena
+  si falta y no se pisa; el contacto se actualiza pero un vacío no borra; los
+  JSON se fusionan; lo del período vive en `DatoAcademico`.
+- **La edad se calcula, nunca se guarda.** Una edad almacenada queda congelada
+  en la carga que la escribió. `Persona.edad` sale de la fecha de nacimiento.
+- **La carga apaga lo que la carga encendió, y nada más.** Gestación y
+  lactancia cambian de período: solo se desactivan con una negación EXPRESA del
+  archivo y solo si `origen=matricula`. Lo que registró un profesional no lo
+  toca una recarga: él lo comprobó, la ficha no.
+- **Lo que un servicio comprueba se anota como suyo, no en la base.**
+  `AjusteDeServicio` desde el detalle del expediente; la matrícula queda
+  intacta y se puede volver a ella. Género e identidad no son ajustables.
+- **Los talleres no se publican al estudiante.** Los ve el personal del
+  servicio que los organiza.
 - **El estamento es `Persona.tipo_vinculo`, no un campo nuevo.** Cuatro
   estamentos (estudiante, docente, administrativo, trabajador) más «externo»,
   que no lo es. Cada estamento tiene su propia base con columnas distintas y se

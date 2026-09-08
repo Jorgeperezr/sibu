@@ -7,6 +7,7 @@ una relación OneToOne (patrón "clase base + extensión", informe 4.2 y 11.3).
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from apps.academico.validators import normalizar_cedula, validar_cedula_ecuatoriana
 from apps.core.models import ModeloBase, Servicio
@@ -80,6 +81,26 @@ class Persona(ModeloBase):
     def nombre_completo(self):
         return f"{self.apellidos} {self.nombres}".strip()
 
+    @property
+    def edad(self):
+        """
+        Los años cumplidos hoy, o None si no consta la fecha de nacimiento.
+
+        Se calcula, no se guarda, y eso es lo que la hace fiable: una edad
+        almacenada envejece mal —queda congelada en la carga que la escribió— y
+        al año siguiente el expediente afirma una edad que ya no es cierta. La
+        fecha de nacimiento no cambia nunca; la edad, cada año.
+
+        `(hoy.month, hoy.day) < (…)` resta el año que aún no se ha cumplido: sin
+        eso, quien nació en diciembre aparece un año mayor durante once meses.
+        """
+        if not self.fecha_nacimiento:
+            return None
+        hoy = timezone.localdate()
+        nacimiento = self.fecha_nacimiento
+        cumplido = (hoy.month, hoy.day) >= (nacimiento.month, nacimiento.day)
+        return hoy.year - nacimiento.year - (0 if cumplido else 1)
+
     def save(self, *args, **kwargs):
         """
         Normaliza y valida la cédula antes de tocar la base.
@@ -141,11 +162,26 @@ class AlertaClinica(ModeloBase):
         LACTANCIA = "lactancia", "Lactancia"
         ENF_CATASTROFICA = "enf_catastrofica", "Enfermedad catastrófica"
 
+    class Origen(models.TextChoices):
+        MATRICULA = "matricula", "Declarada en matrícula"
+        PROFESIONAL = "profesional", "Registrada por un profesional"
+
     expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE, related_name="alertas")
     # Se ensancha de 12 a 20: "enf_catastrofica" no cabía en el ancho original.
     tipo = models.CharField(max_length=20, choices=Tipo.choices)
     descripcion = models.CharField(max_length=255)
     activa = models.BooleanField(default=True)
+    # Quién la puso, y esto decide quién puede apagarla.
+    #
+    # La gestación y la lactancia cambian de un período al siguiente, y la carga
+    # institucional solo sabía encenderlas: `get_or_create` creaba la alerta y
+    # nada la desactivaba nunca, así que un embarazo declarado en 2026-1 seguía
+    # activo en 2027 y el informe lo seguía contando.
+    #
+    # La carga puede apagar lo que la carga encendió. Lo que registró un
+    # profesional en consulta no lo toca: él lo comprobó, la ficha de matrícula
+    # no, y una recarga no es una segunda opinión.
+    origen = models.CharField(max_length=12, choices=Origen.choices, default=Origen.MATRICULA)
 
     class Meta:
         verbose_name = "alerta clínica"
