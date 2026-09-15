@@ -10,6 +10,7 @@ Endpoints principales:
 """
 
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -89,7 +90,7 @@ class CitaViewSet(viewsets.ModelViewSet):
                 servicio=Servicio.objects.get(pk=data["servicio"]),
                 profesional=PerfilProfesional.objects.get(pk=data["profesional"]),
                 fecha_hora=data["fecha_hora"],
-                duracion_min=data.get("duracion_min", 20),
+                duracion_min=data.get("duracion_min"),
                 motivo=data.get("motivo", ""),
                 origen=data.get("origen", Cita.Origen.VENTANILLA),
                 usuario=request.user if request.user.is_authenticated else None,
@@ -145,7 +146,19 @@ class CitaViewSet(viewsets.ModelViewSet):
             Servicio.objects.get(pk=s.validated_data["servicio"]),
             s.validated_data["fecha"],
         )
-        return Response({"turnos": [t.isoformat() for t in turnos]})
+        # La etiqueta la compone el servidor. El navegador la sacaba de
+        # `toLocaleString`, que usa la zona horaria DEL EQUIPO: en uno mal
+        # configurado el desplegable ofrecía «02:00 p. m.» para el turno de las
+        # 09:00 y, al guardar, el aviso confirmaba «09:00». La misma cita con
+        # dos horas distintas en la misma pantalla, y quien elige no tiene cómo
+        # saber cuál es la buena. La agenda se define en hora de Loja, así que
+        # es el servidor —que ya la conoce— quien tiene que decir la hora.
+        return Response(
+            {
+                "turnos": [t.isoformat() for t in turnos],
+                "etiquetas": [timezone.localtime(t).strftime("%H:%M") for t in turnos],
+            }
+        )
 
     @action(detail=False, methods=["get"])
     def proximas(self, request):

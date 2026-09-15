@@ -26,6 +26,7 @@ class Modulo:
     #   ("siempre", None)          -> visible para cualquier autenticado
     #   ("personal", None)         -> pasa `puede_ver_expediente`: es personal
     #                                 de la Unidad, no alguien con sesión
+    #   ("con_perfil", None)       -> tiene ficha de profesional: atiende
     #   ("tiene_servicio", None)   -> tiene AL MENOS un servicio, cualquiera
     #   ("servicio_exportable", None) -> tiene al menos uno NO confidencial
     #   ("permiso", "app.codigo")  -> tiene ese permiso de Django
@@ -46,6 +47,10 @@ MODULOS = [
     # hay HOY; el calendario, en qué días del mes hay algo, que era justo lo
     # que no se podía saber sin teclear fecha por fecha.
     Modulo("Calendario", "citas:calendario", ("personal", None), "General"),
+    # `con_perfil` y no `personal`: configurar el propio horario exige tener
+    # ficha de profesional. Ventanilla pasa `puede_ver_expediente` y no atiende
+    # consultas, así que le saldría un enlace a un 403.
+    Modulo("Mi horario", "citas:mi_horario", ("con_perfil", None), "General"),
     Modulo("Medicina", "medicina:bandeja", ("servicio", "medicina"), "Salud"),
     Modulo("Enfermería", "enfermeria:bandeja", ("servicio", "enfermeria"), "Salud"),
     Modulo("Odontología", "odontologia:bandeja", ("servicio", "odontologia"), "Salud"),
@@ -132,6 +137,10 @@ def _ve_modulo(user, modulo: Modulo, servicios_ids: set, codigos_por_id: dict) -
         from apps.usuarios.rbac import puede_ver_expediente
 
         return puede_ver_expediente(user)
+    if tipo == "con_perfil":
+        from apps.usuarios.rbac import puede_ver_expediente
+
+        return puede_ver_expediente(user) and getattr(user, "perfil", None) is not None
     if tipo == "roles":
         return getattr(user, "rol_principal", None) in dato
     if tipo == "servicio":

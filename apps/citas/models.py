@@ -77,6 +77,21 @@ class Agenda(ModeloBase):
         if self.hora_inicio >= self.hora_fin:
             raise ValidationError("La hora de inicio debe ser anterior a la hora de fin.")
 
+    @property
+    def turnos_por_dia(self) -> int:
+        """
+        Cuántos pacientes caben en la franja.
+
+        Es el número que de verdad se quiere saber al cambiar la duración de la
+        consulta —pasar de 20 a 30 minutos en una mañana de cuatro horas es
+        bajar de doce pacientes a ocho—, y no sale de cabeza mirando dos horas
+        y un número de minutos.
+        """
+        minutos = (self.hora_fin.hour * 60 + self.hora_fin.minute) - (
+            self.hora_inicio.hour * 60 + self.hora_inicio.minute
+        )
+        return max(minutos // self.duracion_turno_min, 0) if self.duracion_turno_min else 0
+
     def generar_turnos(self, fecha):
         """Genera la lista de horarios de inicio para un día concreto."""
         tz = timezone.get_current_timezone()

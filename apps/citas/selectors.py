@@ -127,3 +127,59 @@ def citas_visibles(user, queryset):
     return queryset.exclude(
         servicio__codigo__in=SERVICIOS_CONFIDENCIALES,
     ) | queryset.filter(servicio_id__in=mis_servicios)
+
+
+def franjas_del_profesional(profesional: PerfilProfesional):
+    """
+    El horario configurado, incluidas las franjas retiradas.
+
+    Las retiradas se conservan porque explican de dónde salió una cita ya
+    reservada; la pantalla las enseña aparte.
+    """
+    from .models import Agenda
+
+    return (
+        Agenda.objects.filter(profesional=profesional)
+        .select_related("servicio")
+        # Las vigentes primero: el horario que rige es lo que se viene a ver, y
+        # las retiradas están para explicar una cita antigua, no para encabezar.
+        .order_by("-activa", "dia_semana", "hora_inicio")
+    )
+
+
+def citas_fuera_del_horario(profesional: PerfilProfesional):
+    """
+    Citas vivas y futuras que ya no caen dentro de ninguna franja vigente.
+
+    Estrechar el horario o retirar un día NO cancela a nadie: quien reservó un
+    jueves a las 16:00 sigue teniendo su hora, y decidir qué hacer con ella es
+    del profesional, no del sistema. Lo que sí hace el sistema es no callárselo:
+    sin este aviso la cita desaparecía de los turnos ofrecidos y seguía viva en
+    la agenda del día, y el paciente se presentaba a una consulta que su
+    profesional ya no tenía prevista.
+
+    Se miran solo las futuras: una cita pasada se atendió o no, y reprocharla
+    ahora no arregla nada.
+    """
+    from .services import agendas_vigentes
+
+    candidatas = (
+        Cita.objects.filter(
+            profesional=profesional,
+            estado__in=ESTADOS_ACTIVOS,
+            fecha_hora__gte=timezone.now(),
+        )
+        .select_related("expediente__persona", "servicio")
+        .order_by("fecha_hora")
+    )
+
+    fuera = []
+    for cita in candidatas:
+        local = timezone.localtime(cita.fecha_hora)
+        fin = timezone.localtime(cita.fin)
+        cabe = agendas_vigentes(profesional, local.date(), cita.servicio).filter(
+            hora_inicio__lte=local.time(), hora_fin__gte=fin.time()
+        )
+        if fin.date() != local.date() or not cabe.exists():
+            fuera.append(cita)
+    return fuera

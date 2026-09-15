@@ -15,10 +15,11 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.utils.dateparse import parse_date, parse_datetime
+from django.utils.dateparse import parse_date, parse_datetime, parse_time
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from apps.core.models import Servicio
+from apps.core.numeros import a_entero
 from apps.expediente.models import Expediente
 from apps.expediente.services import resolver_por_cedula
 from apps.usuarios import rbac
@@ -26,8 +27,13 @@ from apps.usuarios.models import PerfilProfesional
 from apps.usuarios.rbac import servicios_del_usuario
 
 from . import services
-from .models import Cita
-from .selectors import citas_del_dia, conteo_por_dia
+from .models import Agenda, Cita, DiaSemana
+from .selectors import (
+    citas_del_dia,
+    citas_fuera_del_horario,
+    conteo_por_dia,
+    franjas_del_profesional,
+)
 
 # En español y escritos aquí: `calendar.month_name` sale en el idioma del
 # sistema operativo, que en el contenedor es inglés.
@@ -359,3 +365,105 @@ def reprogramar(request, pk):
     except ValidationError as exc:
         messages.error(request, "; ".join(exc.messages))
     return _volver(request)
+
+
+# --------------------------------------------------------------- mi horario
+
+
+def _mi_perfil(request) -> PerfilProfesional:
+    """
+    El perfil propio, y solo el propio.
+
+    Aquí no vale `_perfil_pedido`: ver la agenda de un compañero es una cosa y
+    cambiarle los días de trabajo es otra. Quien no tiene perfil profesional no
+    atiende, así que no tiene horario que configurar.
+    """
+    perfil = getattr(request.user, "perfil", None)
+    if perfil is None:
+        raise PermissionDenied("Su cuenta no tiene perfil profesional: no atiende consultas.")
+    return perfil
+
+
+@login_required
+def mi_horario(request):
+    """
+    Los días, las horas y la duración de consulta de quien ha iniciado sesión.
+
+    `Agenda` existía entera desde el Sprint 3 y solo se tocaba desde el panel de
+    administración de Django o desde el shell: quien atiende no podía declarar
+    cuándo lo hace. Y es lo que decide TODO el agendamiento —qué turnos ve
+    ventanilla y cuánto dura cada cita—, así que sin esta pantalla el sistema
+    ofrecía los turnos de un horario que nadie había podido escribir.
+    """
+    _solo_personal(request)
+    perfil = _mi_perfil(request)
+
+    if request.method == "POST":
+        return _guardar_mi_horario(request, perfil)
+
+    return render(
+        request,
+        "citas/mi_horario.html",
+        {
+            "perfil": perfil,
+            "franjas": franjas_del_profesional(perfil),
+            "dias": DiaSemana.choices,
+            "servicios": perfil.servicios.select_related("seccion").order_by("nombre"),
+            "fuera": citas_fuera_del_horario(perfil),
+            "duracion_minima": services.DURACION_MINIMA_MIN,
+            "duracion_maxima": services.DURACION_MAXIMA_MIN,
+        },
+    )
+
+
+def _franja_propia(perfil, pk) -> Agenda:
+    """La franja, si es suya. La de otro no se toca ni para leerla."""
+    return get_object_or_404(Agenda, pk=pk, profesional=perfil)
+
+
+def _guardar_mi_horario(request, perfil):
+    """Alta, edición y retirada de una franja. Todo por POST, todo del propio."""
+    accion = request.POST.get("accion", "guardar")
+    try:
+        if accion == "retirar":
+            franja = _franja_propia(perfil, request.POST["franja"])
+            services.retirar_franja(franja)
+            messages.success(
+                request,
+                f"Retirado el {franja.get_dia_semana_display().lower()} de "
+                f"{franja.hora_inicio:%H:%M}. Las citas ya reservadas siguen en pie.",
+            )
+        else:
+            franja_id = request.POST.get("franja")
+            franja = _franja_propia(perfil, franja_id) if franja_id else None
+            guardada = services.guardar_franja(
+                profesional=perfil,
+                servicio=Servicio.objects.get(pk=request.POST["servicio"]),
+                dia_semana=a_entero(request.POST.get("dia_semana"), "el día"),
+                hora_inicio=_hora(request.POST.get("hora_inicio"), "la hora de inicio"),
+                hora_fin=_hora(request.POST.get("hora_fin"), "la hora de fin"),
+                duracion_turno_min=a_entero(request.POST.get("duracion"), "la duración"),
+                vigente_desde=parse_date(request.POST.get("vigente_desde") or "") or None,
+                vigente_hasta=parse_date(request.POST.get("vigente_hasta") or "") or None,
+                franja=franja,
+            )
+            messages.success(
+                request,
+                f"{guardada.get_dia_semana_display()} de {guardada.hora_inicio:%H:%M} a "
+                f"{guardada.hora_fin:%H:%M}, consultas de {guardada.duracion_turno_min} min.",
+            )
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+    except Servicio.DoesNotExist:
+        messages.error(request, "Elija el servicio en el que atiende esa franja.")
+    except KeyError:
+        messages.error(request, "Faltan datos de la franja.")
+    return redirect("citas:mi_horario")
+
+
+def _hora(valor, campo):
+    """Una hora, o un aviso que dice cuál falta."""
+    hora = parse_time(valor or "")
+    if hora is None:
+        raise ValidationError(f"Indique {campo} en formato HH:MM.")
+    return hora

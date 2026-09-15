@@ -42,6 +42,14 @@ talleres, portal del estudiante y tablero de gestión.
   estamentos (estudiante, docente, administrativo, trabajador) más «externo»,
   que no lo es. Cada estamento tiene su propia base con columnas distintas y se
   declara al cargar; sin declararlo no se escribe.
+- **El horario lo pone quien atiende, y de ahí sale el agendamiento.** Cada
+  profesional declara sus días, sus horas y cuánto dura su consulta
+  (`citas:mi_horario`, sobre `Agenda`). De esas franjas salen los turnos que ve
+  ventanilla Y la duración que se graba en cada cita: no hay un número por
+  omisión que decida por él. Solo en servicios propios, sin franjas que se
+  pisen —la persona es una— y la consulta tiene que caber en la franja.
+  Estrechar el horario **no cancela** citas ya reservadas: el sistema avisa de
+  las que quedan fuera y la decisión es del profesional.
 - **Un anexo nombra a personas.** La nómina y las evidencias del informe
   estadístico llevan la identidad protegida por omisión (sin cédula, teléfono,
   correo ni número de expediente —que es `EXP-<cédula>`—) y no existen para los
@@ -140,6 +148,20 @@ talleres, portal del estudiante y tablero de gestión.
 - **Una redirección que pierde el parámetro de contexto miente.** Anotar desde
   Medicina y volver a otro servicio enseña el valor sin tocar bajo un aviso que
   dice «Anotado»: parece que no guardó. La redirección conserva el `?servicio=`.
+- **Una hora que compone el navegador sale en la zona del equipo.** El
+  desplegable de turnos usaba `toLocaleString`: en un equipo mal configurado
+  ofrecía «02:00 p. m.» para el turno de las 09:00 y el aviso de guardado
+  confirmaba «09:00» —la misma cita con dos horas en la misma pantalla—. La
+  agenda se define en hora de Loja y el servidor ya la conoce: la etiqueta
+  viaja escrita desde el servidor, no se recalcula en el cliente.
+- **Un valor por omisión que nadie sobrescribe es una mentira con vida propia.**
+  `reservar_cita` llevaba `duracion_min=20` y ninguna pantalla lo pasaba: con
+  consultas de 40 min configuradas, la pantalla ofrecía turnos cada 40 y
+  grababa citas de 20, así que SIBU daba por libre la segunda mitad de cada
+  consulta. La duración la pone la agenda.
+- **Ocupado es solapar, no empezar en el mismo minuto.** Comparar la igualdad
+  exacta de `fecha_hora` basta mientras todas las citas duran lo mismo; en
+  cuanto el profesional cambia su duración, deja de bastar.
 - **Una prueba que ejercita justo el valor por omisión no falsifica nada.** La
   del retorno al servicio anotaba desde Enfermería, que era el servicio al que
   se caía por omisión: pasaba con el defecto puesto. Al falsificar, si la
@@ -181,6 +203,6 @@ Despliegue (Oracle Cloud, capa gratuita) en `docs/ORACLE_CLOUD.md`. El
 
     ruff check .
     ruff format --check .
-    pytest apps -q          # deben pasar TODAS (1164 al día de hoy)
+    pytest apps -q          # deben pasar TODAS (1215 al día de hoy)
     python manage.py check
     python manage.py makemigrations --check --dry-run
