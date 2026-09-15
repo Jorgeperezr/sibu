@@ -27,6 +27,7 @@ class Modulo:
     #   ("personal", None)         -> pasa `puede_ver_expediente`: es personal
     #                                 de la Unidad, no alguien con sesión
     #   ("con_perfil", None)       -> tiene ficha de profesional: atiende
+    #   ("admin", None)            -> `rbac.es_admin`: Administración General
     #   ("tiene_servicio", None)   -> tiene AL MENOS un servicio, cualquiera
     #   ("servicio_exportable", None) -> tiene al menos uno NO confidencial
     #   ("permiso", "app.codigo")  -> tiene ese permiso de Django
@@ -103,6 +104,10 @@ MODULOS = [
         ("roles", {Rol.ADMIN_GENERAL, Rol.DIRECTOR, Rol.COORDINADOR}),
         "Gestión",
     ),
+    # Solo Administración General: aquí se asignan servicios, y asignar el de
+    # Psicología concede acceso a contenido sellado. Ni la Dirección ni la
+    # Coordinación lo tocan.
+    Modulo("Perfiles", "usuarios:gestion_perfiles", ("admin", None), "Gestión"),
     # A diferencia del tablero de arriba —Dirección, agregados de TODA la
     # Unidad—, este lo genera cualquier profesional sobre su propio servicio:
     # es el mismo contenido que ya ve atención por atención.
@@ -141,6 +146,12 @@ def _ve_modulo(user, modulo: Modulo, servicios_ids: set, codigos_por_id: dict) -
         from apps.usuarios.rbac import puede_ver_expediente
 
         return puede_ver_expediente(user) and getattr(user, "perfil", None) is not None
+    if tipo == "admin":
+        # La MISMA función que guarda la vista. Dos comprobaciones parecidas se
+        # separan, y entonces el menú ofrece lo que la vista niega.
+        from apps.usuarios.rbac import es_admin
+
+        return es_admin(user)
     if tipo == "roles":
         return getattr(user, "rol_principal", None) in dato
     if tipo == "servicio":

@@ -15,15 +15,23 @@ profesional pueda comprobar con qué permisos trabaja.
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
-from .models import ActividadEsencial, PerfilProfesional
+from apps.core.models import Seccion, Servicio
+
+from . import rbac
+from .models import ActividadEsencial, PerfilProfesional, Rol, Usuario
+from .rbac import SERVICIOS_CONFIDENCIALES
+from .selectors import cuentas_sin_perfil, perfiles_para_gestion
 from .services import (
     CAMPOS_CUENTA,
     CAMPOS_PERFIL,
     actualizar_mi_perfil,
     agregar_actividad,
+    asignar_perfil,
+    crear_perfil,
     eliminar_actividad,
 )
 
@@ -94,3 +102,115 @@ def mi_perfil(request):
             "actividades": actividades,
         },
     )
+
+
+# ============================================================
+# Gestión de perfiles (solo Administración General)
+# ============================================================
+
+
+def _solo_administracion(request) -> None:
+    """
+    Asignar servicios es conceder acceso, y el de Psicología abre contenido
+    sellado. Lo decide Administración General y nadie más: ni la Dirección, ni
+    la Coordinación, ni quien ya atiende en el servicio.
+    """
+    if not rbac.es_admin(request.user):
+        raise PermissionDenied("La gestión de perfiles es de Administración General.")
+
+
+@login_required
+def gestion_perfiles(request):
+    """
+    Quién atiende, en qué servicio, con qué rol y si tiene horario.
+
+    Hasta ahora esta pregunta solo se contestaba a mano desde `/admin/` de
+    Django, que lista cuentas y perfiles por separado y no dice ni los
+    servicios ni si hay franjas. La columna del horario es la que evita el
+    desconcierto más común: un profesional bien dado de alta y sin franjas
+    **no admite ninguna cita**, y nada en su ficha lo advertía.
+
+    Las cuentas sin perfil van abajo a propósito: son las que no aparecen en
+    ninguna bandeja, y la pregunta «¿por qué no sale Fulano?» se contesta aquí.
+    """
+    _solo_administracion(request)
+    return render(
+        request,
+        "usuarios/gestion_perfiles.html",
+        {
+            "perfiles": perfiles_para_gestion(
+                request.GET.get("q", ""), request.GET.get("seccion") or None
+            ),
+            "sin_perfil": cuentas_sin_perfil(),
+            "secciones": Seccion.objects.order_by("nombre"),
+            "q": request.GET.get("q", ""),
+            "seccion": request.GET.get("seccion", ""),
+            "confidenciales": SERVICIOS_CONFIDENCIALES,
+        },
+    )
+
+
+@login_required
+def editar_perfil(request, pk):
+    """Sección, servicios, rol y firma digital de un profesional."""
+    _solo_administracion(request)
+    perfil = get_object_or_404(
+        PerfilProfesional.objects.select_related("usuario", "seccion"), pk=pk
+    )
+
+    if request.method == "POST":
+        try:
+            asignar_perfil(
+                perfil=perfil,
+                seccion=Seccion.objects.filter(pk=request.POST.get("seccion") or 0).first(),
+                servicios=Servicio.objects.filter(pk__in=request.POST.getlist("servicios")),
+                rol_principal=request.POST.get("rol") or None,
+                puede_firmar_digital=request.POST.get("firma") == "1",
+                usuario_que_asigna=request.user,
+            )
+            messages.success(request, f"Perfil de {perfil.usuario.get_full_name()} actualizado.")
+            return redirect("usuarios:gestion_perfiles")
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+
+    return render(
+        request,
+        "usuarios/editar_perfil.html",
+        {
+            "perfil": perfil,
+            "secciones": Seccion.objects.order_by("nombre"),
+            "servicios": Servicio.objects.filter(activo=True).order_by("nombre"),
+            "mis_servicios": {s.pk for s in perfil.servicios.all()},
+            "roles": Rol.choices,
+            "confidenciales": SERVICIOS_CONFIDENCIALES,
+            "franjas": perfil.agendas.filter(activa=True).count(),
+        },
+    )
+
+
+@login_required
+@require_POST
+def alta_perfil(request, pk):
+    """
+    Convierte una cuenta en alguien que atiende.
+
+    Solo por POST: crea una ficha, y una vista que escribe no puede responder a
+    un GET —bastaría un `<img src="...">` ajeno para dar de alta a alguien—.
+
+    Sin perfil una cuenta no sale en ninguna bandeja, no admite cita y no puede
+    tener horario: crear el perfil es lo que la pone a atender, así que va por
+    el mismo camino auditado que una asignación.
+    """
+    _solo_administracion(request)
+    usuario = get_object_or_404(Usuario, pk=pk)
+    try:
+        perfil = crear_perfil(usuario=usuario, usuario_que_asigna=request.user)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+        return redirect("usuarios:gestion_perfiles")
+    messages.success(
+        request,
+        f"{usuario.get_full_name() or usuario.username} ya tiene ficha profesional. "
+        "Asígnele sección y servicios para que pueda atender.",
+    )
+    return redirect("usuarios:editar_perfil", pk=perfil.pk)

@@ -169,3 +169,138 @@ def eliminar_actividad(actividad):
     fila del manual que la contiene.
     """
     actividad.delete()
+
+
+# ============================================================
+# Gestión de perfiles (solo Administración General)
+# ============================================================
+#
+# Lo que `actualizar_mi_perfil` deja fuera a propósito —servicios, sección, rol
+# y firma digital— se asigna aquí. Hasta ahora solo desde `/admin/` de Django,
+# que ni explica lo que concede ni deja un rastro legible.
+#
+# Y lo que se concede no es poca cosa: asignar el servicio de Psicología da
+# acceso al contenido clínico sellado. Por eso cada cambio de servicios, rol o
+# firma deja una entrada en la bitácora que dice QUÉ entró y QUÉ salió, no un
+# «se actualizó el perfil» que obliga a comparar dos versiones para enterarse.
+
+
+def _nombres(servicios) -> list[str]:
+    return sorted(s.codigo for s in servicios)
+
+
+def asignar_perfil(
+    *,
+    perfil,
+    seccion=None,
+    servicios=None,
+    rol_principal: str | None = None,
+    puede_firmar_digital: bool | None = None,
+    usuario_que_asigna,
+):
+    """
+    Asigna sección, servicios, rol y firma digital a un profesional.
+
+    Solo la llama la pantalla de Administración General; el permiso se
+    comprueba en la vista, que es donde está la petición. Aquí se protege lo
+    que ninguna pantalla puede saltarse:
+
+    - **Nadie se quita a sí mismo la administración.** Si el único
+      administrador se degrada, no queda quien pueda devolverle el rol y la
+      gestión de perfiles se cierra para todos. Es un callejón sin salida que
+      solo se abre volviendo al shell.
+    - **Lo concedido y lo retirado quedan escritos**, servicio por servicio.
+    """
+    from django.core.exceptions import ValidationError
+    from django.db import transaction
+
+    from apps.auditoria.models import LogAuditoria
+
+    from .models import Rol
+
+    antes = {
+        "seccion": perfil.seccion.codigo if perfil.seccion else "",
+        "servicios": _nombres(perfil.servicios.all()),
+        "rol": perfil.usuario.rol_principal,
+        "firma": perfil.puede_firmar_digital,
+    }
+
+    if (
+        rol_principal is not None
+        and perfil.usuario_id == usuario_que_asigna.pk
+        and antes["rol"] == Rol.ADMIN_GENERAL
+        and rol_principal != Rol.ADMIN_GENERAL
+    ):
+        raise ValidationError(
+            "No puede quitarse a usted mismo la Administración General: si nadie "
+            "más la tiene, se quedaría sin quien pueda devolvérsela."
+        )
+
+    with transaction.atomic():
+        if seccion is not None:
+            perfil.seccion = seccion
+        if puede_firmar_digital is not None:
+            perfil.puede_firmar_digital = puede_firmar_digital
+        perfil.save()
+
+        if servicios is not None:
+            perfil.servicios.set(servicios)
+
+        if rol_principal is not None:
+            perfil.usuario.rol_principal = rol_principal
+            perfil.usuario.save(update_fields=["rol_principal"])
+
+        perfil.refresh_from_db()
+        despues = {
+            "seccion": perfil.seccion.codigo if perfil.seccion else "",
+            "servicios": _nombres(perfil.servicios.all()),
+            "rol": perfil.usuario.rol_principal,
+            "firma": perfil.puede_firmar_digital,
+        }
+        concedidos = sorted(set(despues["servicios"]) - set(antes["servicios"]))
+        retirados = sorted(set(antes["servicios"]) - set(despues["servicios"]))
+
+        LogAuditoria.objects.create(
+            usuario=usuario_que_asigna,
+            rol_activo=getattr(usuario_que_asigna, "rol_principal", ""),
+            accion=LogAuditoria.Accion.UPDATE,
+            modulo="usuarios",
+            entidad="PerfilProfesional",
+            entidad_id=str(perfil.pk),
+            detalle={
+                "sobre": perfil.usuario.username,
+                "antes": antes,
+                "despues": despues,
+                "servicios_concedidos": concedidos,
+                "servicios_retirados": retirados,
+            },
+        )
+    return perfil
+
+
+def crear_perfil(*, usuario, usuario_que_asigna, **asignacion):
+    """
+    Da de alta la ficha profesional de una cuenta que no la tenía.
+
+    Sin perfil, una cuenta no aparece en ninguna bandeja, no admite cita y no
+    puede tener horario. Crear el perfil es lo que convierte una cuenta en
+    alguien que atiende, así que va por el mismo camino auditado.
+    """
+    from django.conf import settings
+    from django.core.exceptions import ValidationError
+    from guardian.conf import settings as guardian
+
+    from .models import PerfilProfesional
+
+    # La lista ya lo esconde; aquí se niega. Un `pk` en el POST no es un
+    # permiso, y `AnonymousUser` es la fila que django-guardian usa para colgar
+    # los permisos del usuario anónimo: no es una persona y no atiende a nadie.
+    centinela = getattr(settings, "ANONYMOUS_USER_NAME", guardian.ANONYMOUS_USER_NAME)
+    if usuario.username == centinela:
+        raise ValidationError("Esa no es una cuenta de persona: es el usuario anónimo interno.")
+
+    if PerfilProfesional.objects.filter(usuario=usuario).exists():
+        raise ValidationError("Esa cuenta ya tiene ficha profesional.")
+
+    perfil = PerfilProfesional.objects.create(usuario=usuario)
+    return asignar_perfil(perfil=perfil, usuario_que_asigna=usuario_que_asigna, **asignacion)

@@ -50,6 +50,13 @@ talleres, portal del estudiante y tablero de gestión.
   pisen —la persona es una— y la consulta tiene que caber en la franja.
   Estrechar el horario **no cancela** citas ya reservadas: el sistema avisa de
   las que quedan fuera y la decisión es del profesional.
+- **Asignar un servicio es conceder acceso, y lo hace Administración General.**
+  `usuarios:gestion_perfiles` es la única pantalla que toca servicios, sección,
+  rol y firma —`mi_perfil` sigue sin aceptarlos, que sería ampliarse el acceso a
+  uno mismo—. Ni Dirección ni Coordinación: uno de los servicios abre contenido
+  sellado. Cada cambio deja en la bitácora QUÉ entró y QUÉ salió, servicio por
+  servicio. Y nadie se quita a sí mismo la Administración General: si el único
+  administrador se degrada, no queda quien pueda devolvérsela.
 - **Un anexo nombra a personas.** La nómina y las evidencias del informe
   estadístico llevan la identidad protegida por omisión (sin cédula, teléfono,
   correo ni número de expediente —que es `EXP-<cédula>`—) y no existen para los
@@ -166,6 +173,11 @@ talleres, portal del estudiante y tablero de gestión.
   del retorno al servicio anotaba desde Enfermería, que era el servicio al que
   se caía por omisión: pasaba con el defecto puesto. Al falsificar, si la
   prueba NO falla, el fallo está en la prueba.
+- **`AnonymousUser` no es una persona.** django-guardian crea esa fila por
+  migración para colgar los permisos por objeto del usuario anónimo. Aparecía
+  en la lista de cuentas sin ficha con un botón de «dar ficha» al lado. Se
+  esconde de la lista Y se niega en el servicio: un `pk` en el POST no es un
+  permiso.
 - `auto_now_add` sobre tabla existente falla sin default.
 
 ## Convenciones
@@ -203,6 +215,6 @@ Despliegue (Oracle Cloud, capa gratuita) en `docs/ORACLE_CLOUD.md`. El
 
     ruff check .
     ruff format --check .
-    pytest apps -q          # deben pasar TODAS (1215 al día de hoy)
+    pytest apps -q          # deben pasar TODAS (1236 al día de hoy)
     python manage.py check
     python manage.py makemigrations --check --dry-run
