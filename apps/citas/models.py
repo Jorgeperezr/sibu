@@ -50,6 +50,20 @@ class Agenda(ModeloBase):
         verbose_name = "agenda"
         verbose_name_plural = "agendas"
         ordering = ["profesional", "dia_semana", "hora_inicio"]
+        constraints = [
+            # `clean()` ya lo comprobaba, pero solo lo ejecutan los formularios:
+            # los servicios y el shell creaban agendas invertidas sin protestar,
+            # y `generar_turnos` devolvía una lista vacía sin explicar por qué.
+            models.CheckConstraint(
+                condition=models.Q(hora_inicio__lt=models.F("hora_fin")),
+                name="ck_agenda_inicio_antes_de_fin",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(vigente_hasta__isnull=True)
+                | models.Q(vigente_hasta__gte=models.F("vigente_desde")),
+                name="ck_agenda_vigencia_coherente",
+            ),
+        ]
 
     def __str__(self):
         return (
@@ -62,6 +76,21 @@ class Agenda(ModeloBase):
 
         if self.hora_inicio >= self.hora_fin:
             raise ValidationError("La hora de inicio debe ser anterior a la hora de fin.")
+
+    @property
+    def turnos_por_dia(self) -> int:
+        """
+        Cuántos pacientes caben en la franja.
+
+        Es el número que de verdad se quiere saber al cambiar la duración de la
+        consulta —pasar de 20 a 30 minutos en una mañana de cuatro horas es
+        bajar de doce pacientes a ocho—, y no sale de cabeza mirando dos horas
+        y un número de minutos.
+        """
+        minutos = (self.hora_fin.hour * 60 + self.hora_fin.minute) - (
+            self.hora_inicio.hour * 60 + self.hora_inicio.minute
+        )
+        return max(minutos // self.duracion_turno_min, 0) if self.duracion_turno_min else 0
 
     def generar_turnos(self, fecha):
         """Genera la lista de horarios de inicio para un día concreto."""
@@ -92,6 +121,12 @@ class BloqueoAgenda(ModeloBase):
         verbose_name = "bloqueo de agenda"
         verbose_name_plural = "bloqueos de agenda"
         ordering = ["-fecha_inicio"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(fecha_inicio__lt=models.F("fecha_fin")),
+                name="ck_bloqueo_inicio_antes_de_fin",
+            ),
+        ]
 
 
 class Cita(ModeloBase):
@@ -148,6 +183,10 @@ class Cita(ModeloBase):
             models.Index(fields=["expediente", "fecha_hora"]),
         ]
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(duracion_min__gt=0),
+                name="ck_cita_duracion_positiva",
+            ),
             # No dos citas activas al mismo profesional a la misma hora
             models.UniqueConstraint(
                 fields=["profesional", "fecha_hora"],

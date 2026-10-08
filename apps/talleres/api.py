@@ -15,6 +15,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.expediente.models import Expediente
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
 from apps.usuarios.rbac import servicios_del_usuario
 
 from . import services
@@ -34,7 +35,7 @@ class TallerViewSet(viewsets.ModelViewSet):
         .order_by("-fecha")
     )
     serializer_class = TallerSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         # Un taller no es contenido clínico, pero sí es trabajo de un servicio:

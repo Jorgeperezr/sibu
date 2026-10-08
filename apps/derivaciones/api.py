@@ -21,8 +21,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.models import Servicio
+from apps.core.parametros import id_de_consulta
 from apps.expediente.models import Atencion, Expediente
-from apps.usuarios.rbac import servicios_del_usuario
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
+from apps.usuarios.rbac import puede_ver_expediente, servicios_del_usuario
 
 from . import services
 from .models import Derivacion, ReferenciaExterna
@@ -46,7 +48,7 @@ class DerivacionViewSet(viewsets.ModelViewSet):
         "servicio_destino",
     ).order_by("-creado_en")
     serializer_class = DerivacionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         """
@@ -88,10 +90,11 @@ class DerivacionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def bandeja(self, request):
-        servicio_id = request.query_params.get("servicio")
+        servicio_id = id_de_consulta(request.query_params.get("servicio"), "servicio")
         if not servicio_id:
             return Response({"detail": "Indique el parámetro 'servicio'."}, status=400)
-        if int(servicio_id) not in servicios_del_usuario(request.user):
+        # `int(servicio_id)` sin red devolvía un 500 con `?servicio=abc`.
+        if servicio_id not in servicios_del_usuario(request.user):
             return Response({"detail": "Ese servicio no es suyo."}, status=403)
         servicio = Servicio.objects.filter(pk=servicio_id).first()
         if servicio is None:
@@ -142,19 +145,32 @@ class DerivacionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def trazabilidad(self, request):
-        expediente_id = request.query_params.get("expediente")
+        """
+        El recorrido del paciente entre servicios.
+
+        No comprobaba nada: bastaba con estar autenticado y pasar cualquier id
+        de expediente. La misma puerta que la vista web tenía abierta, por
+        duplicado. El filtrado de lo confidencial lo hace el servicio, que sabe
+        a qué servicios pertenece quien pregunta.
+        """
+        expediente_id = id_de_consulta(request.query_params.get("expediente"), "expediente")
         if not expediente_id:
             return Response({"detail": "Indique el parámetro 'expediente'."}, status=400)
+        if not puede_ver_expediente(request.user):
+            return Response(
+                {"detail": "No tiene permisos para consultar expedientes."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         expediente = Expediente.objects.filter(pk=expediente_id).first()
         if expediente is None:
             return Response({"detail": "Expediente no encontrado."}, status=404)
-        return Response(services.trazabilidad(expediente))
+        return Response(services.trazabilidad(expediente, request.user))
 
 
 class ReferenciaExternaViewSet(viewsets.ModelViewSet):
     queryset = ReferenciaExterna.objects.select_related("atencion__servicio").order_by("-creado_en")
     serializer_class = ReferenciaExternaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         mis_servicios = servicios_del_usuario(self.request.user)

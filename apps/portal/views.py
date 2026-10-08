@@ -44,7 +44,6 @@ def inicio(request):
             "resultados": services.mis_resultados_publicados(expediente),
             "recetas": services.mis_recetas(expediente),
             "becas": services.mis_becas(expediente),
-            "talleres": services.mis_talleres(expediente),
         },
     )
 

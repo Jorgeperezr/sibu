@@ -31,7 +31,7 @@ def escenario(db):
     u_med.set_password("clave12345")
     u_med.save()
 
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     ficha = services.crear_ficha(expediente=exp, profesional=psicologo, motivo="Ansiedad severa")
     services.registrar_sesion(
         ficha,

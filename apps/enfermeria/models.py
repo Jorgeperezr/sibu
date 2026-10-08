@@ -5,12 +5,22 @@ Los signos vitales registrados aquí son reutilizables por Medicina dentro del
 mismo día (la HC médica los muestra automáticamente cuando existen).
 """
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.db import models
 
 from apps.expediente.models import Atencion, Expediente
 from apps.usuarios.models import PerfilProfesional
+
+
+def _a_decimal(valor):
+    """Decimal, o None si el valor no es un número utilizable."""
+    if valor is None or valor == "":
+        return None
+    try:
+        return Decimal(str(valor))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
 
 
 class SignosVitales(models.Model):
@@ -75,13 +85,50 @@ class SignosVitales(models.Model):
         verbose_name_plural = "signos vitales"
         ordering = ["-fecha_hora"]
         indexes = [models.Index(fields=["expediente", "fecha_hora"])]
+        constraints = [
+            # Rangos amplios a propósito: no son rangos de normalidad clínica
+            # —un paciente grave sale de ellos— sino de plausibilidad. Atrapan
+            # el error de digitación (36 °C tecleado como 366) sin estorbar al
+            # caso extremo real. `talla` en metros: 1.75, no 175.
+            models.CheckConstraint(
+                condition=models.Q(temperatura__isnull=True)
+                | models.Q(temperatura__gte=25, temperatura__lte=45),
+                name="ck_signos_temperatura_plausible",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(sat_o2__isnull=True) | models.Q(sat_o2__lte=100),
+                name="ck_signos_saturacion_hasta_100",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(talla__isnull=True) | models.Q(talla__gt=0, talla__lte=3),
+                name="ck_signos_talla_en_metros",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(peso__isnull=True) | models.Q(peso__gt=0, peso__lte=500),
+                name="ck_signos_peso_plausible",
+            ),
+            # La presión sistólica va por encima de la diastólica; invertirlas
+            # es el error de captura más común del triaje.
+            models.CheckConstraint(
+                condition=models.Q(pa_sistolica__isnull=True)
+                | models.Q(pa_diastolica__isnull=True)
+                | models.Q(pa_sistolica__gt=models.F("pa_diastolica")),
+                name="ck_signos_sistolica_mayor_que_diastolica",
+            ),
+        ]
 
     def __str__(self):
         return f"Signos vitales {self.fecha_hora:%d/%m/%Y %H:%M} — {self.expediente}"
 
     def save(self, *args, **kwargs):
-        if self.peso and self.talla and self.talla > 0:
-            self.imc = Decimal(str(round(float(self.peso) / (float(self.talla) ** 2), 1)))
+        # `self.talla` es lo que se asignó, no lo que el campo convertirá: al
+        # crear con `talla="1.65"` —desde el shell, el admin o una carga— aquí
+        # sigue siendo una cadena, y comparar cadena con entero reventaba con
+        # TypeError. La vista de triaje se salvaba porque convierte antes; el
+        # resto de caminos, no. Se convierte aquí, que es donde se calcula.
+        peso, talla = _a_decimal(self.peso), _a_decimal(self.talla)
+        if peso and talla and talla > 0:
+            self.imc = Decimal(str(round(float(peso) / (float(talla) ** 2), 1)))
         super().save(*args, **kwargs)
 
 

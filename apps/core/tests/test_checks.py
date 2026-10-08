@@ -169,3 +169,84 @@ def test_localhost_junto_al_dominio_real_es_legitimo(settings):
     settings.SECRET_KEY = "x" * 60
     settings.ALLOWED_HOSTS = ["sibu.unl.edu.ec", "localhost"]
     assert checks.comprobar_secretos(None) == []
+
+
+# ------------------------------- el fallo que muerde el día del despliegue
+
+
+@pytest.mark.django_db
+def test_un_host_sin_su_origen_de_confianza_se_avisa(settings):
+    """
+    El sitio arranca, TODAS las páginas responden 200 y nadie puede entrar.
+
+    Comprobado montando el despliegue completo —gunicorn detrás de nginx con
+    TLS—: con `CSRF_TRUSTED_ORIGINS` mal puesto, el login devuelve «Forbidden
+    (Referer checking failed)» y el resto del sistema parece sano, porque el
+    403 solo aparece al enviar el primer formulario. Es el fallo que hay que
+    ver ANTES de desplegar, no a las once de la noche.
+    """
+    settings.DEBUG = False
+    settings.SECURE_SSL_REDIRECT = True
+    settings.ALLOWED_HOSTS = ["sibu.unl.edu.ec"]
+    settings.CSRF_TRUSTED_ORIGINS = ["https://otra-cosa.unl.edu.ec"]
+    resultados = checks.comprobar_proxy_y_csrf(None)
+    assert "sibu.E022" in _ids(resultados)
+    assert "sibu.unl.edu.ec" in " ".join(r.msg for r in resultados)
+
+
+@pytest.mark.django_db
+def test_un_origen_sin_esquema_se_avisa(settings):
+    """Se escribe así por costumbre: el dominio pelado, sin `https://`."""
+    settings.DEBUG = False
+    settings.SECURE_SSL_REDIRECT = True
+    settings.ALLOWED_HOSTS = ["sibu.unl.edu.ec"]
+    settings.CSRF_TRUSTED_ORIGINS = ["sibu.unl.edu.ec"]
+    assert "sibu.E021" in _ids(checks.comprobar_proxy_y_csrf(None))
+
+
+@pytest.mark.django_db
+def test_el_puerto_cuenta(settings):
+    """
+    Django compara el origen CON el puerto. Un sitio servido en 8443 con el
+    origen declarado sin puerto rechaza todos los formularios.
+    """
+    settings.DEBUG = False
+    settings.SECURE_SSL_REDIRECT = True
+    settings.ALLOWED_HOSTS = ["sibu.unl.edu.ec"]
+    settings.CSRF_TRUSTED_ORIGINS = ["https://sibu.unl.edu.ec:8443"]
+    # El host sin puerto queda cubierto por el origen con puerto: es el mismo
+    # sitio y ALLOWED_HOSTS nunca lleva puerto.
+    assert "sibu.E022" not in _ids(checks.comprobar_proxy_y_csrf(None))
+
+
+@pytest.mark.django_db
+def test_un_comodin_de_subdominios_cubre_su_dominio(settings):
+    settings.DEBUG = False
+    settings.SECURE_SSL_REDIRECT = True
+    settings.ALLOWED_HOSTS = [".unl.edu.ec"]
+    settings.CSRF_TRUSTED_ORIGINS = ["https://*.unl.edu.ec"]
+    assert "sibu.E022" not in _ids(checks.comprobar_proxy_y_csrf(None))
+
+
+@pytest.mark.django_db
+def test_los_hosts_de_desarrollo_no_exigen_origen(settings):
+    """`localhost` suele estar para la comprobación de salud local, no para entrar."""
+    settings.DEBUG = False
+    settings.SECURE_SSL_REDIRECT = True
+    settings.ALLOWED_HOSTS = ["sibu.unl.edu.ec", "127.0.0.1", "localhost"]
+    settings.CSRF_TRUSTED_ORIGINS = ["https://sibu.unl.edu.ec"]
+    assert "sibu.E022" not in _ids(checks.comprobar_proxy_y_csrf(None))
+
+
+def test_la_clave_por_omision_de_desarrollo_se_reporta_como_tal(settings):
+    """
+    `base.py` trae `SECRET_KEY = env("SECRET_KEY", default="dev-insecure-change-me")`.
+    Si el despliegue olvida definirla, arranca con esa. Tiene que abortar y
+    decir POR QUÉ, no solo que la clave es corta.
+    """
+    settings.DEBUG = False
+    settings.SECRET_KEY = "dev-insecure-change-me"
+
+    ids = {p.id for p in checks.comprobar_secretos(None)}
+
+    assert "sibu.E002" in ids

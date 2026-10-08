@@ -350,3 +350,66 @@ def test_solo_resultados_publicados(escenario):
     )
     _vincular(escenario["ana"], escenario["exp_a"])
     assert list(services.mis_resultados_publicados(escenario["exp_a"])) == [publicada]
+
+
+@pytest.mark.django_db
+def test_el_rechazo_queda_auditado_al_pasar_por_la_vista(escenario):
+    """
+    La garantía que importa, ejercida por donde ocurre de verdad.
+
+    `test_un_expediente_no_se_vincula_a_dos_cuentas` llama al servicio directo,
+    así que nunca ejerce `ATOMIC_REQUESTS = True`: en producción toda la vista
+    es una transacción, y si el ValidationError escapara de ella, el rollback
+    se llevaría por delante el propio registro del rechazo —la trampa que
+    CLAUDE.md documenta y que ya costó cara dos veces—.
+
+    La vista captura el error y responde con un mensaje, así que la transacción
+    de la petición se confirma y el registro sobrevive. Esta prueba lo fija: si
+    alguien deja de capturarlo, el rechazo dejaría de auditarse en silencio.
+    """
+    from apps.auditoria.models import LogAuditoria
+
+    _vincular(escenario["ana"], escenario["exp_a"])
+
+    c = Client()
+    c.login(username="beto", password=CLAVE)
+    r = c.post("/portal/vincular/", {"cedula": CEDULA_A})
+
+    assert r.status_code in (200, 302)  # respuesta normal, no un 500
+    log = LogAuditoria.objects.filter(modulo="portal", resultado="rechazado").first()
+    assert log is not None, "el intento rechazado no quedó auditado"
+    assert log.usuario == escenario["beto"]
+    assert not VinculacionPortal.objects.filter(usuario=escenario["beto"], verificado=True).exists()
+
+
+@pytest.mark.django_db
+def test_el_portal_no_muestra_talleres(escenario):
+    """
+    Los talleres son trabajo del servicio que los organiza y los ve su personal
+    responsable, no quien asiste.
+
+    El panel listaba «Mis talleres» y el barrido de la API eximía a talleres
+    como catálogo público. La lista de participantes se conserva —es la base de
+    la cobertura que el servicio reporta—, pero no se publica al estudiante.
+    """
+    from apps.expediente.tests.factories import crear_profesional
+    from apps.talleres.models import Taller, TallerParticipante
+
+    _psicologo, perfil = crear_profesional(
+        "psi_taller_portal", escenario["est"]["psicologia"], escenario["est"]["psico"]
+    )
+    taller = Taller.objects.create(
+        servicio=escenario["est"]["psicologia"],
+        seccion=escenario["est"]["psico"],
+        responsable=perfil,
+        tema="Manejo del estrés",
+        fecha=timezone.localdate(),
+    )
+    TallerParticipante.objects.create(taller=taller, expediente=escenario["exp_a"])
+
+    _vincular(escenario["ana"], escenario["exp_a"])
+    cliente = Client()
+    assert cliente.login(username="ana", password=CLAVE)
+    contenido = cliente.get("/portal/").content.decode()
+    assert "Manejo del estrés" not in contenido
+    assert "Mis talleres" not in contenido

@@ -25,8 +25,19 @@ puede verificar por sí mismo**.
 
 - [ ] `.env` a partir de `.env.example`, con `SECRET_KEY` nueva.
 - [ ] `python manage.py check --deploy --fail-level WARNING` sin errores.
+- [ ] **`python manage.py revisar_datos --detalle` ANTES de migrar.** Estas
+      migraciones traen restricciones que fallan si los datos que ya están en
+      el servidor las violan: un lote en negativo, una cédula mal digitada, una
+      agenda invertida, dos fichas socioeconómicas vigentes. Ver el informe
+      antes cuesta un minuto; ver fallar la migración a mitad, bastante más.
+      Devuelve código 1 si encuentra algo, así que se puede encadenar.
 - [ ] `python manage.py migrate` y `collectstatic`.
-- [ ] Ejecutar `seed_inicial` y verificar secciones y servicios.
+- [ ] `python manage.py preparar --sin-demo`, que hace `seed_inicial`,
+      `configurar_rbac` y el catálogo CIE-10 en el orden correcto. Los datos de
+      demostración se omiten solos con `DEBUG=False`; el comando `datos_demo`
+      además se niega a correr, porque trae contraseñas conocidas y pacientes
+      inventados dentro del expediente único.
+- [ ] `python manage.py revisar_datos` otra vez, ya migrado: debe salir limpio.
 
 ## 4. Correo — bloquea el portal
 

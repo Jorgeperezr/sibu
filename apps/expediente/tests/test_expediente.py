@@ -11,9 +11,9 @@ from apps.usuarios.services import registrar_break_glass
 
 @pytest.mark.django_db
 def test_resolver_por_cedula_existente():
-    exp = crear_expediente(cedula="1104567890")
-    resultado = resolver_por_cedula("1104567890")
-    assert resultado["persona"].cedula == "1104567890"
+    exp = crear_expediente(cedula="1104567894")
+    resultado = resolver_por_cedula("1104567894")
+    assert resultado["persona"].cedula == "1104567894"
     assert resultado["expediente"].id == exp.id
 
 

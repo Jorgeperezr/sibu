@@ -21,7 +21,7 @@ def escenario(db):
         codigo="odontologia", defaults={"nombre": "Odontología", "seccion": salud}
     )
     _, dentista = crear_profesional("dentista", odonto, salud)
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
 
     obturacion = CatalogoProcedimiento.objects.create(
         codigo="OD-001",

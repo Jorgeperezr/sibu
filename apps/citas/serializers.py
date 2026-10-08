@@ -72,7 +72,12 @@ class ReservaCitaSerializer(serializers.Serializer):
     servicio = serializers.IntegerField()
     profesional = serializers.IntegerField()
     fecha_hora = serializers.DateTimeField()
-    duracion_min = serializers.IntegerField(default=20, min_value=5, max_value=240)
+    # Sin `default`: omitirla significa «la que tenga configurada el
+    # profesional». Con `default=20` el valor llegaba siempre relleno y la
+    # agenda no podía decidir nunca.
+    duracion_min = serializers.IntegerField(
+        required=False, allow_null=True, min_value=5, max_value=240
+    )
     motivo = serializers.CharField(required=False, allow_blank=True, max_length=255)
     origen = serializers.CharField(required=False, default=Cita.Origen.VENTANILLA)
 

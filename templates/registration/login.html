@@ -1,17 +1,39 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Ingresar — SIBU{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
-  <div class="col-sm-8 col-md-5 col-lg-4">
-    <div class="card shadow-sm mt-4">
+  <div class="col-12">
+    <div class="text-center mb-4">
+      <img src="{% static 'img/unl-horizontal.png' %}" alt="Universidad Nacional de Loja"
+           style="max-width:290px;width:100%;height:auto">
+    </div>
+    <div class="card shadow-sm">
       <div class="card-body">
-        <h1 class="h4 mb-1">Ingresar</h1>
-        <p class="text-muted small mb-3">Bienestar Universitario — UNL</p>
+        <h1 class="h5 mb-1">Ingresar</h1>
+        <p class="text-muted small mb-3">Sistema Integral de Bienestar Universitario</p>
 
         {% if form.errors %}
-        <div class="alert alert-danger py-2 small">
+        <div class="alert alert-danger py-2 small mb-2">
           Usuario o contraseña incorrectos. Verifique e intente de nuevo.
         </div>
+          {% if es_desarrollo %}
+          {% comment %}
+          Solo en desarrollo. En el servidor real esta pista sería una
+          filtración: le diría a cualquiera que hay cuentas de prueba.
+
+          Aparece aquí porque es donde uno está cuando se queda fuera. El aviso
+          equivalente ya salía al arrancar, varias pantallas más arriba de la
+          terminal, y para cuando hace falta ya se perdió.
+          {% endcomment %}
+          <div class="alert alert-secondary py-2 small">
+            <strong>Entorno de desarrollo.</strong>
+            Para ver qué cuentas existen y con qué contraseña:
+            <code>make cuentas</code> en la terminal.
+            Si su base ya tenía datos de antes, las cuentas de prueba se
+            recrean con <code>make demo</code>.
+          </div>
+          {% endif %}
         {% endif %}
 
         {% if next and user.is_authenticated %}

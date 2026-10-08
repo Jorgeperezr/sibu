@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Mi portal — SIBU{% endblock %}
 {% block content %}
-<h2>Hola, {{ persona.nombres }}</h2>
+<h1 class="h4 sibu-titulo">Hola, {{ persona.nombres }}</h1>
 <p class="text-muted small">Portal de autogestión de Bienestar Universitario.</p>
 
 <div class="row g-3">
@@ -46,10 +46,31 @@
       <div class="card-body p-0">
         {% if recetas %}
         <ul class="list-group list-group-flush small">
+          {% comment %}
+          `r.numero`, no `r.codigo`: el modelo no tiene ese campo y Django lo
+          resuelve a cadena vacía sin decir nada, así que la fila salía con la
+          etiqueta de estado y nada más. Y los medicamentos, que `mis_recetas`
+          ya venía trayendo con prefetch: una receta sin decir qué le recetaron
+          no le sirve a quien va a la farmacia.
+          {% endcomment %}
           {% for r in recetas %}
-          <li class="list-group-item d-flex justify-content-between">
-            <span>{{ r.codigo }}</span>
-            <span class="badge bg-light text-dark border">{{ r.get_estado_display }}</span>
+          <li class="list-group-item">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <span class="fw-semibold">{{ r.numero }}</span>
+              <span class="badge bg-light text-dark border">{{ r.get_estado_display }}</span>
+            </div>
+            <div class="text-muted">
+              {% for d in r.detalles.all %}
+                {{ d.medicamento.dci }}{% if d.medicamento.concentracion %} {{ d.medicamento.concentracion }}{% endif %}
+                · {{ d.cantidad_prescrita }}{% if d.dosis %} · {{ d.dosis }}{% endif %}
+                {% if not forloop.last %}<br>{% endif %}
+              {% empty %}
+                Sin medicamentos registrados.
+              {% endfor %}
+            </div>
+            <div class="small text-muted mt-1">
+              Válida hasta {{ r.valida_hasta|date:"d/m/Y H:i" }}
+            </div>
           </li>
           {% endfor %}
         </ul>
@@ -75,20 +96,13 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-header">Mis talleres</div>
-      <div class="card-body p-0">
-        {% if talleres %}
-        <ul class="list-group list-group-flush small">
-          {% for t in talleres %}
-          <li class="list-group-item">
-            {{ t.taller.tema }} · {{ t.taller.fecha|date:"d/m/Y" }}
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}<p class="text-muted small p-3 mb-0">Sin talleres.</p>{% endif %}
-      </div>
-    </div>
+    {% comment %}
+    Los talleres no se muestran en el portal. Son trabajo del servicio que los
+    organiza y los ve el personal responsable de ese servicio, no quien asiste.
+    La función `services.mis_talleres` se conserva —la lista de participantes
+    existe y es la base de la cobertura que se reporta—, pero no se publica
+    aquí.
+    {% endcomment %}
   </div>
 </div>
 {% endblock %}

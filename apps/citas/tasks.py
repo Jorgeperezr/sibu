@@ -23,6 +23,12 @@ def enviar_recordatorios(horas: int = 24, tolerancia_minutos: int | None = None)
         ).exists():
             continue
         Notificacion.objects.create(
+            # Si el paciente tiene cuenta del portal verificada, esa es su
+            # identidad dentro del sistema y el aviso va ahí. Sin `usuario`, un
+            # recordatorio con canal IN_APP —el caso de quien no tiene correo
+            # institucional— quedaba dirigido a ningún usuario de la
+            # aplicación: no salía por correo ni aparecía en ninguna bandeja.
+            usuario=_cuenta_del_portal(cita.expediente),
             tipo=f"recordatorio_cita_{horas}h",
             titulo=f"Recordatorio de cita en {horas}h",
             mensaje=(
@@ -42,3 +48,11 @@ def enviar_recordatorios(horas: int = 24, tolerancia_minutos: int | None = None)
         )
         creadas += 1
     return creadas
+
+
+def _cuenta_del_portal(expediente):
+    """La cuenta del portal vinculada y verificada de este expediente, si la hay."""
+    vinculacion = getattr(expediente, "vinculacion_portal", None)
+    if vinculacion is None or not vinculacion.verificado:
+        return None
+    return vinculacion.usuario

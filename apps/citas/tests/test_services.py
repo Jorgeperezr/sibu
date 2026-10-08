@@ -223,3 +223,73 @@ def test_recordatorio_con_tolerancia_ampliada():
         assert citas_para_recordatorio(24).count() == 0
         # Tolerancia de 90 min: sí la encuentra
         assert citas_para_recordatorio(24, tolerancia_minutos=90).count() == 1
+
+
+@pytest.mark.django_db
+def test_una_cita_no_puede_solaparse_con_otra_aunque_empiece_a_otra_hora():
+    """
+    La restricción única de BD solo ve la hora de inicio exacta.
+
+    Una cita de 9:00 con 40 minutos y otra de 9:20 no coinciden en `fecha_hora`,
+    así que entraban las dos y el profesional se quedaba con dos pacientes a la
+    misma hora. Ahora se comparan los intervalos.
+    """
+    e = escenario_basico()
+    services.reservar_cita(
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=_hora(e["lunes"], 9, 0),
+        duracion_min=40,
+    )
+    with pytest.raises(ValidationError, match="ocupado"):
+        services.reservar_cita(
+            expediente=e["exp"],
+            servicio=e["est"]["medicina"],
+            profesional=e["medico"],
+            fecha_hora=_hora(e["lunes"], 9, 20),
+            duracion_min=20,
+        )
+
+
+@pytest.mark.django_db
+def test_una_cita_puede_empezar_justo_cuando_termina_la_anterior():
+    """El extremo derecho es abierto: a las 9:20 en punto la agenda está libre."""
+    e = escenario_basico()
+    services.reservar_cita(
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=_hora(e["lunes"], 9, 0),
+        duracion_min=20,
+    )
+    cita = services.reservar_cita(
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=_hora(e["lunes"], 9, 20),
+        duracion_min=20,
+    )
+    assert cita.pk is not None
+
+
+@pytest.mark.django_db
+def test_una_cita_cancelada_libera_su_intervalo():
+    """Solo ocupan agenda los estados activos."""
+    e = escenario_basico()
+    primera = services.reservar_cita(
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=_hora(e["lunes"], 9, 0),
+        duracion_min=40,
+    )
+    services.cambiar_estado(primera, Cita.Estado.CANCELADA)
+    cita = services.reservar_cita(
+        expediente=e["exp"],
+        servicio=e["est"]["medicina"],
+        profesional=e["medico"],
+        fecha_hora=_hora(e["lunes"], 9, 20),
+        duracion_min=20,
+    )
+    assert cita.pk is not None

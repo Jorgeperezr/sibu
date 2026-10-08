@@ -14,9 +14,10 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from apps.core import numeros
 from apps.core.models import PeriodoAcademico, Servicio
 from apps.expediente.models import Atencion, Expediente
-from apps.expediente.services import construir_snapshot
+from apps.expediente.services import construir_snapshot, verificar_profesional_del_servicio
 from apps.usuarios.models import PerfilProfesional
 
 from .models import FichaPsicopedagogica, SeguimientoAcademico
@@ -31,6 +32,8 @@ def crear_ficha(
         servicio = Servicio.objects.get(codigo="psicopedagogia")
     except Servicio.DoesNotExist as exc:
         raise ValidationError("El servicio 'psicopedagogia' no está configurado.") from exc
+
+    verificar_profesional_del_servicio(profesional, servicio)
 
     atencion = Atencion.objects.create(
         expediente=expediente,
@@ -62,11 +65,17 @@ def _historial_desde_academico(expediente: Expediente) -> dict:
         .select_related("periodo")
         .order_by("-periodo__codigo")[:5]
     )
+    # Sin `promedio`: `DatoAcademico` no tiene ese campo y leerlo reventaba con
+    # AttributeError en cuanto la persona tenía UNA fila cargada. Con la tabla
+    # vacía el bucle no itera y el defecto no se notaba; el caso normal en
+    # producción es el contrario, porque la carga institucional es lo primero
+    # que se hace. El promedio no está en la ficha de matrícula: lo registra el
+    # profesional en cada seguimiento, que es de donde sale el impacto.
     return {
         d.periodo.codigo: {
             "carrera": d.carrera,
             "nivel": d.nivel,
-            "promedio": str(d.promedio) if d.promedio is not None else None,
+            "estado": d.estado,
         }
         for d in datos
     }
@@ -90,18 +99,28 @@ def registrar_seguimiento(
     if not PeriodoAcademico.objects.filter(codigo=periodo).exists():
         raise ValidationError(f"El periodo académico '{periodo}' no existe.")
 
-    for etiqueta, valor in (("antes", promedio_antes), ("después", promedio_despues)):
-        if valor is not None and not (Decimal("0") <= Decimal(str(valor)) <= Decimal("10")):
+    # `Decimal("8,5")` lanzaba InvalidOperation —que no es ValidationError— y
+    # salía una página de error. El primer arreglo lo capturó y pidió punto
+    # decimal, pero eso rechazaba el formato CORRECTO: «8,5» con coma es como
+    # se escribe un decimal aquí. `core.numeros` lo lee, y solo lanza si de
+    # verdad no es un número.
+    leidos = {}
+    for clave, etiqueta, valor in (
+        ("promedio_antes", "antes", promedio_antes),
+        ("promedio_despues", "después", promedio_despues),
+    ):
+        numero = numeros.a_decimal(valor, campo=f"promedio {etiqueta}")
+        if numero is not None and not (Decimal("0") <= numero <= Decimal("10")):
             raise ValidationError(f"El promedio {etiqueta} debe estar entre 0 y 10.")
+        leidos[clave] = numero
 
+    # Se guarda lo LEÍDO, no lo tecleado: guardar la cadena «8,5» en un campo
+    # decimal la vuelve a romper en el momento de escribir, que es donde ya no
+    # hay a quién avisar.
     seguimiento, _ = SeguimientoAcademico.objects.update_or_create(
         ficha=ficha,
         periodo=periodo,
-        defaults={
-            "promedio_antes": promedio_antes,
-            "promedio_despues": promedio_despues,
-            "observaciones": observaciones,
-        },
+        defaults={**leidos, "observaciones": observaciones},
     )
     return seguimiento
 

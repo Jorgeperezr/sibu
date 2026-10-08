@@ -230,7 +230,11 @@ REGLAS_ALERTA = {
         "Necesidad educativa especial declarada",
     ),
     "discapacidad": ("riesgo", "medicina", "Discapacidad declarada: {valor}"),
-    "estudiante_gestacion": ("riesgo", "medicina", "Estado de gestación declarado"),
+    # `gestacion` y `lactancia` eran ambas "riesgo" o no existían. El informe
+    # estadístico cuenta por TIPO de alerta, así que una gestación declarada en
+    # matrícula quedaba fuera del conteo aunque el dato estuviera cargado.
+    "estudiante_gestacion": ("gestacion", "medicina", "Estado de gestación declarado"),
+    "estudiante_lactancia": ("lactancia", "medicina", "Lactancia declarada en matrícula"),
     "droga_consume": ("riesgo", "psicologia", "Consumo declarado en matrícula"),
 }
 
@@ -250,3 +254,22 @@ def columnas_canonicas():
 
 # Columnas mínimas sin las cuales una fila no puede procesarse
 COLUMNAS_OBLIGATORIAS = ["cedula", "nombres", "apellidos"]
+
+# Columnas que solo existen en la base de ESTUDIANTES. Un docente, un
+# administrativo o un trabajador no tienen nivel, ciclo, paralelo ni jornada de
+# clases: pedírselas en la plantilla obliga a quien prepara el archivo a
+# inventar columnas vacías, y una columna vacía obligatoria acaba rellenándose
+# con cualquier cosa. Facultad, carrera y correo institucional sí se mantienen
+# para todos —un docente pertenece a una facultad—.
+#
+# Lo que un estamento no trae no rompe la carga: `_get` devuelve None y el
+# campo queda en blanco. Esta lista es para la PLANTILLA y el DICCIONARIO, que
+# es donde una columna de más confunde.
+COLUMNAS_SOLO_ESTUDIANTE = [
+    "nivel",
+    "modalidad",
+    "ciclo",
+    "oferta_academica",
+    "paralelo",
+    "jornada",
+]

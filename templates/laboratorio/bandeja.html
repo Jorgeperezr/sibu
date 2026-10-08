@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Laboratorio · SIBU{% endblock %}
 {% block content %}
-<h1 class="h4 mb-3">Bandeja de laboratorio</h1>
+<div class="sibu-cabecera"><h1 class="h4 sibu-titulo mb-0">Bandeja de laboratorio</h1>
+  {% include "_exportar_servicio.html" with codigo="laboratorio-clinico" %}
+</div>
 
 <div class="card">
   <div class="table-responsive">
@@ -36,6 +38,6 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
+</div>
 </div>
 {% endblock %}

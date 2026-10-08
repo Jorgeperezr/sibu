@@ -18,6 +18,7 @@ import hashlib
 from dataclasses import dataclass, field
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.core.models import Servicio
@@ -97,9 +98,14 @@ class ResultadoCarga:
 class ProcesadorCarga:
     """Aplica el mapeo, valida y hace upsert. `aplicar=False` = solo previsualiza."""
 
-    def __init__(self, carga, mapeo: dict | None = None):
+    def __init__(self, carga, mapeo: dict | None = None, estamento: str = ""):
         self.carga = carga
         self.periodo = carga.periodo
+        # A quién describe el archivo. Se toma de la carga —que es donde queda
+        # registrado— y el parámetro solo sirve para forzarlo en pruebas; antes
+        # esto era la constante ESTUDIANTE escrita en el upsert, y cargar la
+        # base de docentes daba de alta a todo el claustro como estudiantes.
+        self.estamento = estamento or carga.estamento
         # mapeo: alias_en_archivo -> columna_canonica. Por defecto, identidad.
         self.mapeo = mapeo or {}
         self.dominio = settings.SIBU["DOMINIO_CORREO_INSTITUCIONAL"]
@@ -145,6 +151,8 @@ class ProcesadorCarga:
                 {"cedula": cedula, "aviso": f"Correo no institucional: {correo}"}
             )
 
+        self._revisar_montos(fila, cedula, r)
+
         if not aplicar:
             # Modo previsualización: solo cuenta alta/actualización sin escribir
             existe = Persona.objects.filter(cedula=cedula).exists()
@@ -161,9 +169,72 @@ class ProcesadorCarga:
             r.altas += 1 if creada else 0
             r.actualizaciones += 0 if creada else 1
 
+    # Columnas del archivo que son montos: lo que se escriba ahí se suma, y
+    # lo que no se pueda leer se suma como cero sin que nadie lo note.
+    COLUMNAS_DE_MONTO = tuple(mapping.FICHA_JSONB["ingresos"]) + tuple(
+        mapping.FICHA_JSONB["egresos"]
+    )
+
+    def _revisar_montos(self, fila, cedula, r: ResultadoCarga) -> None:
+        """
+        Anota los montos que no se pueden leer, o que admiten dos lecturas.
+
+        No bloquea la fila: una celda con «no aplica» en una columna de monto es
+        corriente y no puede tumbar una carga de miles de filas. Pero tampoco se
+        calla, que es lo que hacía antes: estos números alimentan el puntaje
+        socioeconómico que orienta una beca, y `1.234` leído como uno coma
+        doscientos treinta y cuatro en vez de mil doscientos treinta y cuatro
+        cambia el estrato de una familia sin dejar rastro.
+        """
+        from apps.core import numeros
+
+        for columna in self.COLUMNAS_DE_MONTO:
+            valor = self._get(fila, columna)
+            if valor in (None, ""):
+                continue
+            if numeros.es_ambiguo(valor):
+                r.detalle_errores.append(
+                    {
+                        "cedula": cedula,
+                        "aviso": f"{columna}=«{valor}» admite dos lecturas y se "
+                        f"leyó como {numeros.a_decimal(valor)}. Con separador de "
+                        "miles escriba también los decimales (1.234,00).",
+                    }
+                )
+                continue
+            try:
+                numeros.a_decimal(valor, campo=columna)
+            except ValidationError as exc:
+                r.detalle_errores.append(
+                    {"cedula": cedula, "aviso": f"{columna}: {' '.join(exc.messages)} Se suma 0."}
+                )
+
     # -- upserts --
+    #
+    # Qué se actualiza al RECARGAR a alguien que ya está, y qué no. La base se
+    # entrega cada período académico, y el archivo del período nuevo trae lo
+    # que cambia: ciclo, estado de matrícula, gestación… El resto viene vacío.
+    #
+    # Con `update_or_create` y un `defaults` completo, esos huecos se escribían:
+    # una recarga borraba la fecha de nacimiento, el sexo, el celular y el
+    # correo de quien ya estaba registrado. Sin fecha de nacimiento no hay edad;
+    # sin sexo el informe pierde una variable; sin celular no se puede llamar al
+    # paciente. Nadie veía un error: la carga decía «1 actualización».
+
+    # Lo que identifica a la persona y no cambia con el período. Se rellena si
+    # falta; si ya hay valor, NO se pisa. Es el mismo criterio que ya seguía
+    # `_asegurar_expediente`: la matrícula es una foto del día en que se llenó
+    # la ficha, y lo que el sistema ya sabe de alguien no se reescribe con ella.
+    # Una corrección de verdad —un apellido mal escrito— se hace donde se
+    # corrige, no colándola en la carga del semestre siguiente.
+    ESTABLES = ("nombres", "apellidos", "tipo_documento", "fecha_nacimiento", "sexo", "genero")
+
+    # Datos de contacto: cambian de verdad entre períodos y la institución es la
+    # fuente. Se actualizan cuando el archivo trae algo; un vacío nunca borra.
+    DE_CONTACTO = ("celular", "telefono", "correo_institucional")
+
     def _upsert_persona(self, fila, cedula, nombres, apellidos):
-        defaults = {
+        leidos = {
             "nombres": nombres,
             "apellidos": apellidos,
             "tipo_documento": self._get(fila, "tipo_documento") or "cedula",
@@ -172,15 +243,48 @@ class ProcesadorCarga:
             "celular": self._get(fila, "celular") or "",
             "telefono": self._get(fila, "telefono") or "",
             "correo_institucional": self._get(fila, "email_institucional") or "",
-            "tipo_vinculo": Persona.TipoVinculo.ESTUDIANTE,
             "fecha_nacimiento": validators.a_fecha(self._get(fila, "fecha_nacimiento")),
-            "procedencia": self._subdict(fila, mapping.PERSONA_JSONB["procedencia"]),
-            "residencia_actual": self._subdict(fila, mapping.PERSONA_JSONB["residencia_actual"]),
-            "contacto_referencia": self._subdict(
-                fila, mapping.PERSONA_JSONB["contacto_referencia"]
-            ),
         }
-        return Persona.objects.update_or_create(cedula=cedula, defaults=defaults)
+        jsonb = {
+            campo: self._subdict(fila, columnas)
+            for campo, columnas in mapping.PERSONA_JSONB.items()
+        }
+
+        persona = Persona.objects.filter(cedula=cedula).first()
+        if persona is None:
+            return Persona.objects.create(
+                cedula=cedula, tipo_vinculo=self.estamento, **leidos, **jsonb
+            ), True
+
+        # El estamento sí se declara en cada carga: es lo que dice a qué base
+        # pertenece este archivo, y quien lo carga acaba de afirmarlo.
+        cambios = ["tipo_vinculo"]
+        persona.tipo_vinculo = self.estamento
+
+        for campo in self.ESTABLES:
+            valor = leidos[campo]
+            if valor and not getattr(persona, campo):
+                setattr(persona, campo, valor)
+                cambios.append(campo)
+
+        for campo in self.DE_CONTACTO:
+            valor = leidos[campo]
+            if valor and valor != getattr(persona, campo):
+                setattr(persona, campo, valor)
+                cambios.append(campo)
+
+        # Los JSON se FUSIONAN, no se reemplazan: un archivo que solo trae la
+        # provincia no puede vaciar la parroquia y el cantón que ya estaban.
+        for campo, nuevos in jsonb.items():
+            if not nuevos:
+                continue
+            fusionado = {**(getattr(persona, campo) or {}), **nuevos}
+            if fusionado != getattr(persona, campo):
+                setattr(persona, campo, fusionado)
+                cambios.append(campo)
+
+        persona.save(update_fields=[*dict.fromkeys(cambios), "actualizado_en"])
+        return persona, False
 
     def _upsert_dato_academico(self, fila, persona):
         from .models import DatoAcademico
@@ -193,6 +297,17 @@ class ProcesadorCarga:
         )
 
     def _asegurar_expediente(self, fila, persona):
+        """
+        El expediente de la persona, creándolo si la carga es lo primero que la
+        registra.
+
+        Los datos de `defaults` solo se aplican al crear, y eso dejaba un hueco:
+        si el expediente ya existía —lo abre también la búsqueda por cédula—, el
+        grupo sanguíneo y la discapacidad de la ficha no entraban nunca, y la
+        discapacidad es una de las variables del informe estadístico. Se rellenan
+        después, pero SOLO si están vacíos: lo que un profesional haya escrito en
+        el expediente vale más que lo declarado en matrícula y no se pisa.
+        """
         expediente, _ = Expediente.objects.get_or_create(
             persona=persona,
             defaults={
@@ -201,7 +316,39 @@ class ProcesadorCarga:
                 "discapacidad_tipo": self._get(fila, "discapacidad_tipo") or "",
             },
         )
+        completados = []
+        for columna, campo in mapping.SALUD_EXPEDIENTE.items():
+            valor = self._get(fila, columna)
+            if not valor or getattr(expediente, campo, None):
+                continue
+            valor = self._valor_para_expediente(campo, valor)
+            if valor is None:
+                continue
+            setattr(expediente, campo, valor)
+            completados.append(campo)
+        if completados:
+            expediente.save(update_fields=completados)
         return expediente
+
+    @staticmethod
+    def _valor_para_expediente(campo: str, valor):
+        """
+        Ajusta el valor de la ficha al campo del expediente, o None si no cabe.
+
+        La ficha llega como texto libre desde un Excel: un porcentaje escrito
+        "50%" o "no aplica" reventaría un `PositiveSmallIntegerField`, y un tipo
+        de discapacidad más largo que el campo abortaría la fila entera. Nada de
+        eso debe tumbar una carga de miles de filas por un dato accesorio: lo que
+        no encaja se descarta y la fila cruda lo conserva igual en `ficha_raw`.
+        """
+        if campo == "discapacidad_porcentaje":
+            digitos = "".join(c for c in str(valor) if c.isdigit())
+            if not digitos:
+                return None
+            numero = int(digitos)
+            return numero if 0 <= numero <= 100 else None
+        limites = {"grupo_sanguineo": 5, "discapacidad_tipo": 60}
+        return str(valor).strip()[: limites.get(campo, 255)]
 
     def _prepoblar_ficha(self, fila, expediente):
         """Crea la FichaSocioeconomica (origen=matrícula) si no existe una vigente."""
@@ -226,19 +373,47 @@ class ProcesadorCarga:
             salud_familiar=self._subdict(fila, mapping.FICHA_JSONB["salud_familiar"]),
         )
 
+    # Lo que en el archivo significa «no». Se compara en minúsculas y sin
+    # espacios: las cuatro bases institucionales escriben la negación a su
+    # manera y ninguna vale más que otra.
+    NEGACIONES = {"no", "0", "ninguno", "n/a", "ninguna", "false", "-"}
+
     def _generar_alertas(self, fila, expediente) -> int:
-        """Crea alertas visibles en el expediente según REGLAS_ALERTA."""
+        """
+        Enciende y APAGA las alertas que declara la ficha de matrícula.
+
+        Apagar es la mitad que faltaba. La gestación y la lactancia cambian de
+        un período al siguiente y esto solo sabía encenderlas: un embarazo
+        declarado en 2026-1 seguía activo en 2027 y el informe estadístico lo
+        seguía contando como una gestación en curso.
+
+        Solo se apaga lo que la propia matrícula encendió (`origen=matricula`) y
+        solo cuando el archivo lo NIEGA expresamente: una columna vacía es
+        ausencia de dato, no un «ya no». Lo que registró un profesional en
+        consulta no se toca —él lo comprobó, la ficha no—, y por eso la alerta
+        lleva su origen.
+        """
         generadas = 0
         for columna, (tipo, _servicio, plantilla) in mapping.REGLAS_ALERTA.items():
             valor = self._get(fila, columna)
-            if not valor or str(valor).strip().lower() in {"no", "0", "ninguno", "n/a"}:
+            if valor is None or str(valor).strip() == "":
+                continue  # sin dato: ni se enciende ni se apaga
+
+            if str(valor).strip().lower() in self.NEGACIONES:
+                AlertaClinica.objects.filter(
+                    expediente=expediente,
+                    tipo=tipo,
+                    activa=True,
+                    origen=AlertaClinica.Origen.MATRICULA,
+                ).update(activa=False)
                 continue
+
             descripcion = plantilla.format(valor=valor)
             _, creada = AlertaClinica.objects.get_or_create(
                 expediente=expediente,
                 tipo=tipo,
                 descripcion=descripcion,
-                defaults={"activa": True},
+                defaults={"activa": True, "origen": AlertaClinica.Origen.MATRICULA},
             )
             generadas += 1 if creada else 0
         return generadas

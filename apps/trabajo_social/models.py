@@ -37,6 +37,27 @@ class FichaSocioeconomica(ModeloBase):
     class Meta:
         verbose_name = "ficha socioeconómica"
         verbose_name_plural = "fichas socioeconómicas"
+        # Orden determinista: `ficha_vigente()` y el historial dependen de él.
+        ordering = ["-version"]
+        constraints = [
+            # De la ficha vigente salen el puntaje y el estrato con los que se
+            # resuelve una beca. Dos vigentes harían que el sistema eligiera una
+            # arbitrariamente, así que el historial completo se conserva pero
+            # vigente hay una y solo una.
+            models.UniqueConstraint(
+                fields=["expediente"],
+                condition=models.Q(vigente=True),
+                name="uniq_ficha_socio_vigente_por_expediente",
+            ),
+            models.UniqueConstraint(
+                fields=["expediente", "version"],
+                name="uniq_ficha_socio_version_por_expediente",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(ingresos_totales__gte=0, egresos_totales__gte=0),
+                name="ck_ficha_socio_totales_no_negativos",
+            ),
+        ]
 
 
 class VisitaDomiciliaria(models.Model):

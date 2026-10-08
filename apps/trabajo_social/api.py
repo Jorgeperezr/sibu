@@ -13,7 +13,9 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.core.parametros import id_de_consulta
 from apps.expediente.models import Expediente
+from apps.usuarios.permissions import EsPersonalDeLaUnidad
 
 from . import services
 from .models import FichaSocioeconomica, VisitaDomiciliaria
@@ -27,11 +29,14 @@ from .serializers import (
 class FichaSocioeconomicaViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = FichaSocioeconomica.objects.select_related("expediente__persona")
     serializer_class = FichaSocioeconomicaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         qs = super().get_queryset()
-        expediente = self.request.query_params.get("expediente")
+        # `filter(expediente_id="abc")` lanza ValueError y salía un 500. Se
+        # responde 400 y no «sin filtro»: ignorar un filtro ilegible
+        # devolvería las fichas de TODAS las personas a quien pidió las de una.
+        expediente = id_de_consulta(self.request.query_params.get("expediente"), "expediente")
         if expediente:
             qs = qs.filter(expediente_id=expediente)
         return qs.order_by("-version")
@@ -71,7 +76,7 @@ class FichaSocioeconomicaViewSet(viewsets.ReadOnlyModelViewSet):
 class VisitaDomiciliariaViewSet(viewsets.ModelViewSet):
     queryset = VisitaDomiciliaria.objects.select_related("atencion").order_by("-fecha")
     serializer_class = VisitaDomiciliariaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EsPersonalDeLaUnidad]
 
     def create(self, request, *args, **kwargs):
         from apps.expediente.models import Atencion

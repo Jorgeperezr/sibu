@@ -30,7 +30,7 @@ def escenario(db):
     _, tecnico = crear_profesional("tecnico", est["medicina"], est["salud"])
     _, responsable = crear_profesional("responsable", est["medicina"], est["salud"])
 
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     exp.persona.sexo = "M"
     exp.persona.fecha_nacimiento = date(2000, 5, 15)
     exp.persona.correo_institucional = "estudiante@unl.edu.ec"

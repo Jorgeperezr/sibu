@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ receta.numero }} · Farmacia{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3">
+<div class="sibu-cabecera mb-3">
   <div>
-    <h1 class="h4 mb-0">{{ receta.numero }}</h1>
+    <h1 class="h4 sibu-titulo mb-0">{{ receta.numero }}</h1>
     <small class="text-muted">
       {{ persona.nombre_completo }} · {{ persona.cedula }} ·
       <span class="badge bg-info text-dark">{{ receta.get_estado_display }}</span>
@@ -12,10 +12,6 @@
   </div>
   <a href="{% url 'farmacia:mostrador' %}" class="btn btn-sm btn-outline-secondary">Mostrador</a>
 </div>
-
-{% if messages %}{% for m in messages %}
-  <div class="alert alert-{{ m.tags }}">{{ m }}</div>
-{% endfor %}{% endif %}
 
 <div class="card mb-3">
   <div class="table-responsive">

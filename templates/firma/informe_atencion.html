@@ -1,36 +1,47 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <style>
-    @page { size: A4; margin: 2.5cm 2cm 3.5cm 2cm; }
-    body { font-family: sans-serif; font-size: 10pt; color: #222; }
-    h1 { font-size: 14pt; margin: 0 0 2pt; }
-    .sub { color: #666; font-size: 9pt; margin-bottom: 14pt; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 12pt; }
-    th, td { text-align: left; padding: 4pt 6pt; border-bottom: .5pt solid #ddd; }
-    th { width: 30%; color: #555; font-weight: normal; }
-    .zona-firma { margin-top: 40pt; border-top: .5pt dashed #999; padding-top: 8pt;
-                  font-size: 8pt; color: #666; }
-  </style>
-</head>
-<body>
-  <h1>Universidad Nacional de Loja — Bienestar Universitario</h1>
-  <div class="sub">{{ atencion.servicio.nombre }} · Informe de atención</div>
+{% extends "documentos/base_pdf.html" %}
 
-  <table>
-    <tr><th>Paciente</th><td>{{ persona.nombre_completo }}</td></tr>
-    <tr><th>Cédula</th><td>{{ persona.cedula }}</td></tr>
-    <tr><th>Expediente</th><td>{{ atencion.expediente.numero_expediente }}</td></tr>
-    <tr><th>Fecha de atención</th><td>{{ atencion.fecha_hora|date:"d/m/Y H:i" }}</td></tr>
-    <tr><th>Profesional</th><td>{{ atencion.profesional.usuario.get_full_name|default:"—" }}</td></tr>
-    <tr><th>Motivo</th><td>{{ atencion.motivo|default:"—" }}</td></tr>
-  </table>
+{% block titulo_doc %}Informe de atención{% endblock %}
+{% block titulo %}Informe de atención{% endblock %}
+{% block subtitulo %}{{ atencion.servicio.nombre }}{% endblock %}
 
-  <div class="zona-firma">
-    Documento generado por SIBU. La firma electrónica se aplica mediante FirmaEC
-    y su validez puede verificarse en https://www.firmadigital.gob.ec/
-    <br>Espacio reservado para el estampado de la firma.
+{% block contenido %}
+
+<h2>Datos del paciente</h2>
+<table class="ficha">
+  <tr><th>Paciente</th><td>{{ persona.nombre_completo }}</td></tr>
+  <tr><th>Cédula</th><td>{{ persona.cedula }}</td></tr>
+  <tr><th>Expediente</th><td>{{ atencion.expediente.numero_expediente }}</td></tr>
+</table>
+
+<h2>Atención</h2>
+<table class="ficha">
+  <tr><th>Servicio</th><td>{{ atencion.servicio.nombre }}</td></tr>
+  <tr><th>Fecha</th><td>{{ atencion.fecha_hora|date:"d/m/Y H:i" }}</td></tr>
+  <tr><th>Profesional</th><td>{{ atencion.profesional.usuario.get_full_name|default:"—" }}</td></tr>
+  <tr><th>Tipo</th><td>{{ atencion.get_tipo_display }}</td></tr>
+  <tr><th>Motivo</th><td>{{ atencion.motivo_consulta|default:"—" }}</td></tr>
+</table>
+
+<h2>Firma de responsabilidad</h2>
+<p>
+  El profesional que suscribe certifica que la información consignada en este
+  documento corresponde a la atención prestada.
+</p>
+
+{% comment %}
+Espacio en blanco deliberado: aquí estampa su firma el profesional cuando el
+documento se firma fuera de SIBU, que es el flujo vigente.
+{% endcomment %}
+<div style="margin-top:46pt;border-top:.5pt solid #211915;width:58%">
+  <div style="font-size:8pt;padding-top:3pt">
+    {{ atencion.profesional.usuario.get_full_name|default:"" }}<br>
+    <span style="color:#6b6560">{{ atencion.servicio.nombre }} · {{ unidad }}</span>
   </div>
-</body>
-</html>
+</div>
+
+{% endblock %}
+
+{% block pie_extra %}
+  La firma electrónica, cuando se aplica, se realiza en el computador del
+  profesional; SIBU no interviene en el proceso criptográfico.
+{% endblock %}

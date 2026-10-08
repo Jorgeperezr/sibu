@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Becas — SIBU{% endblock %}
 {% block content %}
-<h2>Becas y ayudas económicas</h2>
+<div class="sibu-cabecera"><h1 class="h4 sibu-titulo mb-0">Becas y ayudas económicas</h1>
+  {% include "_exportar_servicio.html" with codigo="becas-y-ayudas-economicas" %}
+</div>
 {% if periodo %}
 <p class="text-muted">Periodo vigente: {{ periodo.codigo }} — {{ periodo.nombre }}</p>
 

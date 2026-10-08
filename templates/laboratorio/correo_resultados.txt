@@ -12,7 +12,7 @@ Fecha de validación: {{ orden.validado_en|date:"d/m/Y H:i"|default:"—" }}
 RESULTADOS
 ------------------------------------------------------------------
 {% for r in resultados %}{{ r.orden_examen.examen.nombre }} · {{ r.parametro.nombre }}
-  Valor: {{ r.valor }} {{ r.unidad }}{% if r.ref_min or r.ref_max %} (referencia: {{ r.ref_min }} - {{ r.ref_max }}){% endif %}
+  Valor: {{ r.valor }} {{ r.unidad }}{% if r.ref_min != "" or r.ref_max != "" %} (referencia: {{ r.ref_min }} - {{ r.ref_max }}){% endif %}
   Estado: {{ r.get_marcador_display }}{% if r.observacion %}
   Observación: {{ r.observacion }}{% endif %}
 {% empty %}Sin resultados registrados.

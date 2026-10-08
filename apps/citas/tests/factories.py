@@ -12,7 +12,7 @@ def escenario_basico():
     """Estructura + profesional de medicina + expediente + agenda de lunes."""
     est = crear_estructura()
     _, medico = crear_profesional("medico", est["medicina"], est["salud"])
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     lunes_proximo = _proximo_lunes()
     agenda = Agenda.objects.create(
         profesional=medico,

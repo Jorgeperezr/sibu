@@ -15,7 +15,7 @@ from rest_framework.response import Response
 
 from apps.expediente.models import Atencion, Expediente
 from apps.usuarios import rbac
-from apps.usuarios.permissions import PuedeVerAtencion
+from apps.usuarios.permissions import EsPersonalDeLaUnidad, PuedeVerAtencion
 
 from . import services
 from .models import FichaPsicopedagogica
@@ -32,7 +32,7 @@ class FichaPsicopedagogicaViewSet(viewsets.ModelViewSet):
         "atencion__expediente__persona"
     ).order_by("-atencion__fecha_hora")
     serializer_class = FichaPsicopedagogicaSerializer
-    permission_classes = [IsAuthenticated, PuedeVerAtencion]
+    permission_classes = [IsAuthenticated, PuedeVerAtencion, EsPersonalDeLaUnidad]
 
     def get_queryset(self):
         visibles = rbac.atenciones_visibles(self.request.user, Atencion.objects.all())

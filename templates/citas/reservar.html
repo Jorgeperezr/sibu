@@ -1,11 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Reservar cita · SIBU{% endblock %}
 {% block content %}
-<h1 class="h4 mb-3">Reservar cita</h1>
-{% if messages %}{% for m in messages %}
-  <div class="alert alert-{{ m.tags }}">{{ m }}</div>
-{% endfor %}{% endif %}
-
+<h1 class="h4 sibu-titulo mb-3">Reservar cita</h1>
 <form method="post" class="row g-3">
   {% csrf_token %}
 
@@ -99,10 +95,12 @@ async function cargarTurnos() {
     sel.innerHTML = '<option value="">Sin turnos disponibles</option>';
     return;
   }
+  // La hora la dice el servidor. `toLocaleString` la sacaba de la zona horaria
+  // DEL EQUIPO: en uno mal configurado el desplegable ofrecía «02:00 p. m.»
+  // para el turno de las 09:00 y el aviso de guardado confirmaba «09:00».
   sel.innerHTML = '<option value="">— Seleccione turno —</option>' +
-    data.turnos.map(t => {
-      const d = new Date(t);
-      const label = d.toLocaleString('es-EC', {hour: '2-digit', minute: '2-digit'});
+    data.turnos.map((t, i) => {
+      const label = (data.etiquetas && data.etiquetas[i]) || t;
       return `<option value="${t}">${label}</option>`;
     }).join('');
 }

@@ -22,6 +22,23 @@ def signos_del_dia(expediente: Expediente, fecha: date | None = None):
     )
 
 
+def triajes_del_dia(fecha: date | None = None):
+    """
+    Todos los signos vitales tomados hoy (o en la fecha dada), de cualquier
+    expediente: la cola de trabajo del servicio.
+
+    `timezone.localdate()` y no `date.today()`: en America/Guayaquil (UTC-5) la
+    fecha UTC va adelantada cinco horas y los triajes de la tarde caerían en el
+    día siguiente.
+    """
+    fecha = fecha or timezone.localdate()
+    return (
+        SignosVitales.objects.filter(fecha_hora__date=fecha)
+        .select_related("expediente__persona", "responsable__usuario")
+        .order_by("-fecha_hora")
+    )
+
+
 def ultimo_triaje(expediente: Expediente, horas_maximo: int = 12):
     """
     Último registro de signos vitales del expediente en las últimas N horas

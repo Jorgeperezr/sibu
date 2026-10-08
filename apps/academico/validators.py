@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
+
+from apps.core import numeros
 
 
 def validar_cedula_ecuatoriana(cedula: str) -> bool:
@@ -60,13 +62,21 @@ def validar_correo_institucional(correo: str, dominio: str) -> bool:
 
 
 def a_decimal(valor) -> Decimal:
-    """Convierte un valor de ingreso/gasto a Decimal; devuelve 0 si no es numérico."""
-    if valor in (None, ""):
-        return Decimal("0")
-    try:
-        return Decimal(str(valor).replace(",", "").replace("$", "").strip())
-    except (InvalidOperation, ValueError):
-        return Decimal("0")
+    """
+    Un monto de la ficha, o 0 si la celda trae texto descriptivo.
+
+    Borraba la coma antes de leer —`.replace(",", "")`—, tratándola como
+    separador de miles. Aquí la coma es el separador DECIMAL, así que
+    «450,50» entraba como 45050: cien veces el ingreso declarado, en silencio,
+    alimentando el puntaje que orienta una beca. La lectura vive ahora en
+    `core.numeros`, una sola para todo el sistema.
+
+    Se conserva el 0 por defecto —y no `None`— porque estas celdas se suman y
+    porque una fila no puede abortar la carga entera por traer «no aplica» en
+    una columna de monto. Lo que sí cambia es que el motor de carga ANOTA lo
+    que no pudo leer y lo que admite dos lecturas, en vez de tragárselo.
+    """
+    return numeros.a_decimal_o(valor, Decimal("0"))
 
 
 def a_fecha(valor):

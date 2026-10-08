@@ -34,7 +34,7 @@ def escenario(db):
     _, psicologo = crear_profesional("psicologo", psico, psico.seccion)
     _, medico = crear_profesional("medico_otro", est["medicina"], est["salud"])
 
-    exp = crear_expediente(cedula="1104567890")
+    exp = crear_expediente(cedula="1104567894")
     atencion_psico = crear_atencion(exp, psico, psicologo)
     atencion_med = crear_atencion(exp, est["medicina"], medico)
 

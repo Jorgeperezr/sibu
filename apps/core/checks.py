@@ -43,7 +43,9 @@ def comprobar_secretos(app_configs, **kwargs):
                 id="sibu.E001",
             )
         )
-    if clave.startswith(("django-insecure", "v", "cambiar", "changeme")):
+    # "dev-insecure-change-me" es el valor por omisión de base.py: se nombra
+    # aquí para que el mensaje diga qué pasó y no solo que la clave es corta.
+    if clave.startswith(("django-insecure", "dev-insecure", "v", "cambiar", "changeme")):
         problemas.append(
             Error(
                 "SECRET_KEY parece un valor de desarrollo.",
@@ -114,14 +116,68 @@ def comprobar_proxy_y_csrf(app_configs, **kwargs):
     if not _es_produccion():
         return problemas
 
-    if getattr(settings, "SECURE_SSL_REDIRECT", False) and not getattr(
-        settings, "CSRF_TRUSTED_ORIGINS", []
-    ):
+    origenes = list(getattr(settings, "CSRF_TRUSTED_ORIGINS", []))
+    if getattr(settings, "SECURE_SSL_REDIRECT", False) and not origenes:
         problemas.append(
             Error(
                 "Falta CSRF_TRUSTED_ORIGINS y el sitio fuerza HTTPS.",
                 hint="Defina CSRF_TRUSTED_ORIGINS=https://sibu.unl.edu.ec o los POST fallarán.",
                 id="sibu.E020",
+            )
+        )
+        return problemas
+
+    # Un origen sin esquema Django lo rechaza al arrancar en versiones nuevas y,
+    # peor, se escribe así por costumbre: «sibu.unl.edu.ec» en vez de
+    # «https://sibu.unl.edu.ec».
+    sin_esquema = [o for o in origenes if "://" not in o]
+    if sin_esquema:
+        problemas.append(
+            Error(
+                f"CSRF_TRUSTED_ORIGINS sin esquema: {', '.join(sin_esquema)}.",
+                hint="Debe llevar https://, no solo el dominio.",
+                id="sibu.E021",
+            )
+        )
+
+    # El fallo que de verdad muerde el día del despliegue: los orígenes no
+    # cubren a los hosts. El sitio arranca, TODAS las páginas responden 200 y
+    # nadie puede iniciar sesión, porque el 403 solo aparece al enviar el primer
+    # formulario. Comprobado montando el despliegue completo: con
+    # CSRF_TRUSTED_ORIGINS mal puesto, el login devuelve «Forbidden (Referer
+    # checking failed)» y el resto del sistema parece sano.
+    #
+    # Se compara el host con su puerto, porque Django también lo compara: un
+    # origen sin el puerto no vale para un sitio servido en un puerto no
+    # estándar.
+    hosts_cubiertos = set()
+    for origen in origenes:
+        autoridad = origen.split("://", 1)[-1].rstrip("/")
+        hosts_cubiertos.add(autoridad)
+        hosts_cubiertos.add(autoridad.split(":", 1)[0])
+
+    def _cubierto(host: str) -> bool:
+        if host in hosts_cubiertos:
+            return True
+        # `.dominio.ec` en ALLOWED_HOSTS es un comodín de subdominios; en los
+        # orígenes se escribe `https://*.dominio.ec`.
+        return any(
+            host.lstrip(".") == cubierto.lstrip("*.").lstrip(".") for cubierto in hosts_cubiertos
+        )
+
+    huerfanos = [
+        h
+        for h in getattr(settings, "ALLOWED_HOSTS", [])
+        if h not in ("*",) and h not in HOSTS_DE_DESARROLLO and not _cubierto(h)
+    ]
+    if huerfanos:
+        problemas.append(
+            Error(
+                f"Estos hosts no tienen su origen en CSRF_TRUSTED_ORIGINS: "
+                f"{', '.join(huerfanos)}. Las páginas se abrirán y NADIE podrá "
+                "iniciar sesión: el 403 solo aparece al enviar un formulario.",
+                hint="Añada https://<host> por cada uno, con el puerto si no es el 443.",
+                id="sibu.E022",
             )
         )
     return problemas

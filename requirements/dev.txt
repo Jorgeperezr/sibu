@@ -11,3 +11,6 @@ pip-audit==2.7.3
 django-debug-toolbar==4.4.6
 django-extensions==3.2.3
 freezegun==1.5.1
+# Extrae el texto de un PDF: la prueba de que el reporte no filtra identidades
+# tiene que leer el documento, no el HTML del que salió.
+pdfminer.six==20240706
