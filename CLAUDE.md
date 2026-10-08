@@ -215,6 +215,6 @@ Despliegue (Oracle Cloud, capa gratuita) en `docs/ORACLE_CLOUD.md`. El
 
     ruff check .
     ruff format --check .
-    pytest apps -q          # deben pasar TODAS (1236 al día de hoy)
+    pytest apps -q          # deben pasar TODAS (1239 al día de hoy)
     python manage.py check
     python manage.py makemigrations --check --dry-run

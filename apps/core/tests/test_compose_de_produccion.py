@@ -58,7 +58,13 @@ def test_toda_orden_documentada_pasa_el_env_file():
     Sin `--env-file .env.prod` el compose no ve las variables aunque estén
     escritas. Es el fallo que hace perder la tarde con la contraseña delante.
     """
-    fuentes = [COMPOSE, RAIZ / "docs" / "ORACLE_CLOUD.md", PLANTILLA, RAIZ / "CLAUDE.md"]
+    fuentes = [
+        COMPOSE,
+        RAIZ / "docs" / "ORACLE_CLOUD.md",
+        RAIZ / "docs" / "ESTADO_DEL_PROYECTO.md",
+        PLANTILLA,
+        RAIZ / "CLAUDE.md",
+    ]
     sin_env_file = [
         (fuente.name, orden.strip())
         for fuente in fuentes
